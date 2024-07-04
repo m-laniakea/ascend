@@ -61,6 +61,10 @@ let matrixSet v pos m =
     }
 
 let matrixGet m pos =
+    let r = List.nth m.m pos.row in
+    List.nth r pos.col
+
+let matrixGetOpt m pos =
     if pos.row < 0 || pos.col < 0 then None else
         match List.nth_opt m.m pos.row with
         | None -> None
@@ -91,12 +95,9 @@ let matrixFold f acc m =
     |> List.fold_left f acc
 
 let matrixGetPos m v =
-    matrixIMap (fun m p v' -> if v = v' then Some p else None) m
+    matrixIMap (fun _ p v' -> if v = v' then Some p else None) m
     |> matrixFlatten
     |> List.find_map (fun v -> v)
-    (* TODO delete?
-    |> List.fold_left (fun po v -> if Option.is_some po then po else v) None
-    *)
     |> Option.get
 
 type room =
@@ -147,14 +148,14 @@ let northWest pos = {row = pos.row - 1; col = pos.col - 1}
 let southEast pos = {row = pos.row + 1; col = pos.col + 1}
 let southWest pos = {row = pos.row + 1; col = pos.col - 1}
 
-let atNorth m pos = north pos |> matrixGet m
-let atSouth m pos = south pos |> matrixGet m
-let atEast m pos = east pos |> matrixGet m
-let atWest m pos = west pos |> matrixGet m
-let atNorthEast m pos = northEast pos |> matrixGet m
-let atNorthWest m pos = northWest pos |> matrixGet m
-let atSouthEast m pos = southEast pos |> matrixGet m
-let atSouthWest m pos = southWest pos |> matrixGet m
+let atNorth m pos = north pos |> matrixGetOpt m
+let atSouth m pos = south pos |> matrixGetOpt m
+let atEast m pos = east pos |> matrixGetOpt m
+let atWest m pos = west pos |> matrixGetOpt m
+let atNorthEast m pos = northEast pos |> matrixGetOpt m
+let atNorthWest m pos = northWest pos |> matrixGetOpt m
+let atSouthEast m pos = southEast pos |> matrixGetOpt m
+let atSouthWest m pos = southWest pos |> matrixGetOpt m
 
 
 let getOutline room =
@@ -189,7 +190,7 @@ let getSurrounding m p =
 
 let hasAround m p v =
     getSurrounding m p
-    |> List.exists (fun t -> t = Some v)
+    |> List.exists (fun t -> t = v)
 
 let getCurrentLevel state =
     let sl = state.stateLevels in
@@ -269,13 +270,11 @@ let playerCanSee state p =
     let rec aux = function
         | [] -> true
         | h :: [] -> true
-        | h::t -> match matrixGet m h with
-            | None -> false
-            | Some tile -> match tile.t with
-                | Floor | Hallway
-                | StairsDown | StairsUp
-                | Door Open -> aux t
-                | _ -> false
+        | h::t -> match (matrixGet m h).t with
+            | Floor | Hallway
+            | StairsDown | StairsUp
+            | Door Open -> aux t
+            | _ -> false
     in
     aux pathTo
 
@@ -291,7 +290,7 @@ let playerUpdateMapKnowledge state =
     let pk = getCurrentLevelKnowledge state in
     let newVisible = matrixIMap
         ( fun _ p v ->
-            if matrixGet m p <> Some v then
+            if matrixGet m p <> v then
                 if playerCanSee state p then
                     Some p
                 else
@@ -304,7 +303,7 @@ let playerUpdateMapKnowledge state =
         ( fun m' p -> match p with
             | None -> m'
             | Some p ->
-                let newTile = matrixGet m p |> Option.get in
+                let newTile = matrixGet m p in
                 matrixSet newTile p m'
         ) pk newVisible
     in
@@ -452,24 +451,26 @@ let roomsGen () =
 
 
 let get_next_states ~allowHallway field p =
-  [ north p; south p; east p; west p]
+  nextManhattan p
   |> List.filter
         ( fun p -> match matrixGet field p with
-            | Some { t = Hallway } -> allowHallway
-            | Some { t = Stone } when hasAround field p {t = Floor} -> false
-            | Some { t = Stone } when hasAround field p {t = StairsUp } -> false
-            | Some { t = Stone } when hasAround field p {t = StairsDown } -> false
-            | Some { t = Stone } -> true
-            | Some { t = Door _ } -> true
-            | Some { t = Floor } -> false
-            | _ -> false
+            | { t = Hallway } -> allowHallway
+            | { t = Stone } when hasAround field p {t = Floor} -> false
+            | { t = Stone } when hasAround field p {t = StairsUp } -> false
+            | { t = Stone } when hasAround field p {t = StairsDown } -> false
+            | { t = Stone } -> true
+            | { t = Door _ } -> true
+            | { t = Floor } -> false
+            | { t = StairsUp } -> false
+            | { t = StairsDown } -> false
+            | { t = Unseen } -> false
         )
 
 let pToString p = "(" ^ (Int.to_string p.row) ^ ", " ^ (Int.to_string p.col) ^ ")"
 
+(*
 let bfs map start goal =
     let unVisited = matrixMap (fun _ -> true) map in
-    Format.printf "from: %s to %s\n" (pToString start) (pToString goal);
 
     let rec aux uv = function
         | [] -> []
@@ -489,10 +490,10 @@ let bfs map start goal =
                     |> List.map (fun n -> n::path)
             in
             let uvn = List.fold_right (fun (h::t) uv -> matrixSet false h uv) pathsN uv in
-                Format.printf "paths: %s\n" ( (List.map (fun (h::t) -> pToString h) pathsN) |> String.concat "");
             aux uvn (otherPaths @ pathsN)
     in
     aux unVisited [[start]]
+*)
 
 (** Solve a given maze. *)
 let solve field start goal =
@@ -504,44 +505,44 @@ let solve field start goal =
     | None -> search problem start |> Option.get
     | Some p -> p
 
-let isStairs = function
-    | None -> false
-    | Some t -> t.t = StairsUp || t.t = StairsDown
+let isStairs t = 
+    t.t = StairsUp || t.t = StairsDown
 
-let isFloorOrStairs = function
+let isFloorOrStairs t = 
+    t.t = Floor || isStairs t 
+
+let isFloorOrStairsOpt = function
     | None -> false
-    | Some t -> t.t = Floor || isStairs (Some t)
+    | Some t -> isFloorOrStairs t
 
 let rec charOfTerrain m pos t = match t.t with
-    | Stone when atNorth m pos |> isFloorOrStairs -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairs -> "-"
-    | Stone when atEast m pos |> isFloorOrStairs -> "|"
-    | Stone when atWest m pos |> isFloorOrStairs -> "|"
-    | Stone when atSouthEast m pos |> isFloorOrStairs -> "-"
-    | Stone when atSouthWest m pos |> isFloorOrStairs -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairs -> "-"
-    | Stone when atNorthEast m pos |> isFloorOrStairs -> "-"
-    | Stone when atNorthWest m pos |> isFloorOrStairs -> "-"
+    | Stone when atNorth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atEast m pos |> isFloorOrStairsOpt -> "|"
+    | Stone when atWest m pos |> isFloorOrStairsOpt -> "|"
+    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> "-"
     | Stone -> " "
     | Unseen -> " "
     | Hallway -> "#"
     | Floor -> "."
     | Door Closed -> "+"
-    | Door Open when atNorth m pos |> isFloorOrStairs -> "|"
-    | Door Open when atSouth m pos |> isFloorOrStairs -> "|"
+    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
+    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
     | Door Open -> "-"
     | Door Hidden -> "*" (* TODO charOfTerrain m pos { t = Stone } *)
     | StairsUp -> "<"
     | StairsDown -> ">"
 
-let canMoveTo t = match t with
-    | None -> false
-    | Some t -> match t.t with
-        | Stone -> false
-        | Floor | StairsUp | StairsDown | Hallway -> true
-        | Door Open -> true
-        | Unseen -> false
-        | Door _ -> false
+let canMoveTo t = match t.t with
+    | Floor | StairsUp | StairsDown | Hallway -> true
+    | Door Open -> true
+    | Door _ -> false
+    | Stone -> false
+    | Unseen -> false
 
 
 let playerMove (r, c) s =
@@ -550,7 +551,7 @@ let playerMove (r, c) s =
     let pn = { row = p.row + r; col = p.col + c } in
 
     match matrixGet t pn with
-    | Some { t = Door Closed } ->
+    | { t = Door Closed } ->
         (* TODO make chance based on stats *)
         if rn 0 2 = 0 then
             (s |> playerUpdateMapKnowledge, Command.Noop)
@@ -567,7 +568,7 @@ let playerSearch model =
     let currentLevel = getCurrentLevel model in
     let hiddenDoorsAround =
         posAround model.statePlayer.pos
-        |> List.filter (fun pa -> matrixGet currentLevel pa = Some { t = Door Hidden } )
+        |> List.filter (fun pa -> matrixGet currentLevel pa = { t = Door Hidden } )
     in
     let terrain' = List.fold_right
         ( fun d m ->
@@ -593,7 +594,6 @@ let terrainAddRooms rooms t =
     List.fold_right (fun r m -> terrainAddRoom m r) rooms t
 
 let terrainAddHallways rooms m =
-    (* TODO *)
     let allDoors = List.map (fun r -> r.doors) rooms |> List.concat in
 
     let rec aux m = function
@@ -653,7 +653,7 @@ let playerMoveToStairs ~dir model =
 
 let playerGoUp model =
     let p = model.statePlayer.pos in
-    if matrixGet (getCurrentLevel model) p <> Some { t = StairsUp } then
+    if matrixGet (getCurrentLevel model) p <> { t = StairsUp } then
         (model, Command.Noop)
     else
         let sl = model.stateLevels in
@@ -667,7 +667,7 @@ let playerGoUp model =
 
 let playerGoDown model =
     let p = model.statePlayer.pos in
-    if matrixGet (getCurrentLevel model) p <> Some { t = StairsDown } then
+    if matrixGet (getCurrentLevel model) p <> { t = StairsDown } then
         (model, Command.Noop)
     else
         let sl = model.stateLevels in
