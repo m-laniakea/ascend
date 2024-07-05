@@ -1,4 +1,3 @@
-open Lwt
 open Minttea
 
 open Common
@@ -26,12 +25,6 @@ type wh =
     { w : int
     ; h : int
     }
-
-let getPos m v =
-    Matrix.iMap (fun _ p v' -> if v = v' then Some p else None) m
-    |> Matrix.flatten
-    |> List.find_map id
-    |> Option.get
 
 type room =
     { posNW : pos
@@ -77,8 +70,8 @@ type statePlayer =
 type state =
     { stateLevels : stateLevels
     ; statePlayer : statePlayer
-    ; text : string
-        (* objects : list Object *)
+    (* TODO messages *)
+    (* objects : list Object *)
     }
 
 let unseenEmpty = { t = Unseen; occupant = None }
@@ -133,10 +126,6 @@ let getSurrounding m p =
 
 let isTerrainOf t this =
     this.t = t
-
-let hasAround m p v =
-    getSurrounding m p
-    |> List.exists ((=) v)
 
 let hasAroundTerrain m p t =
     getSurrounding m p
@@ -222,7 +211,7 @@ let playerCanSee state p =
     let m = getCurrentLevel state in
     let rec aux = function
         | [] -> true
-        | h :: [] -> true
+        | _::[] -> true (* TODO blindness *)
         | h::t -> match (Matrix.get m h).t with
             | Floor | Hallway
             | StairsDown | StairsUp
@@ -270,8 +259,8 @@ let playerUpdateMapKnowledge state =
 
 let playerKnowledgeDeleteCreatures state =
     let pk = getCurrentLevelKnowledge state in
-    let pk' = Matrix.iMap
-        ( fun _ p v -> match v with
+    let pk' = Matrix.map
+        ( fun v -> match v with
             | { occupant = Some (Creature _); _ } ->
                 { v with occupant = None }
             | _ -> v
@@ -374,13 +363,13 @@ let placeCreature ~room state =
             let rpOutOfView = positionsOutOfView |> List.filter (contains rp) in
             ( match (rpOk, rpOutOfView) with
                 | ([], []) -> None
-                | (_, (h::_ as oov)) -> Some (rnItem oov)
+                | (_, (_::_ as oov)) -> Some (rnItem oov)
                 | (rpOk, _) -> Some (rnItem rpOk)
             )
 
         | None -> match (positionsOk, positionsOutOfView) with
             | ([], []) -> None
-            | (_, (h::_ as oov)) -> Some (rnItem oov)
+            | (_, (_::_ as oov)) -> Some (rnItem oov)
             | (rpOk, _) -> Some (rnItem rpOk)
     in
     match creaturePos with
@@ -481,7 +470,7 @@ let roomsGen () =
 
 
 
-let get_next_states pStart pGoal ?(manhattan=true) ~allowHallway ~ignoreOccupants field p =
+let get_next_states pStart ?(manhattan=true) ~allowHallway ~ignoreOccupants field p =
     (
     if manhattan then
       nextManhattan p
@@ -505,8 +494,6 @@ let get_next_states pStart pGoal ?(manhattan=true) ~allowHallway ~ignoreOccupant
             | StairsDown -> not ignoreOccupants
             | Unseen -> false
         )
-
-let pToString p = "(" ^ (Int.to_string p.row) ^ ", " ^ (Int.to_string p.col) ^ ")"
 
 (*
 let bfs map start goal =
@@ -540,8 +527,8 @@ let solve field start goal =
   let open AStar in
   let open AStar in
     let cost = distanceManhattan in
-    let problemWithoutHallways = { cost; goal; get_next_states = get_next_states start goal ~allowHallway:false ~ignoreOccupants:true field; } in
-    let problem = { cost; goal; get_next_states = get_next_states start goal ~allowHallway:true ~ignoreOccupants:true field; } in
+    let problemWithoutHallways = { cost; goal; get_next_states = get_next_states start ~allowHallway:false ~ignoreOccupants:true field; } in
+    let problem = { cost; goal; get_next_states = get_next_states start ~allowHallway:true ~ignoreOccupants:true field; } in
     match search problemWithoutHallways start with
     | None -> search problem start |> Option.get
     | Some p -> p
@@ -618,7 +605,7 @@ let playerMove (r, c) s =
     let pn = { row = p.row + r; col = p.col + c } in
 
     match Matrix.get t pn with
-    | { t = Door Closed } ->
+    | { t = Door Closed; _ } ->
         (* TODO make chance based on stats *)
         if rn 0 2 = 0 then
             s
@@ -677,7 +664,7 @@ let getCreaturePath m start goal =
     let problem =
         { cost = distanceManhattan
         ; goal
-        ; get_next_states = get_next_states start goal ~manhattan:false ~allowHallway:true ~ignoreOccupants:false m
+        ; get_next_states = get_next_states start ~manhattan:false ~allowHallway:true ~ignoreOccupants:false m
         }
     in
     search problem start
@@ -783,7 +770,7 @@ let terrainAddHallways rooms m =
 
     let rec aux m = function
         | [] -> m
-        | d::[] -> m
+        | _::[] -> m
         | d1::d2::t ->
             let path = solve m d1 d2
                 (* remove door positions *)
@@ -942,7 +929,6 @@ let initial_model =
     let stateI =
         { stateLevels
         ; statePlayer
-        ; text = ""
         }
     in
     mapGen stateI
