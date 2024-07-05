@@ -1,7 +1,7 @@
 type pos
 type 'a matrix
-type tileTerrain
-type typeTerrain
+type tile
+type terrain
 type state
 
 type room
@@ -16,15 +16,15 @@ val matrixGet : 'a matrix -> pos -> 'a
 val matrixGetOpt : 'a matrix -> pos -> 'a option
 val matrixFlatten : 'a matrix -> 'a list
 
-val charOfTerrain : tileTerrain matrix -> pos -> tileTerrain -> string
+val charOfTerrain : tile matrix -> pos -> tile -> string
 
 val roomsGen : unit -> room list
-val terrainAddHallways : room list -> tileTerrain matrix -> tileTerrain matrix
-val terrainAddRoom : tileTerrain matrix -> room -> tileTerrain matrix
-val terrainAddRooms : room list -> tileTerrain matrix -> tileTerrain matrix
+val terrainAddHallways : room list -> tile matrix -> tile matrix
+val terrainAddRoom : tile matrix -> room -> tile matrix
+val terrainAddRooms : room list -> tile matrix -> tile matrix
 
-val terrainAddHallways : room list -> tileTerrain matrix -> tileTerrain matrix
+val terrainAddHallways : room list -> tile matrix -> tile matrix
 
-val getCurrentLevel : state -> tileTerrain matrix
-val setCurrentLevel : tileTerrain matrix -> state -> state
+val getCurrentLevel : state -> tile matrix
+val setCurrentLevel : tile matrix -> state -> state
 
