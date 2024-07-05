@@ -120,6 +120,7 @@ type terrain =
 
 type creature =
     { symbol : string (* TODO actual char *)
+    ; cHp : int
     }
 
 type occupant = Creature of creature | Boulder
@@ -137,6 +138,8 @@ type stateLevels =
 
 type statePlayer =
     { pos : pos
+    ; hp : int
+    ; hpMax : int
     ; knowledgeLevels : levels
     }
 
@@ -305,6 +308,17 @@ let playerCanSee state p =
     aux pathTo
 
 
+let playerAddHp n state =
+    let sp = state.statePlayer in
+    let hp = sp.hp in
+    if n + sp.hp < 0 then
+        (* TODO actually die *)
+        state
+    else
+        let hp' = min (hp + n) sp.hpMax in
+        let statePlayer = { sp with hp = hp' } in
+        { state with statePlayer }
+
 let playerAddMapKnowledgeEmpty state =
     let knowledgeEmpty = matrixFill rows cols unseenEmpty in
     let knowledgeLevels = state.statePlayer.knowledgeLevels @ [knowledgeEmpty] in
@@ -453,6 +467,7 @@ let placeCreature ~room state =
         | Some p ->
             let creature =
                 { symbol = "D" (* TODO pick creatures *)
+                ; cHp = 7
                 }
             in
             let map = getCurrentLevel state in
@@ -656,6 +671,24 @@ let canMoveTo t = match t.t with
 
 type playerActions = MoveDelta of (int * int) | Search
 
+let creatureAddHp n t p c state =
+    let cl = getCurrentLevel state in
+    let t' =
+        if c.cHp + n < 0 then
+            (* TODO drops *)
+            { t with occupant = None }
+        else
+            let c' = Creature { c with cHp = c.cHp + n } in
+            { t with occupant = Some c' }
+    in
+    let cl' = matrixSet t' p cl in
+    setCurrentLevel cl' state
+
+
+let playerAttackMelee t p c state =
+    (* TODO base on stats *)
+    creatureAddHp (-5) t p c state
+
 let playerMove (r, c) s =
     let p = s.statePlayer.pos in
     let t = getCurrentLevel s in
@@ -675,6 +708,9 @@ let playerMove (r, c) s =
             in
 
             setCurrentLevel tn s
+    | { occupant = Some (Creature c); _ } as t ->
+        playerAttackMelee t pn c s
+
     | t_at ->
         let pn = { s.statePlayer with pos = if canMoveTo t_at then pn else p } in
         { s with statePlayer = pn }
@@ -714,7 +750,6 @@ let moveCreature a b state =
 
 let getCreaturePath m start goal =
   let open Astar in
-    let c2 p1 p2 = distance p1 p2 |> Float.to_int in
     let problem =
         { cost = distanceManhattan
         ; goal
@@ -723,11 +758,20 @@ let getCreaturePath m start goal =
     in
     search problem start
 
+let creatureAttackMelee p state =
+    if p = state.statePlayer.pos then
+        (* TODO base damage on creature/stats *)
+        playerAddHp (-5) state
+
+    else
+        (* TODO allow attacking other creatures *)
+        state
+
 let animateCreature p state =
     let pp = state.statePlayer.pos in
     let cl = getCurrentLevel state in
-    if distanceManhattan p pp <= 1 then
-        state (* TODO attack; actually hasAround player *)
+    if distance p pp <= 1.5 then
+        creatureAttackMelee pp state
     else
         match getCreaturePath cl p pp with
         | None -> state
@@ -760,7 +804,12 @@ let playerAction a state =
         | MoveDelta d -> playerMove d state
         | Search -> playerSearch state
     in
-    (animateCreatures s' |> playerKnowledgeDeleteCreatures |> playerUpdateMapKnowledge, Command.Noop)
+    ( animateCreatures s'
+        |> playerKnowledgeDeleteCreatures
+        |> playerUpdateMapKnowledge
+        |> playerAddHp 1
+    , Command.Noop
+    )
 
 let terrainAddRoom m room =
     let rp = getRoomPositions room in
@@ -928,9 +977,9 @@ let view model =
     let b = List.map (String.concat "") a2.m in
     let s = String.concat "\n" b in
     Format.sprintf
-{| Hello there! %s
+{| HP: %i
 
-%s|} model.text s
+%s|} model.statePlayer.hp s
 
 
 let initial_model =
@@ -944,6 +993,8 @@ let initial_model =
 
     let statePlayer =
         { pos = { row = 0; col = 0 }
+        ; hp = 613
+        ; hpMax = 613
         ; knowledgeLevels = []
         }
     in

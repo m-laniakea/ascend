@@ -6,7 +6,6 @@ type state
 
 type room
 
-
 val contains : 'a list -> 'a -> bool
 val matrixFill : int -> int -> 'a -> 'a matrix
 val matrixSet : 'a -> pos -> 'a matrix -> 'a matrix
