@@ -311,13 +311,9 @@ let playerCanSee state p =
 let playerAddHp n state =
     let sp = state.statePlayer in
     let hp = sp.hp in
-    if n + sp.hp < 0 then
-        (* TODO actually die *)
-        state
-    else
-        let hp' = min (hp + n) sp.hpMax in
-        let statePlayer = { sp with hp = hp' } in
-        { state with statePlayer }
+    let hp' = min (hp + n) sp.hpMax |> max 0 in
+    let statePlayer = { sp with hp = hp' } in
+    { state with statePlayer }
 
 let playerAddMapKnowledgeEmpty state =
     let knowledgeEmpty = matrixFill rows cols unseenEmpty in
@@ -798,6 +794,13 @@ let animateCreatures state =
     in
     List.fold_left (fun s p -> animateCreature p s) state creaturePositions
 
+let playerCheckHp (state, c) =
+    let sp = state.statePlayer in
+    if sp.hp <= 0 then
+        let _ = Format.printf "You died...\n" in
+        (state, Command.Quit)
+    else
+        state, c
 
 let playerAction a state =
     let s' = match a with
@@ -807,9 +810,10 @@ let playerAction a state =
     ( animateCreatures s'
         |> playerKnowledgeDeleteCreatures
         |> playerUpdateMapKnowledge
-        |> playerAddHp 1
+        |> playerAddHp (if rn 0 2 = 0 then 1 else 0)
     , Command.Noop
     )
+    |> playerCheckHp
 
 let terrainAddRoom m room =
     let rp = getRoomPositions room in
@@ -949,7 +953,7 @@ let playerGoDown model =
             (s', Command.Noop)
 
 
-let init _model = Command.Noop
+let init _model = Command.Hide_cursor
 
 let update event model = match event with
     | Event.KeyDown (Key "q" | Escape) -> (model, Command.Quit)
