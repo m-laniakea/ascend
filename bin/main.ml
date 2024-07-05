@@ -794,6 +794,10 @@ let animateCreatures state =
     in
     List.fold_left (fun s p -> animateCreature p s) state creaturePositions
 
+let maybeAddCreature state =
+    if rn 0 50 > 0 then state else
+    placeCreature ~room:None state
+
 let playerCheckHp (state, c) =
     let sp = state.statePlayer in
     if sp.hp <= 0 then
@@ -808,6 +812,7 @@ let playerAction a state =
         | Search -> playerSearch state
     in
     ( animateCreatures s'
+        |> maybeAddCreature
         |> playerKnowledgeDeleteCreatures
         |> playerUpdateMapKnowledge
         |> playerAddHp (if rn 0 2 = 0 then 1 else 0)
