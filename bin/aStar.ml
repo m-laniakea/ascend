@@ -1,4 +1,4 @@
-module Astar :
+module AStar :
 sig
   type 'a t =
     {

@@ -1,11 +1,13 @@
 open Lwt
 open Minttea
-open Zed_string
 
-open AStar
+open Common
+open Matrix
 
-let cols = 80
-let rows = 21
+let mapSize =
+    { row = 21
+    ; col = 80
+    }
 
 let distanceSight = 3.17
 
@@ -16,89 +18,18 @@ let repeat n v = List.init n v
 
 let contains l v = List.find_opt (fun vi -> vi = v) l |> Option.is_some
 
-let listMake n v = List.init n (fun _ -> v)
-
 let listMin l =
     let first = List.hd l in
     List.fold_left (fun minSofar v -> min minSofar v) first l
-
-let listSet i v =
-    List.mapi (fun ci ov -> if ci <> i then ov else v)
-
-
-type pos =
-    { row : int
-    ; col : int
-    }
 
 type wh =
     { w : int
     ; h : int
     }
 
-type 'a matrix =
-{
-    rows : int;
-    cols : int;
-
-    m : ('a list) list
-}
-
-let matrixFill rows cols v =
-    { rows = rows
-    ; cols = cols
-    ; m = listMake rows (listMake cols v)
-    }
-
-let matrixSet v pos m =
-
-    let mNew = List.mapi
-        (fun ri r -> if ri <> pos.row then r else
-            listSet pos.col v r)
-        m.m
-    in
-    { rows = m.rows
-    ; cols = m.cols
-    ; m = mNew
-    }
-
-let matrixGet m pos =
-    let r = List.nth m.m pos.row in
-    List.nth r pos.col
-
-let matrixGetOpt m pos =
-    if pos.row < 0 || pos.col < 0 then None else
-        match List.nth_opt m.m pos.row with
-        | None -> None
-        | Some r -> List.nth_opt r pos.col
-
-let matrixMap f m =
-    { rows = m.rows
-    ; cols = m.cols
-    ; m = List.map (List.map f) m.m
-    }
-
-let matrixIMap f m =
-    { rows = m.rows
-    ; cols = m.cols
-    ; m = List.mapi
-        (fun ri r ->
-            List.mapi
-                (fun ci c ->
-                    f m { row = ri; col = ci } c
-                ) r
-        ) m.m
-    }
-
-let matrixFlatten m = List.flatten m.m
-
-let matrixFold f acc m =
-    matrixFlatten m
-    |> List.fold_left f acc
-
 let getPos m v =
-    matrixIMap (fun _ p v' -> if v = v' then Some p else None) m
-    |> matrixFlatten
+    Matrix.iMap (fun _ p v' -> if v = v' then Some p else None) m
+    |> Matrix.flatten
     |> List.find_map id
     |> Option.get
 
@@ -130,7 +61,7 @@ type tile =
     ; occupant : occupant option
     }
 
-type levels = tile matrix list
+type levels = tile Matrix.t list
 type stateLevels =
     { indexLevel : int
     ; levels : levels
@@ -145,7 +76,7 @@ type statePlayer =
 
 type state =
     { stateLevels : stateLevels
-    ;statePlayer :statePlayer
+    ; statePlayer : statePlayer
     ; text : string
         (* objects : list Object *)
     }
@@ -153,8 +84,8 @@ type state =
 let unseenEmpty = { t = Unseen; occupant = None }
 
 let getPosTerrain m t =
-    matrixIMap (fun _ p t' -> if t'.t = t then Some p else None) m
-    |> matrixFlatten
+    Matrix.iMap (fun _ p t' -> if t'.t = t then Some p else None) m
+    |> Matrix.flatten
     |> List.find_map id
     |> Option.get
 
@@ -167,30 +98,23 @@ let northWest pos = {row = pos.row - 1; col = pos.col - 1}
 let southEast pos = {row = pos.row + 1; col = pos.col + 1}
 let southWest pos = {row = pos.row + 1; col = pos.col - 1}
 
-let atNorth m pos = north pos |> matrixGetOpt m
-let atSouth m pos = south pos |> matrixGetOpt m
-let atEast m pos = east pos |> matrixGetOpt m
-let atWest m pos = west pos |> matrixGetOpt m
-let atNorthEast m pos = northEast pos |> matrixGetOpt m
-let atNorthWest m pos = northWest pos |> matrixGetOpt m
-let atSouthEast m pos = southEast pos |> matrixGetOpt m
-let atSouthWest m pos = southWest pos |> matrixGetOpt m
-
+let atNorth m pos = north pos |> Matrix.getOpt m
+let atSouth m pos = south pos |> Matrix.getOpt m
+let atEast m pos = east pos |> Matrix.getOpt m
+let atWest m pos = west pos |> Matrix.getOpt m
+let atNorthEast m pos = northEast pos |> Matrix.getOpt m
+let atNorthWest m pos = northWest pos |> Matrix.getOpt m
+let atSouthEast m pos = southEast pos |> Matrix.getOpt m
+let atSouthWest m pos = southWest pos |> Matrix.getOpt m
 
 let getOutline room =
-    { room with posNW =
-        { row = room.posNW.row - 1
-        ; col = room.posNW.col - 1
-        }
-    ; posSE =
-        { row = room.posSE.row + 1
-        ; col = room.posSE.col + 1
-        }
+    { room with posNW = northWest room.posNW
+    ; posSE = southEast room.posSE
     }
 
 let isInMap p =
-    p.row >= 0 && p.row < rows
-    && p.col >= 0 && p.col < cols
+    p.row >= 0 && p.row < mapSize.row
+    && p.col >= 0 && p.col < mapSize.col
 
 let nextManhattan p =
     [north p; south p; east p; west p;]
@@ -205,14 +129,14 @@ let posAround p =
 
 let getSurrounding m p =
     posAround p
-    |> List.map (fun n -> matrixGet m n)
+    |> List.map (fun n -> Matrix.get m n)
 
 let isTerrainOf t this =
     this.t = t
 
 let hasAround m p v =
     getSurrounding m p
-    |> List.exists (fun t -> t = v)
+    |> List.exists ((=) v)
 
 let hasAroundTerrain m p t =
     getSurrounding m p
@@ -299,14 +223,13 @@ let playerCanSee state p =
     let rec aux = function
         | [] -> true
         | h :: [] -> true
-        | h::t -> match (matrixGet m h).t with
+        | h::t -> match (Matrix.get m h).t with
             | Floor | Hallway
             | StairsDown | StairsUp
             | Door Open -> aux t
             | _ -> false
     in
     aux pathTo
-
 
 let playerAddHp n state =
     let sp = state.statePlayer in
@@ -316,7 +239,7 @@ let playerAddHp n state =
     { state with statePlayer }
 
 let playerAddMapKnowledgeEmpty state =
-    let knowledgeEmpty = matrixFill rows cols unseenEmpty in
+    let knowledgeEmpty = Matrix.fill mapSize unseenEmpty in
     let knowledgeLevels = state.statePlayer.knowledgeLevels @ [knowledgeEmpty] in
     let statePlayer = { state.statePlayer with knowledgeLevels } in
     { state with statePlayer }
@@ -324,9 +247,9 @@ let playerAddMapKnowledgeEmpty state =
 let playerUpdateMapKnowledge state =
     let m  = getCurrentLevel state in
     let pk = getCurrentLevelKnowledge state in
-    let newVisible = matrixIMap
+    let newVisible = Matrix.iMap
         ( fun _ p v ->
-            if matrixGet m p <> v then
+            if Matrix.get m p <> v then
                 if playerCanSee state p then
                     Some p
                 else
@@ -335,19 +258,19 @@ let playerUpdateMapKnowledge state =
                 None
         ) pk
     in
-    let pk' = matrixFold
+    let pk' = Matrix.fold
         ( fun m' p -> match p with
             | None -> m'
             | Some p ->
-                let newTile = matrixGet m p in
-                matrixSet newTile p m'
+                let newTile = Matrix.get m p in
+                Matrix.set newTile p m'
         ) pk newVisible
     in
     setCurrentLevelKnowledge pk' state
 
 let playerKnowledgeDeleteCreatures state =
     let pk = getCurrentLevelKnowledge state in
-    let pk' = matrixIMap
+    let pk' = Matrix.iMap
         ( fun _ p v -> match v with
             | { occupant = Some (Creature _); _ } ->
                 { v with occupant = None }
@@ -407,7 +330,9 @@ let doRoomsOverlap r1 r2 =
 
 let roomCanPlace rooms room =
     (* leave some room from edge for hallways *)
-    if room.posNW.row <= 1 || room.posNW.col <= 1 || room.posSE.row >= rows - 2 || room.posSE.col >= cols - 2
+    if room.posNW.row <= 1 || room.posNW.col <= 1
+        || room.posSE.row >= mapSize.row - 2
+        || room.posSE.col >= mapSize.col - 2
     then
         false
     else
@@ -416,15 +341,15 @@ let roomCanPlace rooms room =
 
 let rec roomPlace rooms wh tries =
     if tries <= 0 then None else
-    let row = rn 0 (rows - 2) in
-    let col = rn 0 (cols - 2) in
+    let row = rn 0 (mapSize.row - 2) in
+    let col = rn 0 (mapSize.col - 2) in
     let room = roomMakeWh { row = row; col = col } wh in
     if roomCanPlace rooms room then Some room else
     roomPlace rooms wh (tries - 1)
 
 let placeCreature ~room state =
     let pp = state.statePlayer.pos in
-    let positionsOk = matrixIMap
+    let positionsOk = Matrix.iMap
         ( fun _ p t -> match t with
             | { occupant = None; _ } ->
                 ( match t.t with
@@ -435,7 +360,7 @@ let placeCreature ~room state =
                 )
             | _ -> None
         ) (getCurrentLevel state)
-        |> matrixFlatten
+        |> Matrix.flatten
         |> List.filter (fun v -> Option.is_some v && v <> Some pp)
         |> List.map Option.get
     in
@@ -467,9 +392,9 @@ let placeCreature ~room state =
                 }
             in
             let map = getCurrentLevel state in
-            let t = matrixGet map p in
+            let t = Matrix.get map p in
             let t' = { t with occupant = Some (Creature creature) } in
-            let map' = matrixSet t' p map in
+            let map' = Matrix.set t' p map in
             setCurrentLevel map' state
 
 
@@ -564,7 +489,7 @@ let get_next_states pStart pGoal ?(manhattan=true) ~allowHallway ~ignoreOccupant
         posAround p
     )
   |> List.filter
-        ( fun p -> let t =  (matrixGet field p) in
+        ( fun p -> let t =  (Matrix.get field p) in
             if not ignoreOccupants && pStart <> p && Option.is_some t.occupant then
                 false
             else match t.t with
@@ -585,7 +510,7 @@ let pToString p = "(" ^ (Int.to_string p.row) ^ ", " ^ (Int.to_string p.col) ^ "
 
 (*
 let bfs map start goal =
-    let unVisited = matrixMap (fun _ -> true) map in
+    let unVisited = Matrix.map (fun _ -> true) map in
 
     let rec aux uv = function
         | [] -> []
@@ -594,9 +519,9 @@ let bfs map start goal =
                 path
             else
             let pathsN = nextManhattan (List.hd path)
-                    |> List.filter (fun n -> matrixGet uv n = Some true)
+                    |> List.filter (fun n -> Matrix.get uv n = Some true)
                     |> List.filter
-                        (fun n -> if goal = n then true else match matrixGet map n with
+                        (fun n -> if goal = n then true else match Matrix.get map n with
                             | Some { t = Hallway }
                             | Some { t = Stone } when hasAround map n { t = Floor } -> false
                             | Some { t = Stone } -> true
@@ -604,14 +529,16 @@ let bfs map start goal =
                         )
                     |> List.map (fun n -> n::path)
             in
-            let uvn = List.fold_right (fun (h::t) uv -> matrixSet false h uv) pathsN uv in
+            let uvn = List.fold_right (fun (h::t) uv -> Matrix.set false h uv) pathsN uv in
             aux uvn (otherPaths @ pathsN)
     in
     aux unVisited [[start]]
 *)
 
+
 let solve field start goal =
-  let open Astar in
+  let open AStar in
+  let open AStar in
     let cost = distanceManhattan in
     let problemWithoutHallways = { cost; goal; get_next_states = get_next_states start goal ~allowHallway:false ~ignoreOccupants:true field; } in
     let problem = { cost; goal; get_next_states = get_next_states start goal ~allowHallway:true ~ignoreOccupants:true field; } in
@@ -677,7 +604,7 @@ let creatureAddHp n t p c state =
             let c' = Creature { c with cHp = c.cHp + n } in
             { t with occupant = Some c' }
     in
-    let cl' = matrixSet t' p cl in
+    let cl' = Matrix.set t' p cl in
     setCurrentLevel cl' state
 
 
@@ -690,13 +617,13 @@ let playerMove (r, c) s =
     let t = getCurrentLevel s in
     let pn = { row = p.row + r; col = p.col + c } in
 
-    match matrixGet t pn with
+    match Matrix.get t pn with
     | { t = Door Closed } ->
         (* TODO make chance based on stats *)
         if rn 0 2 = 0 then
             s
         else
-            let tn = matrixSet
+            let tn = Matrix.set
                 { t = Door Open
                 ; occupant = None
                 }
@@ -716,14 +643,14 @@ let playerSearch model =
     let currentLevel = getCurrentLevel model in
     let hiddenDoorsAround =
         posAround model.statePlayer.pos
-        |> List.filter (fun pa -> matrixGet currentLevel pa |> isTerrainOf (Door Hidden) )
+        |> List.filter (fun pa -> Matrix.get currentLevel pa |> isTerrainOf (Door Hidden) )
     in
     let terrain' = List.fold_right
         ( fun d m ->
             if (rn 0 3 > 0) then
                 m
             else
-                matrixSet
+                Matrix.set
                     { t = Door Closed
                     ; occupant = None
                     }
@@ -735,17 +662,18 @@ let playerSearch model =
 
 let moveCreature a b state =
     let level = getCurrentLevel state in
-    let ct = matrixGet level a in
-    let tt = matrixGet level b in
+    let ct = Matrix.get level a in
+    let tt = Matrix.get level b in
     if Option.is_some tt.occupant then
         state
     else
-    let level' = matrixSet { ct with occupant = None } a level in
-    let level'' = matrixSet { tt with occupant = ct.occupant } b level' in
+    let level' = Matrix.set { ct with occupant = None } a level in
+    let level'' = Matrix.set { tt with occupant = ct.occupant } b level' in
     setCurrentLevel level'' state
 
 let getCreaturePath m start goal =
-  let open Astar in
+  let open AStar in
+  let open AStar in
     let problem =
         { cost = distanceManhattan
         ; goal
@@ -782,13 +710,13 @@ let animateCreature p state =
             moveCreature p h state
 
 let animateCreatures state =
-    let creaturePositions = matrixIMap
+    let creaturePositions = Matrix.iMap
         (* TODO refactor *)
         ( fun _ p t -> match t with
             | { occupant = Some (Creature _); _ } -> Some p
             | _ -> None
         ) (getCurrentLevel state)
-        |> matrixFlatten
+        |> Matrix.flatten
         |> List.filter Option.is_some
         |> List.map Option.get
     in
@@ -824,7 +752,7 @@ let terrainAddRoom m room =
     let rp = getRoomPositions room in
     let with_floor = List.fold_right
         ( fun p m ->
-            matrixSet
+            Matrix.set
                 { t = Floor
                 ; occupant = None
                 }
@@ -840,7 +768,7 @@ let terrainAddRoom m room =
                 | 2 -> Open
                 | _ -> assert false
             in
-            matrixSet
+            Matrix.set
                 { t = Door stateDoor
                 ; occupant = None
                 }
@@ -865,7 +793,7 @@ let terrainAddHallways rooms m =
             in
             let m = List.fold_right
                 ( fun p m ->
-                    matrixSet
+                    Matrix.set
                         { t = Hallway
                         ; occupant = None
                         }
@@ -888,10 +816,10 @@ let rec terrainAddStairs ~dir rooms m =
         | rooms ->
             let r = rnItem rooms in
             let p = randomRoomPos r in
-            if matrixGet m p |> isStairs then
+            if Matrix.get m p |> isStairs then
                 terrainAddStairs ~dir rooms m
             else
-                matrixSet stairs p m
+                Matrix.set stairs p m
 
 let rec placeCreatures rooms state =
     match rooms with
@@ -913,7 +841,7 @@ let playerMoveToStairs ~dir model =
 
 let mapGen model =
     let rooms = roomsGen () in
-    let terrain = matrixFill rows cols { t = Stone; occupant = None }
+    let terrain = Matrix.fill mapSize { t = Stone; occupant = None }
         |> terrainAddRooms rooms
         |> terrainAddStairs ~dir:Up rooms
         |> terrainAddStairs ~dir:Down rooms
@@ -926,7 +854,7 @@ let mapGen model =
 
 let playerGoUp model =
     let p = model.statePlayer.pos in
-    if matrixGet (getCurrentLevel model) p |> isTerrainOf StairsUp |> not then
+    if Matrix.get (getCurrentLevel model) p |> isTerrainOf StairsUp |> not then
         (model, Command.Noop)
     else
         let sl = model.stateLevels in
@@ -940,7 +868,7 @@ let playerGoUp model =
 
 let playerGoDown model =
     let p = model.statePlayer.pos in
-    if matrixGet (getCurrentLevel model) p |> isTerrainOf StairsDown |> not then
+    if Matrix.get (getCurrentLevel model) p |> isTerrainOf StairsDown |> not then
         (model, Command.Noop)
     else
         let sl = model.stateLevels in
@@ -981,14 +909,17 @@ let update event model = match event with
 let view model =
     let p = model.statePlayer.pos in
     let m = getCurrentLevelKnowledge model in
-    let a = matrixIMap charOfTerrain m in
-    let a2 = matrixSet "@" p a in
-    let b = List.map (String.concat "") a2.m in
-    let s = String.concat "\n" b in
+    let a = Matrix.iMap charOfTerrain m in
+    let a2 = Matrix.set "@" p a in
+    let map =
+        Matrix.raw a2
+        |> List.map (String.concat "")
+        |> String.concat "\n"
+    in
     Format.sprintf
 {| HP: %i
 
-%s|} model.statePlayer.hp s
+%s|} model.statePlayer.hp map
 
 
 let initial_model =
