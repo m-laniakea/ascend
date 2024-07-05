@@ -30,7 +30,7 @@ let getOpt m pos =
 
 let map f = List.map (List.map f)
 
-let iMap f m = List.mapi
+let mapi f m = List.mapi
     ( fun ri r ->
         List.mapi
             ( fun ci cv ->

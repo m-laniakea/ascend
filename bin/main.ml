@@ -13,7 +13,6 @@ let distanceSight = 3.17
 let id a = a
 
 let range min max = List.init (max - min + 1) (fun i -> i + min)
-let repeat n v = List.init n v
 
 let contains l v = List.find_opt (fun vi -> vi = v) l |> Option.is_some
 
@@ -77,7 +76,7 @@ type state =
 let unseenEmpty = { t = Unseen; occupant = None }
 
 let getPosTerrain m t =
-    Matrix.iMap (fun _ p t' -> if t'.t = t then Some p else None) m
+    Matrix.mapi (fun _ p t' -> if t'.t = t then Some p else None) m
     |> Matrix.flatten
     |> List.find_map id
     |> Option.get
@@ -236,7 +235,7 @@ let playerAddMapKnowledgeEmpty state =
 let playerUpdateMapKnowledge state =
     let m  = getCurrentLevel state in
     let pk = getCurrentLevelKnowledge state in
-    let newVisible = Matrix.iMap
+    let newVisible = Matrix.mapi
         ( fun _ p v ->
             if Matrix.get m p <> v then
                 if playerCanSee state p then
@@ -338,7 +337,7 @@ let rec roomPlace rooms wh tries =
 
 let placeCreature ~room state =
     let pp = state.statePlayer.pos in
-    let positionsOk = Matrix.iMap
+    let positionsOk = Matrix.mapi
         ( fun _ p t -> match t with
             | { occupant = None; _ } ->
                 ( match t.t with
@@ -697,7 +696,7 @@ let animateCreature p state =
             moveCreature p h state
 
 let animateCreatures state =
-    let creaturePositions = Matrix.iMap
+    let creaturePositions = Matrix.mapi
         (* TODO refactor *)
         ( fun _ p t -> match t with
             | { occupant = Some (Creature _); _ } -> Some p
@@ -896,7 +895,7 @@ let update event model = match event with
 let view model =
     let p = model.statePlayer.pos in
     let m = getCurrentLevelKnowledge model in
-    let a = Matrix.iMap charOfTerrain m in
+    let a = Matrix.mapi charOfTerrain m in
     let a2 = Matrix.set "@" p a in
     let map =
         Matrix.raw a2
