@@ -14,7 +14,7 @@ let id a = a
 
 let range min max = List.init (max - min + 1) (fun i -> i + min)
 
-let contains l v = List.find_opt (fun vi -> vi = v) l |> Option.is_some
+let contains l v = List.find_opt ((=) v) l |> Option.is_some
 
 let listMin l =
     let first = List.hd l in
@@ -76,10 +76,8 @@ type state =
 let unseenEmpty = { t = Unseen; occupant = None }
 
 let getPosTerrain m t =
-    Matrix.mapi (fun _ p t' -> if t'.t = t then Some p else None) m
-    |> Matrix.flatten
-    |> List.find_map id
-    |> Option.get
+    Matrix.mapIFindAll (fun _ p t' -> if t'.t = t then Some p else None) m
+    |> List.hd
 
 let north pos = {pos with row = pos.row - 1}
 let south pos = {pos with row = pos.row + 1}
@@ -235,26 +233,16 @@ let playerAddMapKnowledgeEmpty state =
 let playerUpdateMapKnowledge state =
     let m  = getCurrentLevel state in
     let pk = getCurrentLevelKnowledge state in
-    let newVisible = Matrix.mapi
-        ( fun _ p v ->
-            if Matrix.get m p <> v then
-                if playerCanSee state p then
-                    Some p
-                else
-                    None
+    let pkUpdated = Matrix.foldI
+        ( fun _ p pk' known ->
+            let actual = Matrix.get m p in
+            if actual <> known && playerCanSee state p then
+                Matrix.set actual p pk'
             else
-                None
-        ) pk
+                pk'
+        ) pk pk
     in
-    let pk' = Matrix.fold
-        ( fun m' p -> match p with
-            | None -> m'
-            | Some p ->
-                let newTile = Matrix.get m p in
-                Matrix.set newTile p m'
-        ) pk newVisible
-    in
-    setCurrentLevelKnowledge pk' state
+    setCurrentLevelKnowledge pkUpdated state
 
 let playerKnowledgeDeleteCreatures state =
     let pk = getCurrentLevelKnowledge state in
@@ -274,7 +262,7 @@ let rnItem l =
     let iLast = List.length l - 1 in
     List.nth l (rn 0 iLast)
 
-let isInRoom pos room =
+let isInRoom room pos =
     pos.row <= room.posSE.row
     && pos.row >= room.posNW.row
     && pos.col <= room.posSE.col
@@ -295,6 +283,14 @@ let getRoomPositions room =
         ) ci
     ) ri
     |> List.flatten
+
+let allMapPositions =
+    { posNW = {row = 0; col = 0}
+    ; posSE = northWest mapSize
+    ; doors = []
+    }
+    |> getRoomPositions
+
 
 let roomMake pu pl =
     assert (pu.row < pl.row);
@@ -335,41 +331,44 @@ let rec roomPlace rooms wh tries =
     if roomCanPlace rooms room then Some room else
     roomPlace rooms wh (tries - 1)
 
-let placeCreature ~room state =
-    let pp = state.statePlayer.pos in
-    let positionsOk = Matrix.mapi
-        ( fun _ p t -> match t with
-            | { occupant = None; _ } ->
-                ( match t.t with
-                    | Floor | Hallway | StairsDown
-                    | Door Open -> Some p
-                    | Door Closed | Door Hidden -> None
-                    | Stone | StairsUp | Unseen -> None
-                )
-            | _ -> None
-        ) (getCurrentLevel state)
-        |> Matrix.flatten
-        |> List.filter (fun v -> Option.is_some v && v <> Some pp)
-        |> List.map Option.get
-    in
-    let positionsOutOfView = positionsOk |> List.filter
-        ( fun p -> not (playerCanSee state p) ) in
-
-    let creaturePos = match room with
-        | Some r ->
-            let rp = getRoomPositions r in
-            let rpOk = positionsOk |> List.filter (contains rp) in
-            let rpOutOfView = positionsOutOfView |> List.filter (contains rp) in
-            ( match (rpOk, rpOutOfView) with
-                | ([], []) -> None
-                | (_, (_::_ as oov)) -> Some (rnItem oov)
-                | (rpOk, _) -> Some (rnItem rpOk)
+let canSpawnHere ?(forbidPos=None) m p =
+    if Some p = forbidPos then
+        false
+    else
+    match Matrix.get m p with
+        (* TODO water, phasing, etc. *)
+        | { occupant = Some _; _ } -> false
+        | { occupant = None; t = t} ->
+            ( match t with
+                | Floor
+                | Hallway
+                | StairsDown
+                | Door Open -> true
+                | Door Closed | Door Hidden -> false
+                | Stone | StairsUp | Unseen -> false
             )
 
-        | None -> match (positionsOk, positionsOutOfView) with
-            | ([], []) -> None
-            | (_, (_::_ as oov)) -> Some (rnItem oov)
-            | (rpOk, _) -> Some (rnItem rpOk)
+let placeCreature ~room state =
+    let m = getCurrentLevel state in
+    let pp = Some (state.statePlayer.pos) in
+    let spawnPositions =
+        allMapPositions
+        |> List.filter (fun p -> canSpawnHere ~forbidPos:pp m p)
+    in
+    let positionsOutOfView = spawnPositions|> List.filter
+        ( fun p -> not (playerCanSee state p) ) in
+
+    let (iv, oov) = match room with
+        | None -> spawnPositions, positionsOutOfView
+        | Some r ->
+              List.filter (isInRoom r) spawnPositions
+            , List.filter (isInRoom r) positionsOutOfView
+    in
+    let creaturePos =  match iv, oov with
+        | [], [] -> None
+        | _, (_::_ as oov) -> Some (rnItem oov)
+        | pOk, _ -> Some (rnItem pOk)
+
     in
     match creaturePos with
         | None -> state
@@ -469,7 +468,7 @@ let roomsGen () =
 
 
 
-let get_next_states pStart ?(manhattan=true) ~allowHallway ~ignoreOccupants field p =
+let get_next_states pGoal ?(manhattan=true) ~allowHallway ~isMapGen m p =
     (
     if manhattan then
       nextManhattan p
@@ -477,20 +476,21 @@ let get_next_states pStart ?(manhattan=true) ~allowHallway ~ignoreOccupants fiel
         posAround p
     )
   |> List.filter
-        ( fun p -> let t =  (Matrix.get field p) in
-            if not ignoreOccupants && pStart <> p && Option.is_some t.occupant then
-                false
-            else match t.t with
+        ( fun p ->
+            if not isMapGen then
+                pGoal = p || canSpawnHere m p
+            else
+            match (Matrix.get m p).t with
             | Hallway -> allowHallway
-            | Stone when hasAroundTerrain field p Floor -> false
-            | Stone when hasAroundTerrain field p StairsUp -> false
-            | Stone when hasAroundTerrain field p StairsDown -> false
-            | Stone -> ignoreOccupants
+            | Stone when hasAroundTerrain m p Floor -> false
+            | Stone when hasAroundTerrain m p StairsUp -> false
+            | Stone when hasAroundTerrain m p StairsDown -> false
+            | Stone -> true
             | Door Open  -> true
-            | Door Closed | Door Hidden -> ignoreOccupants
-            | Floor -> not ignoreOccupants
-            | StairsUp -> not ignoreOccupants
-            | StairsDown -> not ignoreOccupants
+            | Door Closed | Door Hidden -> true
+            | Floor -> false
+            | StairsUp -> false
+            | StairsDown -> false
             | Unseen -> false
         )
 
@@ -522,12 +522,12 @@ let bfs map start goal =
 *)
 
 
-let solve field start goal =
+let solve m start goal =
   let open AStar in
   let open AStar in
     let cost = distanceManhattan in
-    let problemWithoutHallways = { cost; goal; get_next_states = get_next_states start ~allowHallway:false ~ignoreOccupants:true field; } in
-    let problem = { cost; goal; get_next_states = get_next_states start ~allowHallway:true ~ignoreOccupants:true field; } in
+    let problemWithoutHallways = { cost; goal; get_next_states = get_next_states goal ~allowHallway:false ~isMapGen:true m; } in
+    let problem = { cost; goal; get_next_states = get_next_states goal ~allowHallway:true ~isMapGen:true m; } in
     match search problemWithoutHallways start with
     | None -> search problem start |> Option.get
     | Some p -> p
@@ -663,7 +663,7 @@ let getCreaturePath m start goal =
     let problem =
         { cost = distanceManhattan
         ; goal
-        ; get_next_states = get_next_states start ~manhattan:false ~allowHallway:true ~ignoreOccupants:false m
+        ; get_next_states = get_next_states goal ~manhattan:false ~allowHallway:true ~isMapGen:false m
         }
     in
     search problem start
@@ -695,18 +695,12 @@ let animateCreature p state =
             in
             moveCreature p h state
 
-let animateCreatures state =
-    let creaturePositions = Matrix.mapi
-        (* TODO refactor *)
-        ( fun _ p t -> match t with
-            | { occupant = Some (Creature _); _ } -> Some p
-            | _ -> None
-        ) (getCurrentLevel state)
-        |> Matrix.flatten
-        |> List.filter Option.is_some
-        |> List.map Option.get
-    in
-    List.fold_left (fun s p -> animateCreature p s) state creaturePositions
+let animateCreatures state = Matrix.foldI
+    ( fun _ p state' -> function
+        | { occupant = Some (Creature _); _ } ->
+            animateCreature p state'
+        | _ -> state'
+    ) state (getCurrentLevel state)
 
 let maybeAddCreature state =
     if rn 0 50 > 0 then state else
@@ -895,7 +889,7 @@ let update event model = match event with
 let view model =
     let p = model.statePlayer.pos in
     let m = getCurrentLevelKnowledge model in
-    let a = Matrix.mapi charOfTerrain m in
+    let a = Matrix.mapI charOfTerrain m in
     let a2 = Matrix.set "@" p a in
     let map =
         Matrix.raw a2

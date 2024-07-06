@@ -30,7 +30,7 @@ let getOpt m pos =
 
 let map f = List.map (List.map f)
 
-let mapi f m = List.mapi
+let mapI f m = List.mapi
     ( fun ri r ->
         List.mapi
             ( fun ci cv ->
@@ -45,5 +45,20 @@ let flatten = List.flatten
 let fold f acc m =
     flatten m
     |> List.fold_left f acc
+
+let foldI f acc m =
+    mapI
+    ( fun _ p v ->
+        p, v
+    ) m
+    |> fold (fun acc (p, v) -> f m p acc v) acc
+
+let mapIFindAll f m =
+    foldI
+        ( fun _ p acc t -> match f m p t with
+            | Some v -> v::acc
+            | None -> acc
+        )
+        [] m
 
 end
