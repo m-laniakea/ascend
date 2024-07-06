@@ -41,9 +41,46 @@ type terrain =
     | Unseen
     | Door of stateDoor
 
+type roll =
+    { rolls : int
+    ; sides : int
+    }
+
+type hitEffect =
+    | Physical
+
+type passive =
+    { maxRoll : int
+    ; hitEffect : hitEffect
+    }
+
+type melee =
+    | Bite
+    | Claw
+
+type ranged =
+    | Breath
+
+type hitStats =
+    { roll : roll
+    ; effect : hitEffect
+    }
+
+type hit =
+    | Passive of passive
+    | Ranged of
+        { ranged_t : ranged
+        ; hitStats : hitStats
+        }
+    | Melee of
+        { melee_t : melee
+        ; hitStats : hitStats
+        }
+
 type creature =
     { symbol : string (* TODO actual char *)
     ; cHp : int
+    ; hits: hit list
     }
 
 type occupant = Creature of creature | Boulder
@@ -71,6 +108,14 @@ type state =
     ; statePlayer : statePlayer
     (* TODO messages *)
     (* objects : list Object *)
+    }
+
+let mkHitMelee t e rolls sides = Melee
+    { melee_t = t
+    ; hitStats =
+        { effect = e
+        ; roll = { rolls; sides }
+        }
     }
 
 let unseenEmpty = { t = Unseen; occupant = None }
@@ -376,6 +421,11 @@ let placeCreature ~room state =
             let creature =
                 { symbol = "D" (* TODO pick creatures *)
                 ; cHp = 7
+                ; hits =
+                    [ mkHitMelee Bite Physical 3 8
+                    ; mkHitMelee Claw Physical 1 4
+                    ; mkHitMelee Claw Physical 1 4
+                    ]
                 }
             in
             let map = getCurrentLevel state in
@@ -668,20 +718,35 @@ let getCreaturePath m start goal =
     in
     search problem start
 
-let creatureAttackMelee p state =
+let rollEffectSize roll =
+    range 1 roll.rolls
+    |> List.map (fun _ -> rn 1 roll.sides)
+    |> List.fold_left (+) 0
+
+let creatureAttackMelee c p state =
     if p = state.statePlayer.pos then
-        (* TODO base damage on creature/stats *)
-        playerAddHp (-5) state
+        (* TODO base damage on stats *)
+        c.hits
+        |> List.fold_left
+            ( fun state' hit -> match hit with
+                | Passive _ -> state'
+                | Ranged _ -> state'
+                | Melee hm ->
+                    let effectSize = rollEffectSize hm.hitStats.roll in
+
+                    playerAddHp (-effectSize) state'
+            ) state
 
     else
         (* TODO allow attacking other creatures *)
+        let _ = assert false in
         state
 
-let animateCreature p state =
+let animateCreature c p state =
     let pp = state.statePlayer.pos in
     let cl = getCurrentLevel state in
     if distance p pp <= 1.5 then
-        creatureAttackMelee pp state
+        creatureAttackMelee c pp state
     else
         match getCreaturePath cl p pp with
         | None -> state
@@ -697,8 +762,8 @@ let animateCreature p state =
 
 let animateCreatures state = Matrix.foldI
     ( fun _ p state' -> function
-        | { occupant = Some (Creature _); _ } ->
-            animateCreature p state'
+        | { occupant = Some (Creature c); _ } ->
+            animateCreature c p state'
         | _ -> state'
     ) state (getCurrentLevel state)
 
