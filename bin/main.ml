@@ -77,10 +77,17 @@ type hit =
         ; hitStats : hitStats
         }
 
-type creature =
-    { symbol : string (* TODO actual char *)
-    ; cHp : int
+type creatureInfo =
+    { symbol : char
+    ; difficulty : int
+    ; levelBase : int
     ; hits: hit list
+    }
+
+type creature =
+    { cHp : int
+    ; level : int
+    ; creatureInfo : creatureInfo
     }
 
 type occupant = Creature of creature | Boulder
@@ -419,13 +426,18 @@ let placeCreature ~room state =
         | None -> state
         | Some p ->
             let creature =
-                { symbol = "D" (* TODO pick creatures *)
-                ; cHp = 7
-                ; hits =
-                    [ mkHitMelee Bite Physical 3 8
-                    ; mkHitMelee Claw Physical 1 4
-                    ; mkHitMelee Claw Physical 1 4
-                    ]
+                { cHp = 7 (* TODO pick creatures *)
+                ; level = 15
+                ; creatureInfo =
+                    { symbol = 'D'
+                    ; difficulty = 20
+                    ; levelBase = 15
+                    ; hits =
+                        [ mkHitMelee Bite Physical 3 8
+                        ; mkHitMelee Claw Physical 1 4
+                        ; mkHitMelee Claw Physical 1 4
+                        ]
+                    }
                 }
             in
             let map = getCurrentLevel state in
@@ -595,30 +607,30 @@ let isFloorOrStairsOpt = function
 let rec charOfTerrain m pos t =
     if Option.is_some t.occupant then
         match Option.get t.occupant with
-            | Creature c -> c.symbol
-            | Boulder -> "0"
+            | Creature c -> c.creatureInfo.symbol
+            | Boulder -> '0'
     else
     match t.t with
-    | Stone when atNorth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atEast m pos |> isFloorOrStairsOpt -> "|"
-    | Stone when atWest m pos |> isFloorOrStairsOpt -> "|"
-    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> "-"
-    | Stone -> " "
-    | Unseen -> " "
-    | Hallway -> "#"
-    | Floor -> "."
-    | Door Closed -> "+"
-    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
-    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
-    | Door Open -> "-"
-    | Door Hidden -> "*" (* TODO charOfTerrain m pos { t = Stone } *)
-    | StairsUp -> "<"
-    | StairsDown -> ">"
+    | Stone when atNorth m pos |> isFloorOrStairsOpt -> '-'
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> '-'
+    | Stone when atEast m pos |> isFloorOrStairsOpt -> '|'
+    | Stone when atWest m pos |> isFloorOrStairsOpt -> '|'
+    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> '-'
+    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> '-'
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> '-'
+    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> '-'
+    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> '-'
+    | Stone -> ' '
+    | Unseen -> ' '
+    | Hallway -> '#'
+    | Floor -> '.'
+    | Door Closed -> '+'
+    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> '|'
+    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> '|'
+    | Door Open -> '-'
+    | Door Hidden -> '*' (* TODO charOfTerrain m pos { t = Stone } *)
+    | StairsUp -> '<'
+    | StairsDown -> '>'
 
 let canMoveTo t = match t.t with
     | Floor | StairsUp | StairsDown | Hallway -> true
@@ -723,18 +735,35 @@ let rollEffectSize roll =
     |> List.map (fun _ -> rn 1 roll.sides)
     |> List.fold_left (+) 0
 
+let getHitThreshold ac attackerLevel =
+    let ac' = if ac < 0 then rn ac (-1) else ac in
+    10 + ac' + attackerLevel |> max 1
+
+let rollMiss threshold addSides =
+    rn 1 (20 + addSides) >= threshold
+
+let rollReducedDamage ac damage =
+    if ac >= 0 then damage else
+    (rn ac (-1)) + damage |> min 1
+
 let creatureAttackMelee c p state =
     if p = state.statePlayer.pos then
-        (* TODO base damage on stats *)
-        c.hits
-        |> List.fold_left
-            ( fun state' hit -> match hit with
-                | Passive _ -> state'
-                | Ranged _ -> state'
-                | Melee hm ->
-                    let effectSize = rollEffectSize hm.hitStats.roll in
+        let hitThreshold = getHitThreshold 0 c.level in
+        (* ^TODO player AC *)
+        c.creatureInfo.hits
+        |> List.filter (function | Melee hm -> true | _ -> false)
+        |> List.mapi (fun i v -> i, v)
+        |> List.fold_left (fun state' (addSides, Melee hm) ->
+            if rollMiss hitThreshold addSides then
+                state'
+            else
+            let effectSize =
+                rollEffectSize hm.hitStats.roll
+                |> rollReducedDamage 0
+                (* ^TODO player AC *)
+            in
 
-                    playerAddHp (-effectSize) state'
+            playerAddHp (-effectSize) state'
             ) state
 
     else
@@ -871,7 +900,10 @@ let rec placeCreatures rooms state =
         | [] -> state
         | r::ro ->
             let s' = placeCreature ~room:(Some r) state in
-            placeCreatures ro s'
+            if rn 0 2 = 0 then
+                placeCreatures ro s'
+            else
+                s'
 
 let playerMoveToStairs ~dir model =
     let stairType = match dir with
@@ -955,10 +987,11 @@ let view model =
     let p = model.statePlayer.pos in
     let m = getCurrentLevelKnowledge model in
     let a = Matrix.mapI charOfTerrain m in
-    let a2 = Matrix.set "@" p a in
+    let a2 = Matrix.set '@' p a in
     let map =
         Matrix.raw a2
-        |> List.map (String.concat "")
+        |> List.map List.to_seq
+        |> List.map String.of_seq
         |> String.concat "\n"
     in
     Format.sprintf
