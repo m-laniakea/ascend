@@ -9,8 +9,6 @@ type room
 
 val contains : 'a list -> 'a -> bool
 
-val charOfTerrain : tile Matrix.t -> pos -> tile -> char
-
 val roomsGen : unit -> room list
 val terrainAddRoom : tile Matrix.t -> room -> tile Matrix.t
 val terrainAddRooms : room list -> tile Matrix.t -> tile Matrix.t

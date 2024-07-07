@@ -1,4 +1,4 @@
 (executable
  (public_name OHack)
  (name main)
- (libraries OHack lwt lambda-term minttea))
+ (libraries OHack ANSITerminal lwt lambda-term minttea))

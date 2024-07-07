@@ -78,7 +78,8 @@ type hit =
         }
 
 type creatureInfo =
-    { symbol : char
+    { symbol : string
+    ; color : ANSITerminal.style
     ; difficulty : int
     ; levelBase : int
     ; hits: hit list
@@ -429,7 +430,8 @@ let placeCreature ~room state =
                 { cHp = 7 (* TODO pick creatures *)
                 ; level = 15
                 ; creatureInfo =
-                    { symbol = 'D'
+                    { symbol = "D"
+                    ; color = ANSITerminal.red
                     ; difficulty = 20
                     ; levelBase = 15
                     ; hits =
@@ -604,33 +606,44 @@ let isFloorOrStairsOpt = function
     | None -> false
     | Some t -> isFloorOrStairs t
 
-let rec charOfTerrain m pos t =
+let applyStyle sl s =
+    ANSITerminal.sprintf sl s
+
+
+let rec styleCharOfMap m pos t =
+    let open ANSITerminal in
     if Option.is_some t.occupant then
         match Option.get t.occupant with
-            | Creature c -> c.creatureInfo.symbol
-            | Boulder -> '0'
+            | Creature c ->
+                ( [Bold; c.creatureInfo.color]
+                , c.creatureInfo.symbol
+                )
+        | Boulder -> [Bold; white], "0"
     else
-    match t.t with
-    | Stone when atNorth m pos |> isFloorOrStairsOpt -> '-'
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> '-'
-    | Stone when atEast m pos |> isFloorOrStairsOpt -> '|'
-    | Stone when atWest m pos |> isFloorOrStairsOpt -> '|'
-    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> '-'
-    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> '-'
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> '-'
-    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> '-'
-    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> '-'
-    | Stone -> ' '
-    | Unseen -> ' '
-    | Hallway -> '#'
-    | Floor -> '.'
-    | Door Closed -> '+'
-    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> '|'
-    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> '|'
-    | Door Open -> '-'
-    | Door Hidden -> '*' (* TODO charOfTerrain m pos { t = Stone } *)
-    | StairsUp -> '<'
-    | StairsDown -> '>'
+    let c = match t.t with
+    | Stone when atNorth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atEast m pos |> isFloorOrStairsOpt -> "|"
+    | Stone when atWest m pos |> isFloorOrStairsOpt -> "|"
+    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> "-"
+    | Stone -> " "
+    | Unseen -> " "
+    | Hallway -> "#"
+    | Floor -> "."
+    | Door Closed -> "+"
+    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
+    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
+    | Door Open -> "-"
+    | Door Hidden -> "*" (* TODO styleCharOfMap m pos { t = Stone } *)
+    | StairsUp -> "<"
+    | StairsDown -> ">"
+    in
+    [white], c
+
 
 let canMoveTo t = match t.t with
     | Floor | StairsUp | StairsDown | Hallway -> true
@@ -983,15 +996,19 @@ let update event model = match event with
     | Event.KeyDown (Key ">") -> playerGoDown model
     | _ -> (model, Command.Noop)
 
+let stringOfStyleChar (style, c) =
+    ANSITerminal.sprintf style "%s" c
+
+
 let view model =
     let p = model.statePlayer.pos in
-    let m = getCurrentLevelKnowledge model in
-    let a = Matrix.mapI charOfTerrain m in
-    let a2 = Matrix.set '@' p a in
     let map =
-        Matrix.raw a2
-        |> List.map List.to_seq
-        |> List.map String.of_seq
+        getCurrentLevelKnowledge model
+        |> Matrix.mapI styleCharOfMap
+        |> Matrix.map stringOfStyleChar
+        |> Matrix.set "@" p
+        |> Matrix.raw
+        |> List.map (String.concat "")
         |> String.concat "\n"
     in
     Format.sprintf
