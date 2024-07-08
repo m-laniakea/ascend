@@ -64,16 +64,20 @@ type hitStats =
     ; effect : hitEffect
     }
 
+type hitRanged =
+    { ranged_t : ranged
+    ; hitStats : hitStats
+    }
+
+type hitMelee =
+    { melee_t : melee
+    ; hitStats : hitStats
+    }
+
 type hit =
     | Passive of passive
-    | Ranged of
-        { ranged_t : ranged
-        ; hitStats : hitStats
-        }
-    | Melee of
-        { melee_t : melee
-        ; hitStats : hitStats
-        }
+    | Ranged of hitRanged
+    | Melee of hitMelee
 
 type creatureInfo =
     { symbol : string
@@ -767,9 +771,9 @@ let creatureAttackMelee c p state =
         let hitThreshold = getHitThreshold 0 c.level in
         (* ^TODO player AC *)
         c.creatureInfo.hits
-        |> List.filter (function | Melee hm -> true | _ -> false)
+        |> List.filter_map (function | Melee hm -> Some hm | _ -> None)
         |> List.mapi (fun i v -> i, v)
-        |> List.fold_left (fun state' (addSides, Melee hm) ->
+        |> List.fold_left (fun state' (addSides, hm) ->
             if rollMiss hitThreshold addSides then
                 state'
             else
