@@ -1,5 +1,3 @@
-open Minttea
-
 open Common
 open Matrix
 
@@ -117,6 +115,12 @@ type state =
     (* TODO messages *)
     (* objects : list Object *)
     }
+
+type command =
+    | NoOp
+    | Quit of string
+    | Key of char
+    | Animate of animation
 
 let mkHitMelee t e rolls sides = Melee
     { melee_t = t
@@ -609,7 +613,6 @@ let isFloorOrStairsOpt = function
 let applyStyle sl s =
     ANSITerminal.sprintf sl s
 
-
 let rec styleCharOfMap m pos t =
     let open ANSITerminal in
     if Option.is_some t.occupant then
@@ -699,11 +702,11 @@ let playerMove (r, c) s =
         let pn = { s.statePlayer with pos = if canMoveTo t_at then pn else p } in
         { s with statePlayer = pn }
 
-let playerSearch model =
+let playerSearch state =
     (* TODO base search success on stats *)
-    let currentLevel = getCurrentLevel model in
+    let currentLevel = getCurrentLevel state in
     let hiddenDoorsAround =
-        posAround model.statePlayer.pos
+        posAround state.statePlayer.pos
         |> List.filter (fun pa -> Matrix.get currentLevel pa |> isTerrainOf (Door Hidden) )
     in
     let terrain' = List.fold_right
@@ -719,7 +722,7 @@ let playerSearch model =
         ) hiddenDoorsAround currentLevel
     in
 
-    setCurrentLevel terrain' model
+    setCurrentLevel terrain' state
 
 let moveCreature a b state =
     let level = getCurrentLevel state in
@@ -816,8 +819,7 @@ let maybeAddCreature state =
 let playerCheckHp (state, c) =
     let sp = state.statePlayer in
     if sp.hp <= 0 then
-        let _ = Format.printf "You died...\n" in
-        (state, Command.Quit)
+        (state, Quit "You died...")
     else
         state, c
 
@@ -831,7 +833,7 @@ let playerAction a state =
         |> playerKnowledgeDeleteCreatures
         |> playerUpdateMapKnowledge
         |> playerAddHp (if rn 0 2 = 0 then 1 else 0)
-    , Command.Noop
+    , NoOp
     )
     |> playerCheckHp
 
@@ -918,18 +920,18 @@ let rec placeCreatures rooms state =
             else
                 s'
 
-let playerMoveToStairs ~dir model =
+let playerMoveToStairs ~dir state =
     let stairType = match dir with
         | Up -> StairsUp
         | Down -> StairsDown
     in
-    let posStairs = getPosTerrain (getCurrentLevel model) stairType
+    let posStairs = getPosTerrain (getCurrentLevel state) stairType
     in
-    let statePlayer = { model.statePlayer with pos = posStairs } in
-    { model with statePlayer }
+    let statePlayer = { state.statePlayer with pos = posStairs } in
+    { state with statePlayer }
 
 
-let mapGen model =
+let mapGen state =
     let rooms = roomsGen () in
     let terrain = Matrix.fill mapSize { t = Stone; occupant = None }
         |> terrainAddRooms rooms
@@ -937,73 +939,74 @@ let mapGen model =
         |> terrainAddStairs ~dir:Down rooms
         |> terrainAddHallways rooms
     in
-    addLevel terrain model
+    addLevel terrain state
     |> playerMoveToStairs ~dir:Up
     |> placeCreatures rooms
 
 
-let playerGoUp model =
-    let p = model.statePlayer.pos in
-    if Matrix.get (getCurrentLevel model) p |> isTerrainOf StairsUp |> not then
-        (model, Command.Noop)
+let playerGoUp state =
+    let p = state.statePlayer.pos in
+    if Matrix.get (getCurrentLevel state) p |> isTerrainOf StairsUp |> not then
+        (state, NoOp)
     else
-        let sl = model.stateLevels in
+        let sl = state.stateLevels in
         if sl.indexLevel = 0 then
-            (model, Command.Noop)
+            (state, NoOp)
         else
-            let s' = setIndexLevel (sl.indexLevel - 1) model
+            let s' = setIndexLevel (sl.indexLevel - 1) state
                 |> playerMoveToStairs ~dir:Down
             in
-            (s', Command.Noop)
+            (s', NoOp)
 
-let playerGoDown model =
-    let p = model.statePlayer.pos in
-    if Matrix.get (getCurrentLevel model) p |> isTerrainOf StairsDown |> not then
-        (model, Command.Noop)
+let playerGoDown state =
+    let p = state.statePlayer.pos in
+    if Matrix.get (getCurrentLevel state) p |> isTerrainOf StairsDown |> not then
+        (state, NoOp)
     else
-        let sl = model.stateLevels in
+        let sl = state.stateLevels in
         if sl.indexLevel = List.length sl.levels - 1 then
-            ( mapGen model
+            ( mapGen state
                 |> playerMoveToStairs ~dir:Up
                 |> playerAddMapKnowledgeEmpty
                 |> playerUpdateMapKnowledge
-            , Command.Noop
+            , NoOp
             )
         else
-            let s' = setIndexLevel (sl.indexLevel + 1) model
+            let s' = setIndexLevel (sl.indexLevel + 1) state
                 |> playerMoveToStairs ~dir:Up
             in
-            (s', Command.Noop)
+            (s', NoOp)
 
 
-let init _model = Command.Hide_cursor
+let update event state = match event with
+    | Key 'q' -> (state, Quit "See you soon...")
+    | Key 'h' -> playerAction (MoveDelta (0, -1)) state
+    | Key 'l' -> playerAction (MoveDelta (0,  1)) state
+    | Key 'k' -> playerAction (MoveDelta (-1, 0)) state
+    | Key 'j' -> playerAction (MoveDelta (1,  0)) state
 
-let update event model = match event with
-    | Event.KeyDown (Key "q" | Escape) -> (model, Command.Quit)
-    | Event.KeyDown (Key "h") -> playerAction (MoveDelta (0, -1)) model
-    | Event.KeyDown (Key "l") -> playerAction (MoveDelta (0,  1)) model
-    | Event.KeyDown (Key "k") -> playerAction (MoveDelta (-1, 0)) model
-    | Event.KeyDown (Key "j") -> playerAction (MoveDelta (1,  0)) model
+    | Key 'y' -> playerAction (MoveDelta (-1, -1)) state
+    | Key 'u' -> playerAction (MoveDelta (-1,  1)) state
+    | Key 'b' -> playerAction (MoveDelta (1,  -1)) state
+    | Key 'n' -> playerAction (MoveDelta (1,   1)) state
 
-    | Event.KeyDown (Key "y") -> playerAction (MoveDelta (-1, -1)) model
-    | Event.KeyDown (Key "u") -> playerAction (MoveDelta (-1,  1)) model
-    | Event.KeyDown (Key "b") -> playerAction (MoveDelta (1,  -1)) model
-    | Event.KeyDown (Key "n") -> playerAction (MoveDelta (1,   1)) model
+    | Key 's' -> playerAction Search state
 
-    | Event.KeyDown (Key "s") -> playerAction Search model
+    | Key '<' -> playerGoUp state
+    | Key '>' -> playerGoDown state
+    | Key _ -> (state, NoOp)
+    | NoOp -> assert false
+    | Quit _ -> assert false
 
-    | Event.KeyDown (Key "<") -> playerGoUp model
-    | Event.KeyDown (Key ">") -> playerGoDown model
-    | _ -> (model, Command.Noop)
 
 let stringOfStyleChar (style, c) =
     ANSITerminal.sprintf style "%s" c
 
 
-let view model =
-    let p = model.statePlayer.pos in
+let view state =
+    let p = state.statePlayer.pos in
     let map =
-        getCurrentLevelKnowledge model
+        getCurrentLevelKnowledge state
         |> Matrix.mapI styleCharOfMap
         |> Matrix.map stringOfStyleChar
         |> Matrix.set "@" p
@@ -1014,10 +1017,34 @@ let view model =
     Format.sprintf
 {| HP: %i
 
-%s|} model.statePlayer.hp map
+%s|} state.statePlayer.hp map
 
+let render state =
+    let toPrint = view state in
+    let sx, sy = ANSITerminal.size () in
+    ANSITerminal.set_cursor 1 (sy - mapSize.row - 2);
+    ANSITerminal.erase ANSITerminal.Below;
 
-let initial_model =
+    Format.printf "%s%!" toPrint
+
+let getChar () =
+    (* TODO lwt just for read_char? *)
+    Lwt_main.run Lwt_io.(read_char stdin)
+
+let rec loop (state, command) =
+    render state;
+
+    match command with
+    | NoOp ->
+        let c = getChar () in
+        update (Key c) state
+        |> loop
+    | Quit s ->
+        Format.printf "\n%s\n" s;
+        Terminal.restoreAttributes ()
+    | _ -> update command state |> loop
+
+let stateInitial =
     Random.init 0;
 
     let stateLevels =
@@ -1044,5 +1071,6 @@ let initial_model =
     |> playerAddMapKnowledgeEmpty
     |> playerUpdateMapKnowledge
 
-let app = Minttea.app ~init ~update ~view ()
-let () = Minttea.start app ~initial_model
+let () =
+    Terminal.setup ();
+    loop (stateInitial, NoOp)
