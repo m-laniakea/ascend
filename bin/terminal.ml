@@ -3,7 +3,7 @@ let attrOrig =
 
 let setupStdin () =
     let _hideCursor = Format.printf "\x1b[?25l%!" in
-    let sx, sy = ANSITerminal.size () in
+    let _, sy = ANSITerminal.size () in
     ANSITerminal.scroll sy;
     ANSITerminal.set_cursor 1 1;
 

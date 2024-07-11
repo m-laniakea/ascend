@@ -46,6 +46,7 @@ type roll =
 
 type hitEffect =
     | Physical
+    | Fire
 
 type passive =
     { maxRoll : int
@@ -66,7 +67,7 @@ type hitStats =
 
 type hitRanged =
     { ranged_t : ranged
-    ; hitStats : hitStats
+    ; hitStatsR : hitStats
     }
 
 type hitMelee =
@@ -120,15 +121,31 @@ type state =
     (* objects : list Object *)
     }
 
+type animation =
+    { dir : pos
+    ; posStart : pos
+    ; posCurrent : pos
+    ; posEnd : pos
+    ; image : string
+    }
+
 type command =
     | NoOp
     | Quit of string
     | Key of char
-    | Animate of animation
+
 
 let mkHitMelee t e rolls sides = Melee
     { melee_t = t
     ; hitStats =
+        { effect = e
+        ; roll = { rolls; sides }
+        }
+    }
+
+let mkHitRanged t e rolls sides = Ranged
+    { ranged_t = t
+    ; hitStatsR =
         { effect = e
         ; roll = { rolls; sides }
         }
@@ -230,6 +247,23 @@ let addLevel m state =
     in
     { state with stateLevels = sln }
 
+let posAdd a b =
+    { row = a.row + b.row
+    ; col = a.col + b.col
+    }
+
+let posDiff a b =
+    { row = b.row - a.row
+    ; col = b.col - a.col
+    }
+
+let posDir p =
+    (* normalizes delta. WARN: only works lines on x or + shapes *)
+    assert (p.row <> 0 || p.col <> 0);
+    let den = max (abs p.row) (abs p.col) in
+    { row = p.row / den
+    ; col = p.col / den
+    }
 
 let distance b a =
     let dr = b.row - a.row in
@@ -239,44 +273,164 @@ let distance b a =
 let distanceManhattan f t =
     abs (t.row - f.row) + abs (t.col - f.col)
 
-let getPathRay b a =
+let isStairs t =
+    t.t = StairsUp || t.t = StairsDown
+
+let isFloorOrStairs t =
+    t.t = Floor || isStairs t
+
+let isFloorOrStairsOpt = function
+    | None -> false
+    | Some t -> isFloorOrStairs t
+
+let rec styleCharOfMap m pos t =
+    let open ANSITerminal in
+    if Option.is_some t.occupant then
+        match Option.get t.occupant with
+            | Creature c ->
+                ( [Bold; c.creatureInfo.color]
+                , c.creatureInfo.symbol
+                )
+        | Boulder -> [Bold; white], "0"
+    else
+    let c = match t.t with
+    | Stone when atNorth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atEast m pos |> isFloorOrStairsOpt -> "|"
+    | Stone when atWest m pos |> isFloorOrStairsOpt -> "|"
+    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> "-"
+    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> "-"
+    | Stone -> " "
+    | Unseen -> " "
+    | Hallway -> "#"
+    | Floor -> "."
+    | Door Closed -> "+"
+    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
+    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
+    | Door Open -> "-"
+    | Door Hidden -> "*" (* TODO styleCharOfMap m pos { t = Stone } *)
+    | StairsUp -> "<"
+    | StairsDown -> ">"
+    in
+    [white], c
+
+
+let stringOfStyleChar (style, c) =
+    ANSITerminal.sprintf style "%s" c
+
+let applyAnimatedTiles animationLayer _ m =
+    animationLayer
+    |> List.fold_left
+        ( fun m (pos, styledChar) ->
+            Matrix.set styledChar pos m
+        )
+        m
+
+let view animationLayer state =
+    let p = state.statePlayer.pos in
+    let map =
+        getCurrentLevelKnowledge state
+        |> Matrix.mapI styleCharOfMap
+        |> Matrix.map stringOfStyleChar
+        |> Matrix.set "@" p
+        |> applyAnimatedTiles animationLayer state
+        |> Matrix.raw
+        |> List.map (String.concat "")
+        |> String.concat "\n"
+    in
+    Format.sprintf
+{| HP: %i
+
+%s|} state.statePlayer.hp map
+
+let render ?(animationLayer=[]) state =
+    let toPrint = view animationLayer state in
+    let _, sy = ANSITerminal.size () in
+    ANSITerminal.set_cursor 1 (sy - mapSize.row - 2);
+    ANSITerminal.erase ANSITerminal.Below;
+
+    Format.printf "%s%!" toPrint
+
+let rec animate state ?(animationLayer=[]) a =
+    let animationLayer' =
+        if a.posCurrent = a.posStart then
+            []
+        else
+            (a.posCurrent, a.image)::animationLayer
+    in
+    Unix.sleepf 0.05;
+    render ~animationLayer:animationLayer' state;
+
+    if a.posCurrent = a.posEnd then
+        Unix.sleepf 0.3
+    else
+    let posCurrent = posAdd a.posCurrent a.dir in
+    let a' = { a with posCurrent } in
+
+    animate state ~animationLayer:animationLayer' a'
+
+let getPathRay from target =
     let rec aux path =
         let h = List.hd path in
 
-        if h = b then
+        if h = target then
             List.rev path
         else
 
         let nexts = posAround h in
-        let distances = List.map (fun p -> distance b p) nexts in
+        let distances = List.map (fun p -> distance target p) nexts in
         let minDist = listMin distances in
-        let next = List.find (fun p -> distance b p = minDist) nexts in
+        let next = List.find (fun p -> distance target p = minDist) nexts in
 
         aux (next::path)
     in
-    aux [a]
+    aux [from]
 
 
 let isLit p = false (* TODO *)
 
-let playerCanSee state p =
-    let a = state.statePlayer.pos in
-    let d = distance a p in
-    if d > distanceSight && not (isLit p) then
+let rec rayCanHitTarget m = function
+    | [] -> true
+    | _::[] -> true
+    | hd::tl ->
+        let t = Matrix.get m hd in
+        match t.occupant with
+            | Some Boulder -> false
+            | Some (Creature c) ->
+                rayCanHitTarget m tl
+                (* TODO large occupants *)
+            | None -> match t.t with
+                | Floor | Hallway
+                | StairsDown | StairsUp
+                | Door Open -> rayCanHitTarget m tl
+                | _ -> false
+
+let canSee distanceSight from toSee state =
+    let d = distance from toSee in
+    if d > distanceSight && not (isLit toSee) then
         false
     else
-    let pathTo = getPathRay p a in
+    let pathTo = getPathRay from toSee in
     let m = getCurrentLevel state in
-    let rec aux = function
-        | [] -> true
-        | _::[] -> true (* TODO blindness *)
-        | h::t -> match (Matrix.get m h).t with
-            | Floor | Hallway
-            | StairsDown | StairsUp
-            | Door Open -> aux t
-            | _ -> false
-    in
-    aux pathTo
+    rayCanHitTarget m pathTo
+
+let playerCanSee state toSee =
+    let pp = state.statePlayer.pos in
+    (* TODO blindness *)
+    canSee distanceSight pp toSee state
+
+let creatureCanSee c from toSee state =
+    (* TODO use creature info *)
+    canSee 6.16 from toSee state
+
+let areLinedUp a b =
+    (* x or + shaped lines only *)
+    let pd = posDiff a b in
+    abs(pd.row) = abs(pd.col) || (pd.row = 0) <> (pd.col = 0)
+
 
 let playerAddHp n state =
     let sp = state.statePlayer in
@@ -320,6 +474,8 @@ let playerKnowledgeDeleteCreatures state =
 let rn min max = Random.int_in_range ~min ~max
 
 let rnItem l =
+    assert (List.length l > 0);
+
     let iLast = List.length l - 1 in
     List.nth l (rn 0 iLast)
 
@@ -386,8 +542,8 @@ let roomCanPlace rooms room =
 
 let rec roomPlace rooms wh tries =
     if tries <= 0 then None else
-    let row = rn 0 (mapSize.row - 2) in
-    let col = rn 0 (mapSize.col - 2) in
+    let row = rn 2 (mapSize.row - 2) in
+    let col = rn 2 (mapSize.col - 2) in
     let room = roomMakeWh { row = row; col = col } wh in
     if roomCanPlace rooms room then Some room else
     roomPlace rooms wh (tries - 1)
@@ -443,7 +599,8 @@ let placeCreature ~room state =
                     ; difficulty = 20
                     ; levelBase = 15
                     ; hits =
-                        [ mkHitMelee Bite Physical 3 8
+                        [ mkHitRanged Breath Fire 6 6
+                        ; mkHitMelee Bite Physical 3 8
                         ; mkHitMelee Claw Physical 1 4
                         ; mkHitMelee Claw Physical 1 4
                         ]
@@ -604,53 +761,6 @@ let solve m start goal =
     | None -> search problem start |> Option.get
     | Some p -> p
 
-let isStairs t =
-    t.t = StairsUp || t.t = StairsDown
-
-let isFloorOrStairs t =
-    t.t = Floor || isStairs t
-
-let isFloorOrStairsOpt = function
-    | None -> false
-    | Some t -> isFloorOrStairs t
-
-let applyStyle sl s =
-    ANSITerminal.sprintf sl s
-
-let rec styleCharOfMap m pos t =
-    let open ANSITerminal in
-    if Option.is_some t.occupant then
-        match Option.get t.occupant with
-            | Creature c ->
-                ( [Bold; c.creatureInfo.color]
-                , c.creatureInfo.symbol
-                )
-        | Boulder -> [Bold; white], "0"
-    else
-    let c = match t.t with
-    | Stone when atNorth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atEast m pos |> isFloorOrStairsOpt -> "|"
-    | Stone when atWest m pos |> isFloorOrStairsOpt -> "|"
-    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> "-"
-    | Stone -> " "
-    | Unseen -> " "
-    | Hallway -> "#"
-    | Floor -> "."
-    | Door Closed -> "+"
-    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
-    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
-    | Door Open -> "-"
-    | Door Hidden -> "*" (* TODO styleCharOfMap m pos { t = Stone } *)
-    | StairsUp -> "<"
-    | StairsDown -> ">"
-    in
-    [white], c
-
 
 let canMoveTo t = match t.t with
     | Floor | StairsUp | StairsDown | Hallway -> true
@@ -787,27 +897,106 @@ let creatureAttackMelee c p state =
             ) state
 
     else
-        (* TODO allow attacking other creatures *)
         let _ = assert false in
         state
 
-let animateCreature c p state =
+let getImageForAnimation t dir =
+    let open ANSITerminal in
+
+    let color = match t with
+    | Physical -> white
+    | Fire -> red
+    in
+
+    let c = match dir with
+    | _ when dir.row = 0 -> "-"
+    | _ when dir.col = 0 -> "|"
+    | _ when dir.row = dir.col -> "\\"
+    | _ when dir.row <> dir.col -> "/"
+    | _ -> assert false
+    in
+
+    ([Bold; color], c) |> stringOfStyleChar
+
+let creatureAttackRanged c cp tp state =
+    let rec processPath effectSize cp pd pTarget state =
+        let cp' = posAdd cp pd in
+        let pp = state.statePlayer.pos in
+        let m = getCurrentLevel state in
+
+        let state' = match Matrix.get m cp' with
+            | { occupant = Some Boulder; _ } -> state (* TODO rays/vs weapons *)
+            | { occupant = Some (Creature c); _ } as t ->
+                    creatureAddHp (-effectSize) t cp' c state
+                    (* ^TODO resistances *)
+
+            | { occupant = None; _ } ->
+                    if cp' <> pp then
+                        state
+                    else
+                        playerAddHp (-effectSize) state
+        in
+
+        (* TODO stop ray when ranged sufficiently reduced
+        -- not necessarily on target hit
+        -- TODO Reflections
+        *)
+        if cp' = pTarget then
+            state'
+        else
+            processPath effectSize cp' pd pTarget state'
+    in
+    c.creatureInfo.hits
+    |> List.filter_map (function | Ranged hr -> Some hr | _ -> None)
+    |> List.fold_left
+        ( fun state' hr ->
+            let pDiff = posDiff cp tp in
+            let pDir = posDir pDiff in
+            let hs = hr.hitStatsR in
+            let effectSize =
+                rollEffectSize hs.roll
+            in
+            let animation =
+                { dir = pDir
+                ; posStart = cp
+                ; posCurrent = cp
+                ; posEnd = tp
+                ; image = getImageForAnimation hs.effect pDir
+                }
+            in
+            animate state' animation;
+            processPath effectSize cp pDiff tp state'
+        )
+        state
+
+let hasRangedAttack c =
+    c.creatureInfo.hits
+    |> List.exists (function | Ranged _ -> true | _ -> false)
+
+let animateCreature c cp state =
     let pp = state.statePlayer.pos in
+    (* ^TODO allow attacking other creatures *)
     let cl = getCurrentLevel state in
-    if distance p pp <= 1.5 then
+    if distance cp pp <= 1.5 then
+        (* ^TODO blindness/confusion/etc. *)
         creatureAttackMelee c pp state
+    else if areLinedUp cp pp
+            && hasRangedAttack c
+            && creatureCanSee c cp pp state then
+        creatureAttackRanged c cp pp state
     else
-        match getCreaturePath cl p pp with
+        match getCreaturePath cl cp pp with
         | None -> state
         | Some path when List.length path <= 2 -> state
         | Some path ->
+            (* Remove start and end points. TODO improve in aStar *)
             let h = path
                 |> List.tl
                 |> List.rev
                 |> List.tl
                 |> List.hd
             in
-            moveCreature p h state
+            moveCreature cp h state
 
 let animateCreatures state = Matrix.foldI
     ( fun _ p state' -> function
@@ -1002,34 +1191,6 @@ let update event state = match event with
     | NoOp -> assert false
     | Quit _ -> assert false
 
-
-let stringOfStyleChar (style, c) =
-    ANSITerminal.sprintf style "%s" c
-
-
-let view state =
-    let p = state.statePlayer.pos in
-    let map =
-        getCurrentLevelKnowledge state
-        |> Matrix.mapI styleCharOfMap
-        |> Matrix.map stringOfStyleChar
-        |> Matrix.set "@" p
-        |> Matrix.raw
-        |> List.map (String.concat "")
-        |> String.concat "\n"
-    in
-    Format.sprintf
-{| HP: %i
-
-%s|} state.statePlayer.hp map
-
-let render state =
-    let toPrint = view state in
-    let sx, sy = ANSITerminal.size () in
-    ANSITerminal.set_cursor 1 (sy - mapSize.row - 2);
-    ANSITerminal.erase ANSITerminal.Below;
-
-    Format.printf "%s%!" toPrint
 
 let getChar () =
     (* TODO lwt just for read_char? *)
