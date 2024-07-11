@@ -338,9 +338,9 @@ let view animationLayer state =
         |> String.concat "\n"
     in
     Format.sprintf
-{| HP: %i
+{| HP: %i | Dlvl: %i
 
-%s|} state.statePlayer.hp map
+%s|} state.statePlayer.hp state.stateLevels.indexLevel map
 
 let render ?(animationLayer=[]) state =
     let toPrint = view animationLayer state in
