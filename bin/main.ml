@@ -30,14 +30,17 @@ type room =
     }
 
 type stateDoor = Closed | Open | Hidden
+type wall = Vertical | Horizontal
+
 type terrain =
-    | Stone
-    | Hallway
-    | Floor
-    | StairsUp
-    | StairsDown
-    | Unseen
     | Door of stateDoor
+    | Floor
+    | Hallway
+    | StairsDown
+    | StairsUp
+    | Stone
+    | Unseen
+    | Wall of wall
 
 type roll =
     { rolls : int
@@ -175,7 +178,7 @@ let atNorthWest m pos = northWest pos |> Matrix.getOpt m
 let atSouthEast m pos = southEast pos |> Matrix.getOpt m
 let atSouthWest m pos = southWest pos |> Matrix.getOpt m
 
-let getOutline room =
+let getOutliningRoom room =
     { room with posNW = northWest room.posNW
     ; posSE = southEast room.posSE
     }
@@ -294,15 +297,6 @@ let rec styleCharOfMap m pos t =
         | Boulder -> [Bold; white], "0"
     else
     let c = match t.t with
-    | Stone when atNorth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atEast m pos |> isFloorOrStairsOpt -> "|"
-    | Stone when atWest m pos |> isFloorOrStairsOpt -> "|"
-    | Stone when atSouthEast m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouthWest m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atSouth m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atNorthEast m pos |> isFloorOrStairsOpt -> "-"
-    | Stone when atNorthWest m pos |> isFloorOrStairsOpt -> "-"
     | Stone -> " "
     | Unseen -> " "
     | Hallway -> "#"
@@ -314,6 +308,8 @@ let rec styleCharOfMap m pos t =
     | Door Hidden -> "*" (* TODO styleCharOfMap m pos { t = Stone } *)
     | StairsUp -> "<"
     | StairsDown -> ">"
+    | Wall Horizontal -> "-"
+    | Wall Vertical -> "|"
     in
     [white], c
 
@@ -557,12 +553,15 @@ let canSpawnHere ?(forbidPos=None) m p =
         | { occupant = Some _; _ } -> false
         | { occupant = None; t = t} ->
             ( match t with
-                | Floor
-                | Hallway
-                | StairsDown
                 | Door Open -> true
                 | Door Closed | Door Hidden -> false
-                | Stone | StairsUp | Unseen -> false
+                | Floor -> true
+                | Hallway -> true
+                | StairsDown -> true
+                | StairsUp  -> false
+                | Stone -> false
+                | Unseen -> false
+                | Wall Horizontal | Wall Vertical -> false
             )
 
 let placeCreature ~room state =
@@ -622,18 +621,18 @@ let removeCorners room border =
     let toRemove = [pu; pl; {row = pu.row; col = pl.col}; {row = pl.row; col = pu.col}] in
     List.filter ( fun b -> not (contains toRemove b) ) border
 
-let removeDoorsAdjacent room border =
-    let iLast = (List.length border) - 1 in
+let removeDoorsAdjacent room outline =
+    let iLast = (List.length outline) - 1 in
     let wrap i = if i < 0 then iLast else if i > iLast then 0 else i in
-    let is = List.map (fun d -> List.find_index (fun b -> b = d) border |> Option.get) room.doors in
+    let iDoors = List.map (fun d -> List.find_index (fun b -> b = d) outline |> Option.get) room.doors in
     let adjacent = List.map
         ( fun i ->
-            [ List.nth border (wrap (i - 1))
-            ; List.nth border (wrap (i + 1))
+            [ List.nth outline (wrap (i - 1))
+            ; List.nth outline (wrap (i + 1))
             ]
-        ) is |> List.flatten
+        ) iDoors |> List.flatten
     in
-    List.filter ( fun b -> not (contains adjacent b) ) border
+    List.filter ( fun b -> not (contains adjacent b) ) outline
 
 
 let getBorder room =
@@ -641,36 +640,32 @@ let getBorder room =
     let pl = room.posSE in
     let start = pu in
 
+    (* TODO better way? *)
+    (* Not as simple as using getRoomPositions, as doorGen relies on clockwise order of getBorder *)
     let rec helper acc p = function
         | South -> let n = { p with row = p.row + 1 } in helper (n::acc) n (if n.row < pl.row then South else East)
         | East -> let n = { p with col = p.col + 1 } in helper (n::acc) n (if n.col < pl.col then East else North)
         | North -> let n = { p with row = p.row - 1 } in helper (n::acc) n (if n.row > pu.row then North else West)
         | West when p = start -> acc
         | West -> let n = { p with col = p.col - 1 } in helper (n::acc) n West
-
-
     in
     helper [] start South
 
-
-
 let rec doorGen room count =
     if count <= 0 then room else
-    let outline = getOutline room in
-    let border = getBorder outline |> removeCorners outline |> removeDoorsAdjacent room in
-    let borderWithoutDoors =
+    let outlineR = getOutliningRoom room in
+    let positionsValid = getBorder outlineR |> removeCorners outlineR |> removeDoorsAdjacent room in
+    let pValidNoDoors =
         List.filter
-            ( fun b -> contains room.doors b |> not ) border in
-    let iLast = (List.length borderWithoutDoors) - 1 in
-    let nd = List.nth borderWithoutDoors (rn 0 iLast) in
+            ( fun b -> contains room.doors b |> not ) positionsValid in
+    let doorNew = rnItem pValidNoDoors in
 
-    doorGen { room with doors = nd::room.doors } (count - 1)
+    doorGen { room with doors = doorNew::room.doors } (count - 1)
 
 let doorsGen rooms =
     let iLast = (List.length rooms) - 1 in
     let count i = if 0 = i || iLast = i then 1 else 2 in
     List.mapi (fun i r -> doorGen r (count i)) rooms
-
 
 let rec roomGen rooms tries =
     if tries <= 0 then None else
@@ -710,17 +705,14 @@ let get_next_states pGoal ?(manhattan=true) ~allowHallway ~isMapGen m p =
                 pGoal = p || canSpawnHere m p
             else
             match (Matrix.get m p).t with
-            | Hallway -> allowHallway
-            | Stone when hasAroundTerrain m p Floor -> false
-            | Stone when hasAroundTerrain m p StairsUp -> false
-            | Stone when hasAroundTerrain m p StairsDown -> false
-            | Stone -> true
-            | Door Open  -> true
-            | Door Closed | Door Hidden -> true
+            | Door Closed | Door Hidden | Door Open -> true
             | Floor -> false
-            | StairsUp -> false
+            | Hallway -> allowHallway
             | StairsDown -> false
+            | StairsUp -> false
+            | Stone -> true
             | Unseen -> false
+            | Wall Horizontal | Wall Vertical -> false
         )
 
 (*
@@ -765,9 +757,10 @@ let solve m start goal =
 let canMoveTo t = match t.t with
     | Floor | StairsUp | StairsDown | Hallway -> true
     | Door Open -> true
-    | Door _ -> false
+    | Door Closed | Door Hidden -> false
     | Stone -> false
     | Unseen -> false
+    | Wall Horizontal | Wall Vertical -> false
 
 
 type playerActions = MoveDelta of (int * int) | Search
@@ -1032,18 +1025,31 @@ let playerAction a state =
 
 let terrainAddRoom m room =
     let rp = getRoomPositions room in
-    let with_floor = List.fold_right
-        ( fun p m ->
+    let withFloor = List.fold_left
+        ( fun m p ->
             Matrix.set
                 { t = Floor
                 ; occupant = None
                 }
                 p m
-        ) rp m
+        ) m rp
     in
-    (* TODO add Wall type *)
-    List.fold_right
-        ( fun d m ->
+    let olR = getOutliningRoom room in
+    let outline = getBorder olR in
+    let withWalls = List.fold_left
+        ( fun m p ->
+            let alignment = match p with
+                | _ when p.row = olR.posNW.row -> Horizontal
+                | _ when p.row = olR.posSE.row -> Horizontal
+                | _ -> Vertical
+            in
+            Matrix.set { t = Wall alignment; occupant = None } p m
+        )
+        withFloor
+        outline
+    in
+    List.fold_left
+        ( fun m d ->
             let stateDoor = match rn 0 2 with
                 | 0 -> Hidden
                 | 1 -> Closed
@@ -1055,7 +1061,7 @@ let terrainAddRoom m room =
                 ; occupant = None
                 }
                 d m
-        ) room.doors with_floor
+        ) withWalls room.doors
 
 let terrainAddRooms rooms t =
     List.fold_right (fun r m -> terrainAddRoom m r) rooms t
