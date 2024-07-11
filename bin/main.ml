@@ -388,21 +388,24 @@ let getPathRay from target =
 
 let isLit p = false (* TODO *)
 
-let rec rayCanHitTarget m = function
+let rec rayCanHitTarget m prev path =
+    let t = Matrix.get m (List.hd path) in match path with
     | [] -> true
-    | _::[] -> true
-    | hd::tl ->
-        let t = Matrix.get m hd in
-        match t.occupant with
-            | Some Boulder -> false
-            | Some (Creature c) ->
-                rayCanHitTarget m tl
-                (* TODO large occupants *)
-            | None -> match t.t with
-                | Floor | Hallway
-                | StairsDown | StairsUp
-                | Door Open -> rayCanHitTarget m tl
-                | _ -> false
+    | _::[] -> (match t.t with Wall _ when prev.t = Hallway -> false | _ -> true)
+    | hd::tl -> match t.occupant with
+        | Some Boulder -> false
+        | Some (Creature c) ->
+            rayCanHitTarget m t tl
+            (* TODO large occupants *)
+        | None -> match t.t with
+            | Floor | Hallway
+            | StairsDown | StairsUp
+            | Door Open -> rayCanHitTarget m t tl
+            | Door Closed | Door Hidden -> false
+            | Stone -> false
+            | Unseen -> false
+            | Wall _ -> false
+
 
 let canSee distanceSight from toSee state =
     let d = distance from toSee in
@@ -411,7 +414,7 @@ let canSee distanceSight from toSee state =
     else
     let pathTo = getPathRay from toSee in
     let m = getCurrentLevel state in
-    rayCanHitTarget m pathTo
+    rayCanHitTarget m (Matrix.get m from) pathTo
 
 let playerCanSee state toSee =
     let pp = state.statePlayer.pos in
