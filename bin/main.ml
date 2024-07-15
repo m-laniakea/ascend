@@ -42,6 +42,33 @@ type terrain =
     | Unseen
     | Wall of wall
 
+type itemStats =
+    { count : int
+    }
+
+type scroll_t =
+    | CreateMonster
+    | MagicMapping
+
+type scroll =
+    { itemStats : itemStats
+    ; scroll_t : scroll_t
+    }
+
+type container_t =
+    | Sack
+    | Chest
+
+type container =
+    { container_t : container_t
+    ; items : item list
+    }
+
+and item =
+    | Gold of int
+    | Scroll of scroll
+    | Container of container
+
 type roll =
     { rolls : int
     ; sides : int
@@ -102,6 +129,7 @@ type occupant = Creature of creature | Boulder
 type tile =
     { t : terrain
     ; occupant : occupant option
+    ; items : item list
     }
 
 type levels = tile Matrix.t list
@@ -154,7 +182,7 @@ let mkHitRanged t e rolls sides = Ranged
         }
     }
 
-let unseenEmpty = { t = Unseen; occupant = None }
+let unseenEmpty = { t = Unseen; occupant = None; items = [] }
 
 let getPosTerrain m t =
     Matrix.mapIFindAll (fun _ p t' -> if t'.t = t then Some p else None) m
@@ -295,6 +323,12 @@ let rec styleCharOfMap m pos t =
                 , c.creatureInfo.symbol
                 )
         | Boulder -> [Bold; white], "0"
+    else if not (List.is_empty t.items) then
+        let styles = if List.length t.items > 1 then [on_black; Bold] else [Bold] in
+        match List.hd t.items with
+        | Gold _ -> yellow::styles , "$"
+        | Scroll _ -> white::styles , "?"
+        | Container _ -> white::styles , "("
     else
     let c = match t.t with
     | Stone -> " "
@@ -530,7 +564,7 @@ let doRoomsOverlap r1 r2 =
 
 let roomCanPlace rooms room =
     (* leave some room from edge for hallways *)
-    if room.posNW.row <= 1 || room.posNW.col <= 1
+    if room.posNW.row < 2 || room.posNW.col < 2
         || room.posSE.row >= mapSize.row - 2
         || room.posSE.col >= mapSize.col - 2
     then
@@ -800,6 +834,7 @@ let playerMove (r, c) s =
             let tn = Matrix.set
                 { t = Door Open
                 ; occupant = None
+                ; items = []
                 }
                 pn t
             in
@@ -827,6 +862,7 @@ let playerSearch state =
                 Matrix.set
                     { t = Door Closed
                     ; occupant = None
+                    ; items = []
                     }
                     d m
         ) hiddenDoorsAround currentLevel
@@ -1033,6 +1069,7 @@ let terrainAddRoom m room =
             Matrix.set
                 { t = Floor
                 ; occupant = None
+                ; items = []
                 }
                 p m
         ) m rp
@@ -1046,7 +1083,7 @@ let terrainAddRoom m room =
                 | _ when p.row = olR.posSE.row -> Horizontal
                 | _ -> Vertical
             in
-            Matrix.set { t = Wall alignment; occupant = None } p m
+            Matrix.set { t = Wall alignment; occupant = None; items = [] } p m
         )
         withFloor
         outline
@@ -1062,6 +1099,7 @@ let terrainAddRoom m room =
             Matrix.set
                 { t = Door stateDoor
                 ; occupant = None
+                ; items = []
                 }
                 d m
         ) withWalls room.doors
@@ -1087,6 +1125,7 @@ let terrainAddHallways rooms m =
                     Matrix.set
                         { t = Hallway
                         ; occupant = None
+                        ; items = []
                         }
                         p m
                 ) path m in
@@ -1101,7 +1140,7 @@ let rec terrainAddStairs ~dir rooms m =
         | Up -> StairsUp
         | Down -> StairsDown
     in
-    let stairs = { t = stairType; occupant = None } in
+    let stairs = { t = stairType; occupant = None; items = [] } in
     match rooms with
         | [] -> assert false
         | rooms ->
@@ -1132,11 +1171,42 @@ let playerMoveToStairs ~dir state =
     let statePlayer = { state.statePlayer with pos = posStairs } in
     { state with statePlayer }
 
+let terrainAddObjects rooms m =
+    List.fold_left
+        ( fun m' r ->
+            if rn 0 2 > 0 then m' else
+            let p = randomRoomPos r in
+            let t = Matrix.get m p in
+            let scroll = Scroll
+                { itemStats = {count = 1}
+                ; scroll_t =
+                    if rn 0 1 > 0 then
+                        CreateMonster
+                    else
+                        MagicMapping
+                }
+            in
+            let i = match rn 0 2 with
+                | 0 -> Gold 6317
+                | 1 -> scroll
+                | 2 -> Container
+                    { container_t = Chest
+                    ; items = [Gold 313; scroll]
+                    }
+                | _ -> assert false
+            in
+
+        let t' = { t with items = i::t.items } in
+            Matrix.set t' p m'
+        )
+        m
+        rooms
 
 let mapGen state =
     let rooms = roomsGen () in
-    let terrain = Matrix.fill mapSize { t = Stone; occupant = None }
+    let terrain = Matrix.fill mapSize { t = Stone; occupant = None; items = [] }
         |> terrainAddRooms rooms
+        |> terrainAddObjects rooms
         |> terrainAddStairs ~dir:Up rooms
         |> terrainAddStairs ~dir:Down rooms
         |> terrainAddHallways rooms
