@@ -1239,10 +1239,10 @@ let playerGoDown state =
 
 let update event state = match event with
     | `Key (`ASCII 'q', _) -> print_endline "See you soon..."; None
-    | `Key (`ASCII 'h', _) -> playerAction (MoveDelta (0, -1)) state
-    | `Key (`ASCII 'l', _) -> playerAction (MoveDelta (0,  1)) state
-    | `Key (`ASCII 'k', _) -> playerAction (MoveDelta (-1, 0)) state
-    | `Key (`ASCII 'j', _) -> playerAction (MoveDelta (1,  0)) state
+    | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> playerAction (MoveDelta (0, -1)) state
+    | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> playerAction (MoveDelta (0,  1)) state
+    | `Key (`ASCII 'k', _) | `Key (`Arrow `Up, _) -> playerAction (MoveDelta (-1, 0)) state
+    | `Key (`ASCII 'j', _) | `Key (`Arrow `Down, _) -> playerAction (MoveDelta (1,  0)) state
 
     | `Key (`ASCII 'y', _) -> playerAction (MoveDelta (-1, -1)) state
     | `Key (`ASCII 'u', _) -> playerAction (MoveDelta (-1,  1)) state
