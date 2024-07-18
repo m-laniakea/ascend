@@ -1,5 +1,12 @@
+open Notty
+
 open Common
 open Matrix
+
+module Term = Notty_unix.Term
+let term = Term.create ()
+
+let brown = A.(fg yellow)
 
 let mapSize =
     { row = 21
@@ -112,7 +119,7 @@ type hit =
 
 type creatureInfo =
     { symbol : string
-    ; color : ANSITerminal.style
+    ; color : A.color
     ; difficulty : int
     ; levelBase : int
     ; hits: hit list
@@ -124,7 +131,7 @@ type creature =
     ; creatureInfo : creatureInfo
     }
 
-type occupant = Creature of creature | Boulder
+type occupant = Creature of creature | Player | Boulder
 
 type tile =
     { t : terrain
@@ -157,14 +164,8 @@ type animation =
     ; posStart : pos
     ; posCurrent : pos
     ; posEnd : pos
-    ; image : string
+    ; image : image
     }
-
-type command =
-    | NoOp
-    | Quit of string
-    | Key of char
-
 
 let mkHitMelee t e rolls sides = Melee
     { melee_t = t
@@ -314,44 +315,40 @@ let isFloorOrStairsOpt = function
     | None -> false
     | Some t -> isFloorOrStairs t
 
-let rec styleCharOfMap m pos t =
-    let open ANSITerminal in
-    if Option.is_some t.occupant then
-        match Option.get t.occupant with
+let rec imageOfTile m pos = function
+    | { occupant = Some occ; _ } ->
+        ( match occ with
             | Creature c ->
-                ( [Bold; c.creatureInfo.color]
-                , c.creatureInfo.symbol
-                )
-        | Boulder -> [Bold; white], "0"
-    else if not (List.is_empty t.items) then
-        let styles = if List.length t.items > 1 then [on_black; Bold] else [Bold] in
-        match List.hd t.items with
-        | Gold _ -> yellow::styles , "$"
-        | Scroll _ -> white::styles , "?"
-        | Container _ -> white::styles , "("
-    else
-    let c = match t.t with
-    | Stone -> " "
-    | Unseen -> " "
-    | Hallway -> "#"
-    | Floor -> "."
-    | Door Closed -> "+"
-    | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
-    | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
-    | Door Open -> "-"
-    | Door Hidden -> "*" (* TODO styleCharOfMap m pos { t = Stone } *)
-    | StairsUp -> "<"
-    | StairsDown -> ">"
-    | Wall Horizontal -> "-"
-    | Wall Vertical -> "|"
-    in
-    [white], c
+                I.string A.(st bold ++ fg c.creatureInfo.color) c.creatureInfo.symbol
+            | Player -> I.string A.(st bold ++ fg lightwhite) "@"
+            | Boulder -> I.string A.(st bold ++ fg white) "0"
+        )
+    | { items = topItem::others; _ } ->
+        let styles = if others = [] then A.(st bold) else A.(bg lightblack ++ st bold) in
+        ( match topItem with
+            | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
+            | Scroll _ -> I.string A.(styles ++ fg white) "?"
+            | Container _ -> I.string A.(styles ++ brown) "("
+        )
+    | t ->
+        let c = match t.t with
+        | Stone -> " "
+        | Unseen -> " "
+        | Hallway -> "#"
+        | Floor -> "."
+        | Door Closed -> "+"
+        | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
+        | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
+        | Door Open -> "-"
+        | Door Hidden -> "*" (* TODO imageOfTile m pos { t = Wall } *)
+        | StairsUp -> "<"
+        | StairsDown -> ">"
+        | Wall Horizontal -> "-"
+        | Wall Vertical -> "|"
+        in
+        I.string A.(fg white) c
 
-
-let stringOfStyleChar (style, c) =
-    ANSITerminal.sprintf style "%s" c
-
-let applyAnimatedTiles animationLayer _ m =
+let applyAnimatedTiles animationLayer m =
     animationLayer
     |> List.fold_left
         ( fun m (pos, styledChar) ->
@@ -359,30 +356,22 @@ let applyAnimatedTiles animationLayer _ m =
         )
         m
 
-let view animationLayer state =
-    let p = state.statePlayer.pos in
-    let map =
-        getCurrentLevelKnowledge state
-        |> Matrix.mapI styleCharOfMap
-        |> Matrix.map stringOfStyleChar
-        |> Matrix.set "@" p
-        |> applyAnimatedTiles animationLayer state
-        |> Matrix.raw
-        |> List.map (String.concat "")
-        |> String.concat "\n"
-    in
-    Format.sprintf
-{| HP: %i | Dlvl: %i
-
-%s|} state.statePlayer.hp state.stateLevels.indexLevel map
-
-let render ?(animationLayer=[]) state =
-    let toPrint = view animationLayer state in
-    let _, sy = ANSITerminal.size () in
-    ANSITerminal.set_cursor 1 (sy - mapSize.row - 2);
-    ANSITerminal.erase ANSITerminal.Below;
-
-    Format.printf "%s%!" toPrint
+let imageCreate ?(animationLayer=[]) state =
+    let open Notty.Infix in
+    (
+        Format.sprintf "HP: %i | DLvl: %i" state.statePlayer.hp state.stateLevels.indexLevel
+        |> I.string A.empty
+        <->
+        (
+            let mView =
+                getCurrentLevelKnowledge state
+                |> Matrix.mapI imageOfTile
+                |> applyAnimatedTiles animationLayer
+            in
+            I.tabulate mapSize.col mapSize.row (fun c r -> Matrix.get mView { row = r; col = c })
+        )
+    )
+    |> Term.image term
 
 let rec animate state ?(animationLayer=[]) a =
     let animationLayer' =
@@ -391,8 +380,8 @@ let rec animate state ?(animationLayer=[]) a =
         else
             (a.posCurrent, a.image)::animationLayer
     in
+    imageCreate ~animationLayer:animationLayer' state;
     Unix.sleepf 0.05;
-    render ~animationLayer:animationLayer' state;
 
     if a.posCurrent = a.posEnd then
         Unix.sleepf 0.3
@@ -428,6 +417,7 @@ let rec rayCanHitTarget m prev path =
     | _::[] -> (match t.t with Wall _ when prev.t = Hallway -> false | _ -> true)
     | hd::tl -> match t.occupant with
         | Some Boulder -> false
+        | Some Player -> rayCanHitTarget m t tl
         | Some (Creature c) ->
             rayCanHitTarget m t tl
             (* TODO large occupants *)
@@ -588,7 +578,7 @@ let canSpawnHere ?(forbidPos=None) m p =
     match Matrix.get m p with
         (* TODO water, phasing, etc. *)
         | { occupant = Some _; _ } -> false
-        | { occupant = None; t = t} ->
+        | { occupant = None; t = t; _ } ->
             ( match t with
                 | Door Open -> true
                 | Door Closed | Door Hidden -> false
@@ -631,7 +621,7 @@ let placeCreature ~room state =
                 ; level = 15
                 ; creatureInfo =
                     { symbol = "D"
-                    ; color = ANSITerminal.red
+                    ; color = A.lightred
                     ; difficulty = 20
                     ; levelBase = 15
                     ; hits =
@@ -820,32 +810,34 @@ let playerAttackMelee t p c state =
     (* TODO base on stats *)
     creatureAddHp (-5) t p c state
 
-let playerMove (r, c) s =
-    let p = s.statePlayer.pos in
-    let t = getCurrentLevel s in
+let playerMove (r, c) state =
+    let p = state.statePlayer.pos in
+    let m = getCurrentLevel state in
     let pn = { row = p.row + r; col = p.col + c } in
+    if not (isInMap pn) then state else
 
-    match Matrix.get t pn with
-    | { t = Door Closed; _ } ->
+    match Matrix.get m pn with
+    | { t = Door Closed; _ } as tile ->
         (* TODO make chance based on stats *)
         if rn 0 2 = 0 then
-            s
+            state
         else
-            let tn = Matrix.set
-                { t = Door Open
-                ; occupant = None
-                ; items = []
-                }
-                pn t
-            in
+            let tn = Matrix.set { tile with t = Door Open } pn m in
+            setCurrentLevel tn state
 
-            setCurrentLevel tn s
     | { occupant = Some (Creature c); _ } as t ->
-        playerAttackMelee t pn c s
+        playerAttackMelee t pn c state
 
     | t_at ->
-        let pn = { s.statePlayer with pos = if canMoveTo t_at then pn else p } in
-        { s with statePlayer = pn }
+        if not (canMoveTo t_at) then state else
+        let tile = Matrix.get m p in
+        let m' =
+            Matrix.set { tile with occupant = None } p m
+            |> Matrix.set { t_at with occupant = Some Player } pn
+        in
+
+        let pn = { state.statePlayer with pos = pn } in
+        { (setCurrentLevel m' state) with statePlayer = pn }
 
 let playerSearch state =
     (* TODO base search success on stats *)
@@ -933,11 +925,9 @@ let creatureAttackMelee c p state =
         state
 
 let getImageForAnimation t dir =
-    let open ANSITerminal in
-
     let color = match t with
-    | Physical -> white
-    | Fire -> red
+    | Physical -> A.(fg white)
+    | Fire -> A.(fg lightred)
     in
 
     let c = match dir with
@@ -948,12 +938,11 @@ let getImageForAnimation t dir =
     | _ -> assert false
     in
 
-    ([Bold; color], c) |> stringOfStyleChar
+    I.string A.(st bold ++ color) c
 
 let creatureAttackRanged c cp tp state =
     let rec processPath effectSize cp pd pTarget state =
         let cp' = posAdd cp pd in
-        let pp = state.statePlayer.pos in
         let m = getCurrentLevel state in
 
         let state' = match Matrix.get m cp' with
@@ -961,12 +950,10 @@ let creatureAttackRanged c cp tp state =
             | { occupant = Some (Creature c); _ } as t ->
                     creatureAddHp (-effectSize) t cp' c state
                     (* ^TODO resistances *)
+            | { occupant = Some Player; _ } ->
+                playerAddHp (-effectSize) state
 
-            | { occupant = None; _ } ->
-                    if cp' <> pp then
-                        state
-                    else
-                        playerAddHp (-effectSize) state
+            | { occupant = None; _ } -> state (* TODO burning items, etc. *)
         in
 
         (* TODO stop ray when ranged sufficiently reduced
@@ -1041,25 +1028,25 @@ let maybeAddCreature state =
     if rn 0 50 > 0 then state else
     placeCreature ~room:None state
 
-let playerCheckHp (state, c) =
+let playerCheckHp state =
     let sp = state.statePlayer in
     if sp.hp <= 0 then
-        (state, Quit "You died...")
+        let _ = print_endline "You died..." in
+        None
     else
-        state, c
+        Some state
 
 let playerAction a state =
     let s' = match a with
         | MoveDelta d -> playerMove d state
         | Search -> playerSearch state
     in
-    ( animateCreatures s'
-        |> maybeAddCreature
-        |> playerKnowledgeDeleteCreatures
-        |> playerUpdateMapKnowledge
-        |> playerAddHp (if rn 0 2 = 0 then 1 else 0)
-    , NoOp
-    )
+    playerUpdateMapKnowledge s'
+    |> animateCreatures
+    |> maybeAddCreature
+    |> playerKnowledgeDeleteCreatures
+    |> playerUpdateMapKnowledge
+    |> playerAddHp (if rn 0 2 = 0 then 1 else 0)
     |> playerCheckHp
 
 let terrainAddRoom m room =
@@ -1166,10 +1153,12 @@ let playerMoveToStairs ~dir state =
         | Up -> StairsUp
         | Down -> StairsDown
     in
-    let posStairs = getPosTerrain (getCurrentLevel state) stairType
-    in
+    let m = getCurrentLevel state in
+    let posStairs = getPosTerrain m stairType in
+    let t = Matrix.get m posStairs in
+    let m' = Matrix.set { t with occupant = Some Player } posStairs m in
     let statePlayer = { state.statePlayer with pos = posStairs } in
-    { state with statePlayer }
+    { (setCurrentLevel m' state) with statePlayer;  }
 
 let terrainAddObjects rooms m =
     List.fold_left
@@ -1219,74 +1208,52 @@ let mapGen state =
 let playerGoUp state =
     let p = state.statePlayer.pos in
     if Matrix.get (getCurrentLevel state) p |> isTerrainOf StairsUp |> not then
-        (state, NoOp)
+        state
     else
         let sl = state.stateLevels in
         if sl.indexLevel = 0 then
-            (state, NoOp)
+            state
         else
             let s' = setIndexLevel (sl.indexLevel - 1) state
                 |> playerMoveToStairs ~dir:Down
             in
-            (s', NoOp)
+            s'
 
 let playerGoDown state =
     let p = state.statePlayer.pos in
     if Matrix.get (getCurrentLevel state) p |> isTerrainOf StairsDown |> not then
-        (state, NoOp)
+        state
     else
         let sl = state.stateLevels in
         if sl.indexLevel = List.length sl.levels - 1 then
-            ( mapGen state
-                |> playerMoveToStairs ~dir:Up
-                |> playerAddMapKnowledgeEmpty
-                |> playerUpdateMapKnowledge
-            , NoOp
-            )
+            mapGen state
+            |> playerMoveToStairs ~dir:Up
+            |> playerAddMapKnowledgeEmpty
+            |> playerUpdateMapKnowledge
         else
             let s' = setIndexLevel (sl.indexLevel + 1) state
                 |> playerMoveToStairs ~dir:Up
             in
-            (s', NoOp)
+            s'
 
 
 let update event state = match event with
-    | Key 'q' -> (state, Quit "See you soon...")
-    | Key 'h' -> playerAction (MoveDelta (0, -1)) state
-    | Key 'l' -> playerAction (MoveDelta (0,  1)) state
-    | Key 'k' -> playerAction (MoveDelta (-1, 0)) state
-    | Key 'j' -> playerAction (MoveDelta (1,  0)) state
+    | `Key (`ASCII 'q', _) -> print_endline "See you soon..."; None
+    | `Key (`ASCII 'h', _) -> playerAction (MoveDelta (0, -1)) state
+    | `Key (`ASCII 'l', _) -> playerAction (MoveDelta (0,  1)) state
+    | `Key (`ASCII 'k', _) -> playerAction (MoveDelta (-1, 0)) state
+    | `Key (`ASCII 'j', _) -> playerAction (MoveDelta (1,  0)) state
 
-    | Key 'y' -> playerAction (MoveDelta (-1, -1)) state
-    | Key 'u' -> playerAction (MoveDelta (-1,  1)) state
-    | Key 'b' -> playerAction (MoveDelta (1,  -1)) state
-    | Key 'n' -> playerAction (MoveDelta (1,   1)) state
+    | `Key (`ASCII 'y', _) -> playerAction (MoveDelta (-1, -1)) state
+    | `Key (`ASCII 'u', _) -> playerAction (MoveDelta (-1,  1)) state
+    | `Key (`ASCII 'b', _) -> playerAction (MoveDelta (1,  -1)) state
+    | `Key (`ASCII 'n', _) -> playerAction (MoveDelta (1,   1)) state
 
-    | Key 's' -> playerAction Search state
+    | `Key (`ASCII 's', _) -> playerAction Search state
 
-    | Key '<' -> playerGoUp state
-    | Key '>' -> playerGoDown state
-    | Key _ -> (state, NoOp)
-    | NoOp -> assert false
-    | Quit _ -> assert false
-
-
-let getChar () =
-    (* TODO lwt just for read_char? *)
-    Lwt_main.run Lwt_io.(read_char stdin)
-
-let rec loop (state, command) =
-    render state;
-
-    match command with
-    | NoOp ->
-        let c = getChar () in
-        update (Key c) state
-        |> loop
-    | Quit s ->
-        Format.printf "\n%s\n" s;
-        Terminal.restoreAttributes ()
-    | _ -> update command state |> loop
+    | `Key (`ASCII '<', _) -> Some (playerGoUp state)
+    | `Key (`ASCII '>', _) -> Some (playerGoDown state)
+    | _ -> Some state
 
 let stateInitial =
     Random.init 0;
@@ -1316,5 +1283,14 @@ let stateInitial =
     |> playerUpdateMapKnowledge
 
 let () =
-    Terminal.setup ();
-    loop (stateInitial, NoOp)
+    let rec go state =
+        imageCreate state;
+
+        match Term.event term with
+        | `End | `Key (`Escape, []) | `Key (`ASCII 'C', [`Ctrl]) -> ()
+        | `Resize _ -> go state
+        | #Unescape.event as e -> match update e state with
+            | Some s -> go s
+            | None -> ()
+    in
+    go stateInitial

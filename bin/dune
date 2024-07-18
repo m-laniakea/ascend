@@ -1,4 +1,4 @@
 (executable
  (public_name OHack)
  (name main)
- (libraries OHack ANSITerminal lwt lwt.unix))
+ (libraries OHack notty notty.unix))

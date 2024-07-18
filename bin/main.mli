@@ -3,7 +3,6 @@ open Matrix
 type tile
 type terrain
 
-type command
 type state
 
 type room
