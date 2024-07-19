@@ -496,6 +496,8 @@ let playerKnowledgeDeleteCreatures state =
 
 let rn min max = Random.int_in_range ~min ~max
 
+let oneIn n = rn 0 (n - 1) = 0
+
 let rnItem l =
     assert (List.length l > 0);
 
@@ -790,7 +792,7 @@ let canMoveTo t = match t.t with
     | Wall Horizontal | Wall Vertical -> false
 
 
-type playerActions = MoveDelta of (int * int) | Search
+type playerActions = MoveDir of (pos -> pos) | Search
 
 let creatureAddHp n t p c state =
     let cl = getCurrentLevel state in
@@ -810,16 +812,16 @@ let playerAttackMelee t p c state =
     (* TODO base on stats *)
     creatureAddHp (-5) t p c state
 
-let playerMove (r, c) state =
+let rec playerMove mf state =
     let p = state.statePlayer.pos in
     let m = getCurrentLevel state in
-    let pn = { row = p.row + r; col = p.col + c } in
+    let pn = mf p in
     if not (isInMap pn) then state else
 
     match Matrix.get m pn with
     | { t = Door Closed; _ } as tile ->
         (* TODO make chance based on stats *)
-        if rn 0 2 = 0 then
+        if oneIn 3 then
             state
         else
             let tn = Matrix.set { tile with t = Door Open } pn m in
@@ -827,6 +829,23 @@ let playerMove (r, c) state =
 
     | { occupant = Some (Creature c); _ } as t ->
         playerAttackMelee t pn c state
+
+    | { occupant = Some Boulder; _ } as t ->
+        let pbNew = mf pn in
+        if not (isInMap pbNew) then state else
+        let behindBoulder = Matrix.get m pbNew in
+        if canMoveTo behindBoulder |> not then state else
+        ( match behindBoulder with
+            | { occupant = Some _ } -> state
+            | _ ->
+                let behind' = { behindBoulder with occupant = Some Boulder } in
+                let t' = { t with occupant = None } in
+                let m' =
+                    Matrix.set behind' pbNew m
+                    |> Matrix.set t' pn
+                in
+                playerMove mf (setCurrentLevel m' state)
+        )
 
     | t_at ->
         if not (canMoveTo t_at) then state else
@@ -1038,7 +1057,7 @@ let playerCheckHp state =
 
 let playerAction a state =
     let s' = match a with
-        | MoveDelta d -> playerMove d state
+        | MoveDir mf -> playerMove mf state
         | Search -> playerSearch state
     in
     playerUpdateMapKnowledge s'
@@ -1094,6 +1113,12 @@ let terrainAddRoom m room =
 let terrainAddRooms rooms t =
     List.fold_right (fun r m -> terrainAddRoom m r) rooms t
 
+let maybeAddBoulder hallway m =
+    if not (oneIn 50) then m else
+    let p = rnItem hallway in
+    let t = Matrix.get m p in
+    Matrix.set { t with occupant = Some Boulder } p m
+
 let terrainAddHallways rooms m =
     let allDoors = List.map (fun r -> r.doors) rooms |> List.concat in
 
@@ -1107,16 +1132,17 @@ let terrainAddHallways rooms m =
                 |> List.rev
                 |> List.tl
             in
-            let m = List.fold_right
-                ( fun p m ->
+            let m = List.fold_left
+                ( fun m p ->
                     Matrix.set
                         { t = Hallway
                         ; occupant = None
                         ; items = []
                         }
                         p m
-                ) path m in
+                ) m path in
             aux m t
+            |> maybeAddBoulder path
     in
     aux m allDoors
 
@@ -1239,15 +1265,15 @@ let playerGoDown state =
 
 let update event state = match event with
     | `Key (`ASCII 'q', _) -> print_endline "See you soon..."; None
-    | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> playerAction (MoveDelta (0, -1)) state
-    | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> playerAction (MoveDelta (0,  1)) state
-    | `Key (`ASCII 'k', _) | `Key (`Arrow `Up, _) -> playerAction (MoveDelta (-1, 0)) state
-    | `Key (`ASCII 'j', _) | `Key (`Arrow `Down, _) -> playerAction (MoveDelta (1,  0)) state
+    | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> playerAction (MoveDir west) state
+    | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> playerAction (MoveDir east) state
+    | `Key (`ASCII 'k', _) | `Key (`Arrow `Up, _) -> playerAction (MoveDir north) state
+    | `Key (`ASCII 'j', _) | `Key (`Arrow `Down, _) -> playerAction (MoveDir south) state
 
-    | `Key (`ASCII 'y', _) -> playerAction (MoveDelta (-1, -1)) state
-    | `Key (`ASCII 'u', _) -> playerAction (MoveDelta (-1,  1)) state
-    | `Key (`ASCII 'b', _) -> playerAction (MoveDelta (1,  -1)) state
-    | `Key (`ASCII 'n', _) -> playerAction (MoveDelta (1,   1)) state
+    | `Key (`ASCII 'y', _) -> playerAction (MoveDir northWest) state
+    | `Key (`ASCII 'u', _) -> playerAction (MoveDir northEast) state
+    | `Key (`ASCII 'b', _) -> playerAction (MoveDir southWest) state
+    | `Key (`ASCII 'n', _) -> playerAction (MoveDir southEast) state
 
     | `Key (`ASCII 's', _) -> playerAction Search state
 
