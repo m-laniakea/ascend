@@ -867,7 +867,7 @@ let playerSearch state =
     in
     let terrain' = List.fold_right
         ( fun d m ->
-            if (rn 0 3 > 0) then
+            if not (oneIn 3) then
                 m
             else
                 Matrix.set
@@ -1044,8 +1044,10 @@ let animateCreatures state = Matrix.foldI
     ) state (getCurrentLevel state)
 
 let maybeAddCreature state =
-    if rn 0 50 > 0 then state else
-    placeCreature ~room:None state
+    if oneIn 50 then
+        placeCreature ~room:None state
+    else
+        state
 
 let playerCheckHp state =
     let sp = state.statePlayer in
@@ -1065,7 +1067,7 @@ let playerAction a state =
     |> maybeAddCreature
     |> playerKnowledgeDeleteCreatures
     |> playerUpdateMapKnowledge
-    |> playerAddHp (if rn 0 2 = 0 then 1 else 0)
+    |> playerAddHp (if oneIn 3 then 1 else 0)
     |> playerCheckHp
 
 let terrainAddRoom m room =
@@ -1169,7 +1171,7 @@ let rec placeCreatures rooms state =
         | [] -> state
         | r::ro ->
             let s' = placeCreature ~room:(Some r) state in
-            if rn 0 2 = 0 then
+            if oneIn 3 then
                 placeCreatures ro s'
             else
                 s'
@@ -1189,13 +1191,13 @@ let playerMoveToStairs ~dir state =
 let terrainAddObjects rooms m =
     List.fold_left
         ( fun m' r ->
-            if rn 0 2 > 0 then m' else
+            if not (oneIn 3) then m' else
             let p = randomRoomPos r in
             let t = Matrix.get m p in
             let scroll = Scroll
                 { itemStats = {count = 1}
                 ; scroll_t =
-                    if rn 0 1 > 0 then
+                    if oneIn 2 then
                         CreateMonster
                     else
                         MagicMapping
