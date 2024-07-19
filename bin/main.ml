@@ -37,12 +37,13 @@ type room =
     }
 
 type stateDoor = Closed | Open | Hidden
+type hallway = HallHidden | HallRegular
 type wall = Vertical | Horizontal
 
 type terrain =
     | Door of stateDoor
     | Floor
-    | Hallway
+    | Hallway of hallway
     | StairsDown
     | StairsUp
     | Stone
@@ -305,6 +306,12 @@ let distance b a =
 let distanceManhattan f t =
     abs (t.row - f.row) + abs (t.col - f.col)
 
+let isTerrainHidden t =
+    t.t = Hallway HallHidden || t.t = Door Hidden
+
+let isHallway t =
+    t.t = Hallway HallHidden || t.t = Hallway HallRegular
+
 let isStairs t =
     t.t = StairsUp || t.t = StairsDown
 
@@ -334,7 +341,8 @@ let rec imageOfTile m pos = function
         let c = match t.t with
         | Stone -> " "
         | Unseen -> " "
-        | Hallway -> "#"
+        | Hallway HallHidden -> " "
+        | Hallway HallRegular -> "#"
         | Floor -> "."
         | Door Closed -> "+"
         | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
@@ -414,7 +422,7 @@ let isLit p = false (* TODO *)
 let rec rayCanHitTarget m prev path =
     let t = Matrix.get m (List.hd path) in match path with
     | [] -> true
-    | _::[] -> (match t.t with Wall _ when prev.t = Hallway -> false | _ -> true)
+    | _::[] -> (match t.t with Wall _ when prev.t = Hallway HallRegular -> false | _ -> true)
     | hd::tl -> match t.occupant with
         | Some Boulder -> false
         | Some Player -> rayCanHitTarget m t tl
@@ -422,10 +430,11 @@ let rec rayCanHitTarget m prev path =
             rayCanHitTarget m t tl
             (* TODO large occupants *)
         | None -> match t.t with
-            | Floor | Hallway
+            | Floor | Hallway HallRegular
             | StairsDown | StairsUp
             | Door Open -> rayCanHitTarget m t tl
             | Door Closed | Door Hidden -> false
+            | Hallway HallHidden -> false
             | Stone -> false
             | Unseen -> false
             | Wall _ -> false
@@ -585,7 +594,8 @@ let canSpawnHere ?(forbidPos=None) m p =
                 | Door Open -> true
                 | Door Closed | Door Hidden -> false
                 | Floor -> true
-                | Hallway -> true
+                | Hallway HallHidden -> false
+                | Hallway HallRegular -> true
                 | StairsDown -> true
                 | StairsUp  -> false
                 | Stone -> false
@@ -736,7 +746,7 @@ let get_next_states pGoal ?(manhattan=true) ~allowHallway ~isMapGen m p =
             match (Matrix.get m p).t with
             | Door Closed | Door Hidden | Door Open -> true
             | Floor -> false
-            | Hallway -> allowHallway
+            | Hallway _ -> allowHallway
             | StairsDown -> false
             | StairsUp -> false
             | Stone -> true
@@ -784,9 +794,10 @@ let solve m start goal =
 
 
 let canMoveTo t = match t.t with
-    | Floor | StairsUp | StairsDown | Hallway -> true
+    | Floor | StairsUp | StairsDown | Hallway HallRegular -> true
     | Door Open -> true
     | Door Closed | Door Hidden -> false
+    | Hallway HallHidden -> false
     | Stone -> false
     | Unseen -> false
     | Wall Horizontal | Wall Vertical -> false
@@ -861,22 +872,25 @@ let rec playerMove mf state =
 let playerSearch state =
     (* TODO base search success on stats *)
     let currentLevel = getCurrentLevel state in
-    let hiddenDoorsAround =
+    let hiddenTerrainAround =
         posAround state.statePlayer.pos
-        |> List.filter (fun pa -> Matrix.get currentLevel pa |> isTerrainOf (Door Hidden) )
+        |> List.filter (fun pa -> Matrix.get currentLevel pa |> isTerrainHidden)
     in
-    let terrain' = List.fold_right
-        ( fun d m ->
+    let terrain' = List.fold_left
+        ( fun m p ->
             if not (oneIn 3) then
                 m
             else
+                let current = Matrix.get m p in
+                let tt' = match current.t with
+                    | Door Hidden -> Door Closed
+                    | Hallway HallHidden -> Hallway HallRegular
+                    | _ -> assert false
+                in
                 Matrix.set
-                    { t = Door Closed
-                    ; occupant = None
-                    ; items = []
-                    }
-                    d m
-        ) hiddenDoorsAround currentLevel
+                    { current with t = tt' }
+                    p m
+        ) currentLevel hiddenTerrainAround
     in
 
     setCurrentLevel terrain' state
@@ -1136,13 +1150,17 @@ let terrainAddHallways rooms m =
             in
             let m = List.fold_left
                 ( fun m p ->
-                    Matrix.set
-                        { t = Hallway
-                        ; occupant = None
-                        ; items = []
-                        }
-                        p m
-                ) m path in
+                    let tCurrent = Matrix.get m p in
+                    if isHallway tCurrent then
+                        m
+                    else
+                        let hT = if oneIn 50 then HallHidden else HallRegular in
+                        Matrix.set
+                            { tCurrent with t = Hallway hT }
+                            p m
+                )
+                m path
+            in
             aux m t
             |> maybeAddBoulder path
     in
