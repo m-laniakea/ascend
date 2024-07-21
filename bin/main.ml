@@ -3,10 +3,16 @@ open Notty
 open Common
 open Matrix
 
+module F = Format
+module Q = Queue
+
 module Term = Notty_unix.Term
+
 let term = Term.create ()
 
 let brown = A.(fg yellow)
+
+let sf = F.sprintf
 
 let mapSize =
     { row = 21
@@ -14,6 +20,8 @@ let mapSize =
     }
 
 let distanceSight = 3.17
+
+let itemsDisplayedMax = 5
 
 let id a = a
 
@@ -121,6 +129,7 @@ type hit =
 type creatureInfo =
     { symbol : string
     ; color : A.color
+    ; name : string
     ; difficulty : int
     ; levelBase : int
     ; hits: hit list
@@ -156,7 +165,7 @@ type statePlayer =
 type state =
     { stateLevels : stateLevels
     ; statePlayer : statePlayer
-    (* TODO messages *)
+    ; messages : string Q.t
     (* objects : list Object *)
     }
 
@@ -167,6 +176,58 @@ type animation =
     ; posEnd : pos
     ; image : image
     }
+
+type msgHit =
+    { msgHit : string
+    ; msgCause : string
+    ; msgEffect : string
+    }
+
+let getEffect = function
+    | Passive p -> assert false (* TODO *)
+    | Ranged r -> r.hitStatsR.effect
+    | Melee m -> m.hitStats.effect
+
+let getMsgsCauseEffect a =
+    let msgCause, msgEffect = match getEffect a with
+        | Physical -> "attack", "hits"
+        | Fire -> "fire", "burns"
+    in
+    { msgHit = ""; msgCause; msgEffect }
+
+let getMsgsHit a =
+    let msgHit = match a with
+        | Passive p -> assert false (* TODO *)
+        | Ranged r ->
+            ( match r.ranged_t with
+                | Breath -> "breathes"
+            )
+
+        | Melee m -> match m.melee_t with
+            | Bite -> "bites"
+            | Claw -> "claws at"
+    in
+    let msgBase = getMsgsCauseEffect a in
+    { msgBase with msgHit }
+
+let itemCount = function
+    | Gold t -> t
+    | Scroll { itemStats = is; _ } -> is.count
+    | Container _ -> 1
+
+let itemName i =
+    let count = itemCount i in
+    let mPlural = if count = 1 then "" else "s" in
+    match i with
+        | Gold t -> "gold piece" ^ mPlural
+        | Scroll { scroll_t = t; itemStats = is } -> "scroll" ^ mPlural ^ " of " ^
+                ( match t with
+                    | CreateMonster -> "create monster"
+                    | MagicMapping -> "magic mapping"
+                )
+        | Container c -> match c.container_t with
+            | Sack -> "sack"
+            | Chest -> "chest"
 
 let mkHitMelee t e rolls sides = Melee
     { melee_t = t
@@ -183,6 +244,8 @@ let mkHitRanged t e rolls sides = Ranged
         ; roll = { rolls; sides }
         }
     }
+
+let addMsg state s = Q.push s state.messages
 
 let unseenEmpty = { t = Unseen; occupant = None; items = [] }
 
@@ -377,6 +440,10 @@ let imageCreate ?(animationLayer=[]) state =
                 |> applyAnimatedTiles animationLayer
             in
             I.tabulate mapSize.col mapSize.row (fun c r -> Matrix.get mView { row = r; col = c })
+        )
+        <|>
+        (
+            Q.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
         )
     )
     |> Term.image term
@@ -634,6 +701,7 @@ let placeCreature ~room state =
                 ; creatureInfo =
                     { symbol = "D"
                     ; color = A.lightred
+                    ; name = "red dragon"
                     ; difficulty = 20
                     ; levelBase = 15
                     ; hits =
@@ -810,6 +878,7 @@ let creatureAddHp n t p c state =
     let t' =
         if c.cHp + n < 0 then
             (* TODO drops *)
+            let _ = addMsg state (sf "The %s is killed!" c.creatureInfo.name) in
             { t with occupant = None }
         else
             let c' = Creature { c with cHp = c.cHp + n } in
@@ -821,6 +890,7 @@ let creatureAddHp n t p c state =
 
 let playerAttackMelee t p c state =
     (* TODO base on stats *)
+    addMsg state (sf "You attack the %s." c.creatureInfo.name);
     creatureAddHp (-5) t p c state
 
 let rec playerMove mf state =
@@ -833,8 +903,10 @@ let rec playerMove mf state =
     | { t = Door Closed; _ } as tile ->
         (* TODO make chance based on stats *)
         if oneIn 3 then
+            let _ = addMsg state "The door resists!" in
             state
         else
+            let _  = addMsg state "You open the door." in
             let tn = Matrix.set { tile with t = Door Open } pn m in
             setCurrentLevel tn state
 
@@ -843,11 +915,12 @@ let rec playerMove mf state =
 
     | { occupant = Some Boulder; _ } as t ->
         let pbNew = mf pn in
-        if not (isInMap pbNew) then state else
+        if not (isInMap pbNew) then (addMsg state "The boulder won't budge!"; state) else
         let behindBoulder = Matrix.get m pbNew in
-        if canMoveTo behindBoulder |> not then state else
+        if canMoveTo behindBoulder |> not then (addMsg state "The boulder won't budge."; state) else
         ( match behindBoulder with
-            | { occupant = Some _ } -> state
+            | { occupant = Some Boulder } -> addMsg state "There's something blocking the boulder!"; state
+            | { occupant = Some _ } -> addMsg state "There's something alive behind the boulder!"; state
             | _ ->
                 let behind' = { behindBoulder with occupant = Some Boulder } in
                 let t' = { t with occupant = None } in
@@ -855,16 +928,32 @@ let rec playerMove mf state =
                     Matrix.set behind' pbNew m
                     |> Matrix.set t' pn
                 in
+                addMsg state "With great effort you push the boulder.";
                 playerMove mf (setCurrentLevel m' state)
         )
 
-    | t_at ->
-        if not (canMoveTo t_at) then state else
+    | tNew ->
+        if not (canMoveTo tNew) then state else
         let tile = Matrix.get m p in
         let m' =
             Matrix.set { tile with occupant = None } p m
-            |> Matrix.set { t_at with occupant = Some Player } pn
+            |> Matrix.set { tNew with occupant = Some Player } pn
         in
+        ( if not (List.is_empty tNew.items) then
+            if List.length tNew.items > itemsDisplayedMax then
+                addMsg state "You see here many items."
+            else
+                let _ = addMsg state "You see here:" in
+                List.iter
+                    ( fun i ->
+                        let name = itemName i in
+                        let count = itemCount i in
+                        addMsg state (sf "%i %s" count name)
+                    )
+                    tNew.items
+        else
+            ()
+        );
 
         let pn = { state.statePlayer with pos = pn } in
         { (setCurrentLevel m' state) with statePlayer = pn }
@@ -883,8 +972,8 @@ let playerSearch state =
             else
                 let current = Matrix.get m p in
                 let tt' = match current.t with
-                    | Door Hidden -> Door Closed
-                    | Hallway HallHidden -> Hallway HallRegular
+                    | Door Hidden -> addMsg state "You find a hidden door!"; Door Closed
+                    | Hallway HallHidden -> addMsg state "You find a hidden hallway!"; Hallway HallRegular
                     | _ -> assert false
                 in
                 Matrix.set
@@ -926,8 +1015,17 @@ let getHitThreshold ac attackerLevel =
     let ac' = if ac < 0 then rn ac (-1) else ac in
     10 + ac' + attackerLevel |> max 1
 
+type miss =
+    { missed : bool
+    ; justMissed : bool
+    }
+
 let rollMiss threshold addSides =
-    rn 1 (20 + addSides) >= threshold
+    let roll = rn 1 (20 + addSides) in
+    let justMissed = roll = threshold in
+    { missed = roll >= threshold
+    ; justMissed
+    }
 
 let rollReducedDamage ac damage =
     if ac >= 0 then damage else
@@ -935,23 +1033,30 @@ let rollReducedDamage ac damage =
 
 let creatureAttackMelee c p state =
     if p = state.statePlayer.pos then
-        let hitThreshold = getHitThreshold 0 c.level in
+        let hitThreshold = getHitThreshold (-10) c.level in
         (* ^TODO player AC *)
         c.creatureInfo.hits
         |> List.filter_map (function | Melee hm -> Some hm | _ -> None)
         |> List.mapi (fun i v -> i, v)
-        |> List.fold_left (fun state' (addSides, hm) ->
-            if rollMiss hitThreshold addSides then
-                state'
-            else
-            let effectSize =
-                rollEffectSize hm.hitStats.roll
-                |> rollReducedDamage 0
-                (* ^TODO player AC *)
-            in
+        |> List.fold_left
+            ( fun state' (addSides, hm) ->
+                let miss = rollMiss hitThreshold addSides in
+                if miss.missed then
+                    let mJust = if miss.justMissed then " just" else "" in
+                    let _ = addMsg state (sf "The %s%s misses you." c.creatureInfo.name mJust) in
+                    state'
+                else
+                let effectSize =
+                    rollEffectSize hm.hitStats.roll
+                    |> rollReducedDamage 0
+                    (* ^TODO player AC *)
+                in
+                let msgsHit = getMsgsHit (Melee hm) in
 
-            playerAddHp (-effectSize) state'
-            ) state
+                addMsg state (sf "The %s %s you." c.creatureInfo.name msgsHit.msgHit);
+                playerAddHp (-effectSize) state'
+            )
+            state
 
     else
         let _ = assert false in
@@ -974,16 +1079,18 @@ let getImageForAnimation t dir =
     I.string A.(st bold ++ color) c
 
 let creatureAttackRanged c cp tp state =
-    let rec processPath effectSize cp pd pTarget state =
+    let rec processPath effectSize msgsHit cp pd pTarget state =
         let cp' = posAdd cp pd in
         let m = getCurrentLevel state in
 
         let state' = match Matrix.get m cp' with
-            | { occupant = Some Boulder; _ } -> state (* TODO rays/vs weapons *)
-            | { occupant = Some (Creature c); _ } as t ->
-                    creatureAddHp (-effectSize) t cp' c state
+            | { occupant = Some Boulder; _ } -> addMsg state (sf "The %s whizzes past the boulder." msgsHit.msgCause); state (* TODO rays/vs weapons *)
+            | { occupant = Some Creature c'; _ } as t ->
+                    addMsg state (sf "The %s %s the %s." msgsHit.msgCause msgsHit.msgEffect c'.creatureInfo.name);
+                    creatureAddHp (-effectSize) t cp' c' state
                     (* ^TODO resistances *)
             | { occupant = Some Player; _ } ->
+                addMsg state (sf "The %s %s you!" msgsHit.msgCause msgsHit.msgEffect);
                 playerAddHp (-effectSize) state
 
             | { occupant = None; _ } -> state (* TODO burning items, etc. *)
@@ -996,7 +1103,7 @@ let creatureAttackRanged c cp tp state =
         if cp' = pTarget then
             state'
         else
-            processPath effectSize cp' pd pTarget state'
+            processPath effectSize msgsHit cp' pd pTarget state'
     in
     c.creatureInfo.hits
     |> List.filter_map (function | Ranged hr -> Some hr | _ -> None)
@@ -1017,7 +1124,9 @@ let creatureAttackRanged c cp tp state =
                 }
             in
             animate state' animation;
-            processPath effectSize cp pDiff tp state'
+            let msgsHit = getMsgsHit (Ranged hr) in
+            addMsg state (sf "The %s %s %s." c.creatureInfo.name msgsHit.msgHit msgsHit.msgCause);
+            processPath effectSize msgsHit cp pDir tp state'
         )
         state
 
@@ -1035,6 +1144,7 @@ let animateCreature c cp state =
     else if areLinedUp cp pp
             && hasRangedAttack c
             && creatureCanSee c cp pp state then
+            (* ^TODO check that attack has path to target *)
         creatureAttackRanged c cp pp state
     else
         match getCreaturePath cl cp pp with
@@ -1066,18 +1176,20 @@ let maybeAddCreature state =
 let playerCheckHp state =
     let sp = state.statePlayer in
     if sp.hp <= 0 then
-        let _ = print_endline "You died..." in
+        let _ = addMsg state "You died..." in
         None
     else
         Some state
 
 let playerAction a state =
+    Q.clear state.messages;
     let s' = match a with
         | MoveDir mf -> playerMove mf state
         | Search -> playerSearch state
     in
     playerUpdateMapKnowledge s'
     |> animateCreatures
+    (* TODO update playerMap after each creature move *)
     |> maybeAddCreature
     |> playerKnowledgeDeleteCreatures
     |> playerUpdateMapKnowledge
@@ -1133,7 +1245,7 @@ let maybeAddBoulder hallway m =
     if not (oneIn 50) then m else
     let p = rnItem hallway in
     let t = Matrix.get m p in
-    Matrix.set { t with occupant = Some Boulder } p m
+    Matrix.set { t with occupant = Some Boulder; t = Hallway HallRegular } p m
 
 let terrainAddHallways rooms m =
     let allDoors = List.map (fun r -> r.doors) rooms |> List.concat in
@@ -1212,8 +1324,9 @@ let terrainAddObjects rooms m =
             if not (oneIn 3) then m' else
             let p = randomRoomPos r in
             let t = Matrix.get m p in
+            let count = 1 in
             let scroll = Scroll
-                { itemStats = {count = 1}
+                { itemStats = {count}
                 ; scroll_t =
                     if oneIn 2 then
                         CreateMonster
@@ -1231,7 +1344,7 @@ let terrainAddObjects rooms m =
                 | _ -> assert false
             in
 
-        let t' = { t with items = i::t.items } in
+            let t' = { t with items = i::t.items } in
             Matrix.set t' p m'
         )
         m
@@ -1302,7 +1415,7 @@ let update event state = match event with
     | _ -> Some state
 
 let stateInitial =
-    Random.init 0;
+    Random.init 613;
 
     let stateLevels =
         { indexLevel = -1
@@ -1321,8 +1434,11 @@ let stateInitial =
     let stateI =
         { stateLevels
         ; statePlayer
+        ; messages = Q.create ()
         }
     in
+    Q.push "Welcome." stateI.messages;
+    Q.push "Lucky! There's a full moon tonight." stateI.messages;
     mapGen stateI
     |> playerMoveToStairs ~dir:Up
     |> playerAddMapKnowledgeEmpty
