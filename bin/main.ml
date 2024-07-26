@@ -3,7 +3,6 @@ open Notty
 open Common
 open Matrix
 
-module F = Format
 module L = List
 module Q = Queue
 
@@ -12,8 +11,6 @@ module Term = Notty_unix.Term
 let term = Term.create ()
 
 let brown = A.(fg yellow)
-
-let sf = F.sprintf
 
 let mapSize =
     { row = 21
@@ -27,8 +24,6 @@ let itemsDisplayedMax = 5
 let id a = a
 
 let range min max = List.init (max - min + 1) (fun i -> i + min)
-
-let contains l v = List.find_opt ((=) v) l |> Option.is_some
 
 let partitionI f l =
     L.mapi (fun i v -> i, v) l
@@ -64,37 +59,6 @@ type terrain =
     | Stone
     | Unseen
     | Wall of orientation
-
-type flagItem =
-    | Readable
-
-type itemStats =
-    { count : int
-    ; iFlags : flagItem list
-    }
-
-type scroll_t =
-    | CreateMonster
-    | MagicMapping
-
-type scroll =
-    { itemStats : itemStats
-    ; scroll_t : scroll_t
-    }
-
-type container_t =
-    | Sack
-    | Chest
-
-type container =
-    { container_t : container_t
-    ; items : item list
-    }
-
-and item =
-    | Gold of int
-    | Scroll of scroll
-    | Container of container
 
 type roll =
     { rolls : int
@@ -157,7 +121,7 @@ type occupant = Creature of creature | Player | Boulder
 type tile =
     { t : terrain
     ; occupant : occupant option
-    ; items : item list
+    ; items : Item.t list
     }
 
 type levels = tile Matrix.t list
@@ -171,7 +135,7 @@ type statePlayer =
     ; gold : int
     ; hp : int
     ; hpMax : int
-    ; inventory : item list
+    ; inventory : Item.t list
     ; knowledgeLevels : levels
     }
 
@@ -243,32 +207,6 @@ let getMsgsHit a =
     in
     let msgBase = getMsgsCauseEffect a in
     { msgBase with msgHit }
-
-let itemCount = function
-    | Gold t -> t
-    | Scroll { itemStats = is; _ } -> is.count
-    | Container _ -> 1
-
-let itemName i =
-    let count = itemCount i in
-    let mPlural = if count = 1 then "" else "s" in
-    let name = match i with
-        | Gold t -> "gold piece" ^ mPlural
-        | Scroll { scroll_t = t; itemStats = is } -> "scroll" ^ mPlural ^ " of " ^
-                ( match t with
-                    | CreateMonster -> "create monster"
-                    | MagicMapping -> "magic mapping"
-                )
-        | Container c -> match c.container_t with
-            | Sack -> "sack"
-            | Chest -> "chest"
-    in
-    sf "%i %s" count name
-
-let itemHasFlag flag = function
-    | Container _ -> false
-    | Gold _ -> false
-    | Scroll s ->  contains s.itemStats.iFlags flag
 
 let mkHitMelee t e rolls sides = Melee
     { melee_t = t
@@ -350,6 +288,10 @@ let getCurrentLevel state =
 let getCurrentLevelKnowledge state =
     let sl = state.stateLevels in
     List.nth state.statePlayer.knowledgeLevels sl.indexLevel
+
+let depth state =
+    let sl = state.stateLevels in
+    sl.indexLevel + 1
 
 let setCurrentLevel m state =
     let sl = state.stateLevels in
@@ -631,11 +573,6 @@ let playerKnowledgeDeleteCreatures state =
     in
     setCurrentLevelKnowledge pk' state
 
-
-let rn min max = Random.int_in_range ~min ~max
-
-let oneIn n = rn 0 (n - 1) = 0
-
 let rnItem l =
     assert (List.length l > 0);
 
@@ -858,7 +795,7 @@ let rec roomGen rooms tries =
     | sr -> sr
 
 let roomsGen () =
-    let roomsMax = 6 in
+    let roomsMax = rn 4 7 in
     let rec helper sofar =
         if List.length sofar >= roomsMax
         then
@@ -872,12 +809,10 @@ let roomsGen () =
     |> List.sort (fun r1 r2 -> Int.compare r1.posNW.col r2.posNW.col)
     |> doorsGen
 
-
-
 let get_next_states pGoal ?(manhattan=true) ~allowHallway ~isMapGen m p =
     (
     if manhattan then
-      nextManhattan p
+        nextManhattan p
     else
         posAround p
     )
@@ -1025,7 +960,7 @@ let rec playerMove mf state =
                 let _ = addMsg state "You see here:" in
                 List.iter
                     ( fun i ->
-                        addMsg state (itemName i)
+                        addMsg state (Item.name i)
                     )
                     tNew.items
         else
@@ -1265,7 +1200,7 @@ let selectionOfItems ~single oc l =
         ( fun ix i ->
             { letter = 0x61 (* 'a' *) + ix |> Char.chr
             ; iIndex = ix
-            ; name = itemName i
+            ; name = Item.name i
             ; selected = false
             }
         )
@@ -1299,7 +1234,7 @@ let playerPickup sl state =
 
     let iTaken, iRemain = partitionI (fun ix _ -> contains sI ix) t.items in
 
-    let goldTaken, iTaken = L.partition_map (function | Gold n -> Left n | i -> Right i) iTaken in
+    let goldTaken, iTaken = L.partition_map (function | Item.Gold n -> Left n | i -> Right i) iTaken in
     let gold = sp.gold + (List.fold_left (+) 0 goldTaken) in
 
     let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
@@ -1481,34 +1416,27 @@ let playerMoveToStairs ~dir state =
     let statePlayer = { state.statePlayer with pos = posStairs } in
     { (setCurrentLevel m' state) with statePlayer;  }
 
-let terrainAddObjects rooms m =
+let maybeAddItem ~gold room state m =
+    if not (oneIn 3) then m else
+    let p = randomRoomPos room in
+    let t = Matrix.get m p in
+    let i =
+        if gold then
+            let d = depth state in
+            Item.rnGold d
+        else
+            Item.random ()
+    in
+
+    let t' = { t with items = i::t.items } in
+    Matrix.set t' p m
+
+let terrainAddObjects rooms state m =
     List.fold_left
         ( fun m' r ->
-            if not (oneIn 3) then m' else
-            let p = randomRoomPos r in
-            let t = Matrix.get m p in
-            let count = 1 in
-            let scroll = Scroll
-                { itemStats = {count; iFlags = [Readable]}
-                ; scroll_t =
-                    if oneIn 2 then
-                        CreateMonster
-                    else
-                        MagicMapping
-                }
-            in
-            let i = match rn 0 1 with
-                | 0 -> Gold (rn 13 6317)
-                | 1 -> scroll
-                | 2 -> Container (* TODO enable chests *)
-                    { container_t = Chest
-                    ; items = [Gold (rn 313 6317); scroll]
-                    }
-                | _ -> assert false
-            in
-
-            let t' = { t with items = i::t.items } in
-            Matrix.set t' p m'
+            m'
+            |> maybeAddItem ~gold:false r state
+            |> maybeAddItem ~gold:true r state
         )
         m
         rooms
@@ -1517,7 +1445,7 @@ let mapGen state =
     let rooms = roomsGen () in
     let terrain = Matrix.fill mapSize { t = Stone; occupant = None; items = [] }
         |> terrainAddRooms rooms
-        |> terrainAddObjects rooms
+        |> terrainAddObjects rooms state
         |> terrainAddStairs ~dir:Up rooms
         |> terrainAddStairs ~dir:Down rooms
         |> terrainAddHallways rooms
@@ -1575,7 +1503,7 @@ let modeSelectPickup state =
 
 let modeSelectRead state =
     let sp = state.statePlayer in
-    let readables = L.filter (itemHasFlag Readable) sp.inventory in
+    let readables = L.filter (Item.isReadable) sp.inventory in
     if L.is_empty readables then Some state else
     let mode = Selecting (selectionOfItems ~single:true DoRead readables) in
     Some { state with mode }
