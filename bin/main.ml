@@ -53,17 +53,17 @@ type room =
 
 type stateDoor = Closed | Open | Hidden
 type hallway = HallHidden | HallRegular
-type wall = Vertical | Horizontal
+type orientation = Vertical | Horizontal
 
 type terrain =
-    | Door of stateDoor
+    | Door of stateDoor * orientation
     | Floor
     | Hallway of hallway
     | StairsDown
     | StairsUp
     | Stone
     | Unseen
-    | Wall of wall
+    | Wall of orientation
 
 type flagItem =
     | Readable
@@ -410,8 +410,19 @@ let distance b a =
 let distanceManhattan f t =
     abs (t.row - f.row) + abs (t.col - f.col)
 
-let isTerrainHidden t =
-    t.t = Hallway HallHidden || t.t = Door Hidden
+let isTerrainHidden t = match t.t with
+    | Door (Hidden, _) -> true
+    | Hallway HallHidden -> true
+
+    | Door _ -> false
+    | Floor -> false
+    | Hallway _ -> false
+    | StairsDown -> false
+    | StairsUp -> false
+    | Stone -> false
+    | Unseen -> false
+    | Wall _ -> false
+
 
 let isHallway t =
     t.t = Hallway HallHidden || t.t = Hallway HallRegular
@@ -426,7 +437,7 @@ let isFloorOrStairsOpt = function
     | None -> false
     | Some t -> isFloorOrStairs t
 
-let rec imageOfTile m pos = function
+let imageOfTile m pos = function
     | { occupant = Some occ; _ } ->
         ( match occ with
             | Creature c ->
@@ -448,11 +459,9 @@ let rec imageOfTile m pos = function
         | Hallway HallHidden -> " "
         | Hallway HallRegular -> "#"
         | Floor -> "."
-        | Door Closed -> "+"
-        | Door Open when atNorth m pos |> isFloorOrStairsOpt -> "|"
-        | Door Open when atSouth m pos |> isFloorOrStairsOpt -> "|"
-        | Door Open -> "-"
-        | Door Hidden -> "*" (* TODO imageOfTile m pos { t = Wall } *)
+        | Door (Closed, _) -> "+"
+        | Door (Open, Horizontal) | Door (Hidden, Vertical) -> "|"
+        | Door (Open, Vertical) | Door (Hidden, Horizontal) -> "-"
         | StairsUp -> "<"
         | StairsDown -> ">"
         | Wall Horizontal -> "-"
@@ -537,7 +546,12 @@ let isLit p = false (* TODO *)
 let rec rayCanHitTarget m prev path =
     let t = Matrix.get m (List.hd path) in match path with
     | [] -> true
-    | _::[] -> (match t.t with Wall _ when prev.t = Hallway HallRegular -> false | _ -> true)
+    | _::[] ->
+        ( match t.t with
+            | Wall _ when prev.t = Hallway HallRegular -> false
+            | Door (Hidden, _) when prev.t = Hallway HallRegular -> false
+            | _ -> true
+        )
     | _::tl -> match t.occupant with
         | Some Boulder -> false
         | Some Player -> rayCanHitTarget m t tl
@@ -547,8 +561,8 @@ let rec rayCanHitTarget m prev path =
         | None -> match t.t with
             | Floor | Hallway HallRegular
             | StairsDown | StairsUp
-            | Door Open -> rayCanHitTarget m t tl
-            | Door Closed | Door Hidden -> false
+            | Door (Open, _) -> rayCanHitTarget m t tl
+            | Door (Closed, _) | Door (Hidden, _) -> false
             | Hallway HallHidden -> false
             | Stone -> false
             | Unseen -> false
@@ -706,8 +720,8 @@ let canSpawnHere ?(forbidPos=None) m p =
         | { occupant = Some _; _ } -> false
         | { occupant = None; t = t; _ } ->
             ( match t with
-                | Door Open -> true
-                | Door Closed | Door Hidden -> false
+                | Door (Open, _) -> true
+                | Door (Closed, _) | Door (Hidden, _) -> false
                 | Floor -> true
                 | Hallway HallHidden -> false
                 | Hallway HallRegular -> true
@@ -873,7 +887,7 @@ let get_next_states pGoal ?(manhattan=true) ~allowHallway ~isMapGen m p =
                 pGoal = p || canSpawnHere m p
             else
             match (Matrix.get m p).t with
-            | Door Closed | Door Hidden | Door Open -> true
+            | Door _ -> true
             | Floor -> false
             | Hallway _ -> allowHallway
             | StairsDown -> false
@@ -924,8 +938,8 @@ let solve m start goal =
 
 let canMoveTo t = match t.t with
     | Floor | StairsUp | StairsDown | Hallway HallRegular -> true
-    | Door Open -> true
-    | Door Closed | Door Hidden -> false
+    | Door (Open, _) -> true
+    | Door (Closed, _) | Door (Hidden, _) -> false
     | Hallway HallHidden -> false
     | Stone -> false
     | Unseen -> false
@@ -965,14 +979,14 @@ let rec playerMove mf state =
     if not (isInMap pn) then state else
 
     match Matrix.get m pn with
-    | { t = Door Closed; _ } as tile ->
+    | { t = Door (Closed, ori) } as tile ->
         (* TODO make chance based on stats *)
         if oneIn 3 then
             let _ = addMsg state "The door resists!" in
             state
         else
             let _  = addMsg state "You open the door." in
-            let tn = Matrix.set { tile with t = Door Open } pn m in
+            let tn = Matrix.set { tile with t = Door (Open, ori) } pn m in
             setCurrentLevel tn state
 
     | { occupant = Some (Creature c); _ } as t ->
@@ -1035,7 +1049,7 @@ let playerSearch state =
             else
                 let current = Matrix.get m p in
                 let tt' = match current.t with
-                    | Door Hidden -> addMsg state "You find a hidden door!"; Door Closed
+                    | Door (Hidden, ori) -> addMsg state "You find a hidden door!"; Door (Closed, ori)
                     | Hallway HallHidden -> addMsg state "You find a hidden hallway!"; Hallway HallRegular
                     | _ -> assert false
                 in
@@ -1369,14 +1383,18 @@ let terrainAddRoom m room =
     in
     List.fold_left
         ( fun m d ->
-            let stateDoor = match rn 0 2 with
+            let stateDoor = match rn 0 5 with
                 | 0 -> Hidden
-                | 1 -> Closed
-                | 2 -> Open
+                | 1 | 2 | 3 -> Closed
+                | 4 | 5 -> Open
+                | _ -> assert false
+            in
+            let ori = match Matrix.get m d with
+                | { t = Wall ori } -> ori
                 | _ -> assert false
             in
             Matrix.set
-                { t = Door stateDoor
+                { t = Door (stateDoor, ori)
                 ; occupant = None
                 ; items = []
                 }
