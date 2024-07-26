@@ -1497,10 +1497,10 @@ let terrainAddObjects rooms m =
                         MagicMapping
                 }
             in
-            let i = match rn 0 2 with
+            let i = match rn 0 1 with
                 | 0 -> Gold (rn 13 6317)
                 | 1 -> scroll
-                | 2 -> Container
+                | 2 -> Container (* TODO enable chests *)
                     { container_t = Chest
                     ; items = [Gold (rn 313 6317); scroll]
                     }
