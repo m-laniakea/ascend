@@ -4,6 +4,7 @@ open Common
 open Matrix
 
 module F = Format
+module L = List
 module Q = Queue
 
 module Term = Notty_unix.Term
@@ -29,9 +30,15 @@ let range min max = List.init (max - min + 1) (fun i -> i + min)
 
 let contains l v = List.find_opt ((=) v) l |> Option.is_some
 
+let partitionI f l =
+    L.mapi (fun i v -> i, v) l
+    |> L.partition_map (fun (i, v) -> if f i v then Left v else Right v)
+
 let listMin l =
     let first = List.hd l in
     List.fold_left (fun minSofar v -> min minSofar v) first l
+
+let listTake n = L.filteri (fun i _ -> i < n)
 
 type wh =
     { w : int
@@ -58,8 +65,12 @@ type terrain =
     | Unseen
     | Wall of wall
 
+type flagItem =
+    | Readable
+
 type itemStats =
     { count : int
+    ; iFlags : flagItem list
     }
 
 type scroll_t =
@@ -157,15 +168,38 @@ type stateLevels =
 
 type statePlayer =
     { pos : pos
+    ; gold : int
     ; hp : int
     ; hpMax : int
+    ; inventory : item list
     ; knowledgeLevels : levels
     }
+
+type selectionItem =
+    { iIndex : int
+    ; name : string
+    ; selected : bool
+    ; letter : char
+    }
+
+type onSelectComplete = DoPickup | DoRead
+
+type selection =
+    { sItems : selectionItem list
+    ; single : bool
+    ; complete : bool
+    ; onComplete : onSelectComplete
+    }
+
+type mode =
+    | Playing
+    | Selecting of selection
 
 type state =
     { stateLevels : stateLevels
     ; statePlayer : statePlayer
     ; messages : string Q.t
+    ; mode : mode
     (* objects : list Object *)
     }
 
@@ -218,7 +252,7 @@ let itemCount = function
 let itemName i =
     let count = itemCount i in
     let mPlural = if count = 1 then "" else "s" in
-    match i with
+    let name = match i with
         | Gold t -> "gold piece" ^ mPlural
         | Scroll { scroll_t = t; itemStats = is } -> "scroll" ^ mPlural ^ " of " ^
                 ( match t with
@@ -228,6 +262,13 @@ let itemName i =
         | Container c -> match c.container_t with
             | Sack -> "sack"
             | Chest -> "chest"
+    in
+    sf "%i %s" count name
+
+let itemHasFlag flag = function
+    | Container _ -> false
+    | Gold _ -> false
+    | Scroll s ->  contains s.itemStats.iFlags flag
 
 let mkHitMelee t e rolls sides = Melee
     { melee_t = t
@@ -429,22 +470,29 @@ let applyAnimatedTiles animationLayer m =
 
 let imageCreate ?(animationLayer=[]) state =
     let open Notty.Infix in
-    (
-        Format.sprintf "HP: %i | DLvl: %i" state.statePlayer.hp state.stateLevels.indexLevel
-        |> I.string A.empty
-        <->
-        (
-            let mView =
-                getCurrentLevelKnowledge state
-                |> Matrix.mapI imageOfTile
-                |> applyAnimatedTiles animationLayer
-            in
-            I.tabulate mapSize.col mapSize.row (fun c r -> Matrix.get mView { row = r; col = c })
-        )
-        <|>
-        (
-            Q.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
-        )
+    ( match state.mode with
+        | Playing ->
+            Format.sprintf "HP: %i | DLvl: %i |" state.statePlayer.hp state.stateLevels.indexLevel
+            |> I.string A.empty
+            <->
+            (
+                let mView =
+                    getCurrentLevelKnowledge state
+                    |> Matrix.mapI imageOfTile
+                    |> applyAnimatedTiles animationLayer
+                in
+                I.tabulate mapSize.col mapSize.row (fun c r -> Matrix.get mView { row = r; col = c })
+            )
+            <-> I.string A.empty (sf "$ %i" state.statePlayer.gold)
+            <|>
+            (
+                Q.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
+            )
+        | Selecting s ->
+            s.sItems
+            |> L.sort (fun s s'-> Char.compare s.letter s'.letter)
+            |> L.map (fun s -> I.string A.empty (sf "%c %s %s" s.letter (if s.selected then "+" else "-") s.name))
+            |> I.vcat
     )
     |> Term.image term
 
@@ -490,7 +538,7 @@ let rec rayCanHitTarget m prev path =
     let t = Matrix.get m (List.hd path) in match path with
     | [] -> true
     | _::[] -> (match t.t with Wall _ when prev.t = Hallway HallRegular -> false | _ -> true)
-    | hd::tl -> match t.occupant with
+    | _::tl -> match t.occupant with
         | Some Boulder -> false
         | Some Player -> rayCanHitTarget m t tl
         | Some (Creature c) ->
@@ -670,27 +718,35 @@ let canSpawnHere ?(forbidPos=None) m p =
                 | Wall Horizontal | Wall Vertical -> false
             )
 
-let placeCreature ~room state =
+let placeCreature ?(preferNearby=false) ~room state =
     let m = getCurrentLevel state in
-    let pp = Some (state.statePlayer.pos) in
+    let pp = state.statePlayer.pos in
     let spawnPositions =
         allMapPositions
-        |> List.filter (fun p -> canSpawnHere ~forbidPos:pp m p)
+        |> L.filter (fun p -> canSpawnHere ~forbidPos:(Some pp) m p)
     in
-    let positionsOutOfView = spawnPositions|> List.filter
-        ( fun p -> not (playerCanSee state p) ) in
+    let pInView, pOutOfView =
+        spawnPositions
+        |> L.partition (fun p -> playerCanSee state p)
+    in
 
-    let (iv, oov) = match room with
-        | None -> spawnPositions, positionsOutOfView
+    let pInView, pOutOfView = match room with
+        | None -> pInView, pOutOfView
         | Some r ->
-              List.filter (isInRoom r) spawnPositions
-            , List.filter (isInRoom r) positionsOutOfView
+              L.filter (isInRoom r) pInView
+            , L.filter (isInRoom r) pOutOfView
     in
-    let creaturePos =  match iv, oov with
-        | [], [] -> None
-        | _, (_::_ as oov) -> Some (rnItem oov)
-        | pOk, _ -> Some (rnItem pOk)
-
+    let closestFirst = L.sort (fun p1 p2 -> Int.compare (distanceManhattan pp p1) (distanceManhattan pp p2)) in
+    let creaturePos =
+        if preferNearby then
+            L.nth_opt
+            ((closestFirst pInView) @ (closestFirst pOutOfView))
+            0
+        else
+            match pOutOfView, pInView with
+            | [], [] -> None
+            | (_::_ as oov), _ -> Some (rnItem oov)
+            | _, pOk -> Some (rnItem pOk)
     in
     match creaturePos with
         | None -> state
@@ -718,6 +774,11 @@ let placeCreature ~room state =
             let t' = { t with occupant = Some (Creature creature) } in
             let map' = Matrix.set t' p map in
             setCurrentLevel map' state
+
+let rec placeCreatures ?(preferNearby=false) ~room count state =
+    if count <= 0 then state else
+    let state = placeCreature ~preferNearby ~room state in
+    placeCreatures ~preferNearby ~room (count - 1) state
 
 
 type dirs = North | South | West | East
@@ -871,7 +932,11 @@ let canMoveTo t = match t.t with
     | Wall Horizontal | Wall Vertical -> false
 
 
-type playerActions = MoveDir of (pos -> pos) | Search
+type actionsPlayer =
+    | MoveDir of (pos -> pos)
+    | Pickup of selectionItem list
+    | Read of selectionItem
+    | Search
 
 let creatureAddHp n t p c state =
     let cl = getCurrentLevel state in
@@ -946,9 +1011,7 @@ let rec playerMove mf state =
                 let _ = addMsg state "You see here:" in
                 List.iter
                     ( fun i ->
-                        let name = itemName i in
-                        let count = itemCount i in
-                        addMsg state (sf "%i %s" count name)
+                        addMsg state (itemName i)
                     )
                     tNew.items
         else
@@ -1123,9 +1186,9 @@ let creatureAttackRanged c cp tp state =
                 ; image = getImageForAnimation hs.effect pDir
                 }
             in
-            animate state' animation;
             let msgsHit = getMsgsHit (Ranged hr) in
             addMsg state (sf "The %s %s %s." c.creatureInfo.name msgsHit.msgHit msgsHit.msgCause);
+            animate state' animation;
             processPath effectSize msgsHit cp pDir tp state'
         )
         state
@@ -1163,7 +1226,8 @@ let animateCreature c cp state =
 let animateCreatures state = Matrix.foldI
     ( fun _ p state' -> function
         | { occupant = Some (Creature c); _ } ->
-            animateCreature c p state'
+            let state = playerUpdateMapKnowledge state' in
+            animateCreature c p state
         | _ -> state'
     ) state (getCurrentLevel state)
 
@@ -1181,10 +1245,60 @@ let playerCheckHp state =
     else
         Some state
 
-let playerAction a state =
+let selectionOfItems ~single oc l =
+    listTake 26 l
+    |> L.mapi
+        ( fun ix i ->
+            { letter = 0x61 (* 'a' *) + ix |> Char.chr
+            ; iIndex = ix
+            ; name = itemName i
+            ; selected = false
+            }
+        )
+    |>  ( fun l ->
+            { sItems = l
+            ; single
+            ; complete = false
+            ; onComplete = oc
+            }
+        )
+
+let playerRead si state =
+    let sp = state.statePlayer in
+    let item = List.nth sp.inventory si.iIndex in
+    match item with
+        | Container _ -> addMsg state "What a silly thing to read!"; state
+        | Gold _ -> addMsg state "The gold is shiny!"; state
+        | Scroll s ->
+            let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
+            let statePlayer = { sp with inventory } in
+            let state = { state with statePlayer } in
+            match s.scroll_t with
+            | CreateMonster -> addMsg state "The area feels more dangerous!"; placeCreatures ~preferNearby:true ~room:None (rn 1 5) state
+            | MagicMapping -> addMsg state "An image coalesces in your mind."; setCurrentLevelKnowledge (getCurrentLevel state) state (* TODO remove item positions *)
+
+let playerPickup sl state =
+    let sI = L.map (fun s -> s.iIndex) sl in
+    let sp = state.statePlayer in
+    let m = getCurrentLevel state in
+    let t = Matrix.get m sp.pos in
+
+    let iTaken, iRemain = partitionI (fun ix _ -> contains sI ix) t.items in
+
+    let goldTaken, iTaken = L.partition_map (function | Gold n -> Left n | i -> Right i) iTaken in
+    let gold = sp.gold + (List.fold_left (+) 0 goldTaken) in
+
+    let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
+    let m' = Matrix.set { t with items = iRemain } sp.pos m in
+    { (setCurrentLevel m' state) with statePlayer }
+    (* ^TODO combine items *)
+
+let actionPlayer a state =
     Q.clear state.messages;
     let s' = match a with
         | MoveDir mf -> playerMove mf state
+        | Pickup sl -> playerPickup sl state
+        | Read si -> playerRead si state
         | Search -> playerSearch state
     in
     playerUpdateMapKnowledge s'
@@ -1195,6 +1309,37 @@ let playerAction a state =
     |> playerUpdateMapKnowledge
     |> playerAddHp (if oneIn 3 then 1 else 0)
     |> playerCheckHp
+
+let handleSelect k s state = match k with
+    | ' ' ->
+        let selected = L.filter (fun s -> s.selected) s.sItems in
+        let nSelected = L.length selected in
+        if nSelected = 0 || s.single && nSelected > 1 then
+            (* TODO give feedback to player *)
+            Some state
+        else
+        let firstSelected = List.hd selected in
+        let state = { state with mode = Playing } in
+        ( match s.onComplete with
+            | DoPickup -> actionPlayer (Pickup selected) state
+            | DoRead -> actionPlayer (Read firstSelected) state
+        )
+    | ',' ->
+        let hasUnselected = L.exists (fun s -> not s.selected) s.sItems in
+        let selected = hasUnselected in
+        let sItems = List.map (fun si -> { si with selected }) s.sItems in
+        let mode = Selecting { s with sItems } in
+
+        Some { state with mode }
+
+    | k ->
+        match L.find_index (fun s -> k = s.letter) s.sItems with
+        | None -> Some state
+        | Some i ->
+            let si = L.nth s.sItems i in
+            let sItems = listSet i { si with selected = not (si.selected) } s.sItems in
+            let mode = Selecting { s with sItems } in
+            Some { state with mode }
 
 let terrainAddRoom m room =
     let rp = getRoomPositions room in
@@ -1296,13 +1441,13 @@ let rec terrainAddStairs ~dir rooms m =
             else
                 Matrix.set stairs p m
 
-let rec placeCreatures rooms state =
+let rec placeRoomCreatures rooms state =
     match rooms with
         | [] -> state
         | r::ro ->
             let s' = placeCreature ~room:(Some r) state in
             if oneIn 3 then
-                placeCreatures ro s'
+                placeRoomCreatures ro s'
             else
                 s'
 
@@ -1326,7 +1471,7 @@ let terrainAddObjects rooms m =
             let t = Matrix.get m p in
             let count = 1 in
             let scroll = Scroll
-                { itemStats = {count}
+                { itemStats = {count; iFlags = [Readable]}
                 ; scroll_t =
                     if oneIn 2 then
                         CreateMonster
@@ -1335,11 +1480,11 @@ let terrainAddObjects rooms m =
                 }
             in
             let i = match rn 0 2 with
-                | 0 -> Gold 6317
+                | 0 -> Gold (rn 13 6317)
                 | 1 -> scroll
                 | 2 -> Container
                     { container_t = Chest
-                    ; items = [Gold 313; scroll]
+                    ; items = [Gold (rn 313 6317); scroll]
                     }
                 | _ -> assert false
             in
@@ -1361,7 +1506,7 @@ let mapGen state =
     in
     addLevel terrain state
     |> playerMoveToStairs ~dir:Up
-    |> placeCreatures rooms
+    |> placeRoomCreatures rooms
 
 
 let playerGoUp state =
@@ -1395,24 +1540,58 @@ let playerGoDown state =
             in
             s'
 
+let modeSelectPickup state =
+    let pp = state.statePlayer.pos in
+    let m = getCurrentLevel state in
+    let t = Matrix.get m pp in
+    let selection = selectionOfItems ~single:false DoPickup t.items in
+    match t.items with
+        | [] ->
+            let _ = addMsg state "There's nothing to pick up here." in
+            Some state
+        | i::[] ->
+            actionPlayer (Pickup selection.sItems) state
+        | _ ->
+            let mode = Selecting selection in
+            Some { state with mode }
 
-let update event state = match event with
+let modeSelectRead state =
+    let sp = state.statePlayer in
+    let readables = L.filter (itemHasFlag Readable) sp.inventory in
+    if L.is_empty readables then Some state else
+    let mode = Selecting (selectionOfItems ~single:true DoRead readables) in
+    Some { state with mode }
+
+let modePlaying event state = match event with
     | `Key (`ASCII 'q', _) -> print_endline "See you soon..."; None
-    | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> playerAction (MoveDir west) state
-    | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> playerAction (MoveDir east) state
-    | `Key (`ASCII 'k', _) | `Key (`Arrow `Up, _) -> playerAction (MoveDir north) state
-    | `Key (`ASCII 'j', _) | `Key (`Arrow `Down, _) -> playerAction (MoveDir south) state
+    | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> actionPlayer (MoveDir west) state
+    | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> actionPlayer (MoveDir east) state
+    | `Key (`ASCII 'k', _) | `Key (`Arrow `Up, _) -> actionPlayer (MoveDir north) state
+    | `Key (`ASCII 'j', _) | `Key (`Arrow `Down, _) -> actionPlayer (MoveDir south) state
 
-    | `Key (`ASCII 'y', _) -> playerAction (MoveDir northWest) state
-    | `Key (`ASCII 'u', _) -> playerAction (MoveDir northEast) state
-    | `Key (`ASCII 'b', _) -> playerAction (MoveDir southWest) state
-    | `Key (`ASCII 'n', _) -> playerAction (MoveDir southEast) state
+    | `Key (`ASCII 'y', _) -> actionPlayer (MoveDir northWest) state
+    | `Key (`ASCII 'u', _) -> actionPlayer (MoveDir northEast) state
+    | `Key (`ASCII 'b', _) -> actionPlayer (MoveDir southWest) state
+    | `Key (`ASCII 'n', _) -> actionPlayer (MoveDir southEast) state
 
-    | `Key (`ASCII 's', _) -> playerAction Search state
+    | `Key (`ASCII 's', _) -> actionPlayer Search state
+
+    | `Key (`ASCII 'r', _) -> modeSelectRead state
+
+    | `Key (`ASCII ',', _) -> modeSelectPickup state
 
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
     | _ -> Some state
+
+let modeSelecting event state s = match event with
+    | `Key (`Escape, _) -> Some { state with mode = Playing }
+    | `Key (`ASCII k, _)  -> handleSelect k s state
+    | _ -> Some state
+
+let update event state = match state.mode with
+    | Playing -> modePlaying event state
+    | Selecting s -> modeSelecting event state s
 
 let stateInitial =
     Random.init 613;
@@ -1425,8 +1604,10 @@ let stateInitial =
 
     let statePlayer =
         { pos = { row = 0; col = 0 }
+        ; gold = 0
         ; hp = 613
         ; hpMax = 613
+        ; inventory = []
         ; knowledgeLevels = []
         }
     in
@@ -1435,6 +1616,7 @@ let stateInitial =
         { stateLevels
         ; statePlayer
         ; messages = Q.create ()
+        ; mode = Playing
         }
     in
     Q.push "Welcome." stateI.messages;
@@ -1449,7 +1631,7 @@ let () =
         imageCreate state;
 
         match Term.event term with
-        | `End | `Key (`Escape, []) | `Key (`ASCII 'C', [`Ctrl]) -> ()
+        | `End | `Key (`ASCII 'C', [`Ctrl]) -> ()
         | `Resize _ -> go state
         | #Unescape.event as e -> match update e state with
             | Some s -> go s
