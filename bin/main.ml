@@ -572,6 +572,8 @@ let playerKnowledgeDeleteCreatures state =
         ( fun v -> match v with
             | { occupant = Some (Creature _); _ } ->
                 { v with occupant = None }
+            | { occupant = Some Player; _ } ->
+                { v with occupant = None }
             | _ -> v
         ) pk
     in
@@ -1249,6 +1251,17 @@ let playerRead si state =
             match s.scroll_t with
             | CreateMonster -> addMsg state "The area feels more dangerous!"; placeCreatures ~preferNearby:true ~room:None (rn 1 5) state
             | MagicMapping -> addMsg state "An image coalesces in your mind."; setCurrentLevelKnowledge (getCurrentLevel state) state (* TODO remove item positions *)
+            | Teleport ->
+                addMsg state "Your position feels more uncertain.";
+                let pp = sp.pos in
+                let m = getCurrentLevel state in
+                let spawnPositions =
+                    allMapPositions
+                    |> L.filter (fun p -> canSpawnHere ~forbidPos:None m p)
+                in
+                let pNew = rnItem spawnPositions in
+                let mf = posDiff pp pNew |> posAdd in
+                playerMove mf state
 
 let playerPickup sl state =
     let sI = L.map (fun s -> s.iIndex) sl in

@@ -7,6 +7,7 @@ type stats =
 type scroll_t =
     | CreateMonster
     | MagicMapping
+    | Teleport
 
 type scroll =
     { stats : stats
@@ -66,6 +67,7 @@ let name i =
             ( match s.scroll_t with
                 | CreateMonster -> "create monster"
                 | MagicMapping -> "magic mapping"
+                | Teleport -> "teleportation"
             )
         | Container c -> match c.container_t with
             | Sack -> "sack"
@@ -102,9 +104,10 @@ let rnPotion () =
     Potion { potion_t = t; stats = {count = 1} }
 
 let rnScroll () =
-    let t = match rn 1 90 with
-        | c when c >= 1  && c <= 45 -> CreateMonster
-        | c when c >= 45 && c <= 90 -> MagicMapping
+    let t = match rn 1 145 with
+        | c when c >= 1  && c <= 45  -> CreateMonster
+        | c when c >= 45 && c <= 90  -> MagicMapping
+        | c when c >= 90 && c <= 145 -> Teleport
         | _ -> assert false
     in
     Scroll { scroll_t = t; stats = {count = 1} }
