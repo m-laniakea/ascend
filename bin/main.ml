@@ -1325,7 +1325,12 @@ let handleSelect k s state = match k with
         | None -> Some state
         | Some i ->
             let si = L.nth s.sItems i in
-            let sItems = listSet i { si with selected = not (si.selected) } s.sItems in
+            let sItems = if s.single then
+                L.map (fun s -> { s with selected = false }) s.sItems
+            else
+                s.sItems
+            in
+            let sItems = listSet i { si with selected = not (si.selected) } sItems in
             let mode = Selecting { s with sItems } in
             Some { state with mode }
 
