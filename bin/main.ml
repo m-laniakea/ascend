@@ -146,7 +146,10 @@ type selectionItem =
     ; letter : char
     }
 
-type onSelectComplete = DoPickup | DoRead
+type onSelectComplete =
+    | DoPickup
+    | DoQuaff
+    | DoRead
 
 type selection =
     { sItems : selectionItem list
@@ -390,9 +393,10 @@ let imageOfTile m pos = function
     | { items = topItem::others; _ } ->
         let styles = if others = [] then A.(st bold) else A.(bg lightblack ++ st bold) in
         ( match topItem with
-            | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
-            | Scroll _ -> I.string A.(styles ++ fg white) "?"
             | Container _ -> I.string A.(styles ++ brown) "("
+            | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
+            | Potion _ -> I.string A.(styles ++ fg white) "!"
+            | Scroll _ -> I.string A.(styles ++ fg white) "?"
         )
     | t ->
         let c = match t.t with
@@ -884,6 +888,7 @@ let canMoveTo t = match t.t with
 type actionsPlayer =
     | MoveDir of (pos -> pos)
     | Pickup of selectionItem list
+    | Quaff of selectionItem
     | Read of selectionItem
     | Search
 
@@ -1195,9 +1200,10 @@ let playerCheckHp state =
         Some state
 
 let selectionOfItems ~single oc l =
-    listTake 26 l
-    |> L.mapi
-        ( fun ix i ->
+    L.filter_map id l
+    |> listTake 26
+    |> L.map
+        ( fun (ix, i) ->
             { letter = 0x61 (* 'a' *) + ix |> Char.chr
             ; iIndex = ix
             ; name = Item.name i
@@ -1212,12 +1218,30 @@ let selectionOfItems ~single oc l =
             }
         )
 
+let playerQuaff si state =
+    let sp = state.statePlayer in
+    let item = List.nth sp.inventory si.iIndex in
+    match item with
+        | Container _ -> addMsg state "What a silly thing to quaff!"; state
+        | Gold _ -> addMsg state "You were unable to swallow the gold piece."; state
+        | Scroll _ -> addMsg state "This scroll is quite solid. Quite difficult to drink..."; state
+        | Potion p ->
+            let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
+            let statePlayer = { sp with inventory } in
+            let state = { state with statePlayer } in
+            match p.potion_t with
+            | Healing -> addMsg state "You feel better."; playerAddHp (8 + (rollEffectSize {sides=4; rolls=4})) state
+            | HealingExtra -> addMsg state "You feel much better."; playerAddHp (16 + (rollEffectSize {sides=4; rolls=8})) state
+            | HealingFull -> addMsg state "You feel completely healed."; playerAddHp(sp.hpMax) state
+            | Sickness -> addMsg state "This tastes like poison."; playerAddHp(rn (-100) (-10)) state
+
 let playerRead si state =
     let sp = state.statePlayer in
     let item = List.nth sp.inventory si.iIndex in
     match item with
         | Container _ -> addMsg state "What a silly thing to read!"; state
         | Gold _ -> addMsg state "The gold is shiny!"; state
+        | Potion _ -> addMsg state "This potion is unlabeled"; state
         | Scroll s ->
             let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
             let statePlayer = { sp with inventory } in
@@ -1247,6 +1271,7 @@ let actionPlayer a state =
     let s' = match a with
         | MoveDir mf -> playerMove mf state
         | Pickup sl -> playerPickup sl state
+        | Quaff si -> playerQuaff si state
         | Read si -> playerRead si state
         | Search -> playerSearch state
     in
@@ -1271,6 +1296,7 @@ let handleSelect k s state = match k with
         let state = { state with mode = Playing } in
         ( match s.onComplete with
             | DoPickup -> actionPlayer (Pickup selected) state
+            | DoQuaff -> actionPlayer (Quaff firstSelected) state
             | DoRead -> actionPlayer (Read firstSelected) state
         )
     | ',' ->
@@ -1364,7 +1390,7 @@ let terrainAddHallways rooms m =
                     if isHallway tCurrent then
                         m
                     else
-                        let hT = if oneIn 50 then HallHidden else HallRegular in
+                        let hT = if oneIn 100 then HallHidden else HallRegular in
                         Matrix.set
                             { tCurrent with t = Hallway hT }
                             p m
@@ -1490,7 +1516,8 @@ let modeSelectPickup state =
     let pp = state.statePlayer.pos in
     let m = getCurrentLevel state in
     let t = Matrix.get m pp in
-    let selection = selectionOfItems ~single:false DoPickup t.items in
+    let items = L.mapi (fun ix i -> Some (ix, i)) t.items in
+    let selection = selectionOfItems ~single:false DoPickup items in
     match t.items with
         | [] ->
             let _ = addMsg state "There's nothing to pick up here." in
@@ -1503,13 +1530,20 @@ let modeSelectPickup state =
 
 let modeSelectRead state =
     let sp = state.statePlayer in
-    let readables = L.filter (Item.isReadable) sp.inventory in
+    let readables = L.mapi (fun ix i -> if Item.isReadable i then Some (ix, i) else None) sp.inventory in
     if L.is_empty readables then Some state else
     let mode = Selecting (selectionOfItems ~single:true DoRead readables) in
     Some { state with mode }
 
+let modeSelectQuaff state =
+    let sp = state.statePlayer in
+    let quaffables = L.mapi (fun ix i -> if Item.isQuaffable i then Some (ix, i) else None) sp.inventory in
+    (* ^TODO refactor *)
+    if L.is_empty quaffables then Some state else
+    let mode = Selecting (selectionOfItems ~single:true DoQuaff quaffables) in
+    Some { state with mode }
+
 let modePlaying event state = match event with
-    | `Key (`ASCII 'q', _) -> print_endline "See you soon..."; None
     | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> actionPlayer (MoveDir west) state
     | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> actionPlayer (MoveDir east) state
     | `Key (`ASCII 'k', _) | `Key (`Arrow `Up, _) -> actionPlayer (MoveDir north) state
@@ -1522,9 +1556,9 @@ let modePlaying event state = match event with
 
     | `Key (`ASCII 's', _) -> actionPlayer Search state
 
-    | `Key (`ASCII 'r', _) -> modeSelectRead state
-
     | `Key (`ASCII ',', _) -> modeSelectPickup state
+    | `Key (`ASCII 'q', _) -> modeSelectQuaff state
+    | `Key (`ASCII 'r', _) -> modeSelectRead state
 
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
