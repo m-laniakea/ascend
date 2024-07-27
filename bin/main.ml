@@ -1549,7 +1549,7 @@ let modeSelectPickup state =
 let modeSelectRead state =
     let sp = state.statePlayer in
     let readables = L.mapi (fun ix i -> if Item.isReadable i then Some (ix, i) else None) sp.inventory in
-    if L.is_empty readables then Some state else
+    if not (L.exists Option.is_some readables) then Some state else
     let mode = Selecting (selectionOfItems ~single:true DoRead readables) in
     Some { state with mode }
 
@@ -1557,7 +1557,7 @@ let modeSelectQuaff state =
     let sp = state.statePlayer in
     let quaffables = L.mapi (fun ix i -> if Item.isQuaffable i then Some (ix, i) else None) sp.inventory in
     (* ^TODO refactor *)
-    if L.is_empty quaffables then Some state else
+    if not (L.exists Option.is_some quaffables) then Some state else
     let mode = Selecting (selectionOfItems ~single:true DoQuaff quaffables) in
     Some { state with mode }
 
