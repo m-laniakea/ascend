@@ -1,4 +1,4 @@
-open Common
+module C = Common
 
 type stats =
     { count : int
@@ -73,7 +73,7 @@ let name i =
             | Sack -> "sack"
             | Chest -> "chest"
     in
-    sf "%i %s" count name
+    C.sf "%i %s" count name
 
 let isQuaffable = function
     | Container _ -> false
@@ -89,30 +89,32 @@ let isReadable = function
 
 let rnGold d =
     let den = max (12 - d) 2 in
-    let mul = rn 1 (30 / den) in
-    let amount = (rn 1 (d + 2)) * mul in
-    Gold amount
+    let mul = C.rn 1 (30 / den) in
+    let base = C.rn 1 (d + 2) in
+    Gold (base * mul)
 
 let rnPotion () =
-    let t = match rn 1 210 with
-        | c when c >= 1   && c <= 115 -> Healing
-        | c when c >= 115 && c <= 160 -> HealingExtra
-        | c when c >= 160 && c <= 170 -> HealingFull
-        | c when c >= 170 && c <= 210 -> Sickness
-        | _ -> assert false
+    let freq =
+        [ Healing, 115
+        ; HealingExtra, 45
+        ; HealingFull, 10
+        ; Sickness, 40
+        ]
     in
+    let t = C.rnRelative freq in
     Potion { potion_t = t; stats = {count = 1} }
 
 let rnScroll () =
-    let t = match rn 1 145 with
-        | c when c >= 1  && c <= 45  -> CreateMonster
-        | c when c >= 45 && c <= 90  -> MagicMapping
-        | c when c >= 90 && c <= 145 -> Teleport
-        | _ -> assert false
+    let freq =
+        [ CreateMonster, 45
+        ; MagicMapping, 45
+        ; Teleport, 55
+        ]
     in
+    let t = C.rnRelative freq in
     Scroll { scroll_t = t; stats = {count = 1} }
 
-let random () = match rn 1 32 with
+let random () = match C.rn 1 32 with
     | c when c >= 1  && c <= 16 -> rnPotion ()
     | c when c >= 16 && c <= 32 -> rnScroll ()
     | _ -> assert false

@@ -292,7 +292,7 @@ let getCurrentLevelKnowledge state =
     let sl = state.stateLevels in
     List.nth state.statePlayer.knowledgeLevels sl.indexLevel
 
-let depth state =
+let getDepth state =
     let sl = state.stateLevels in
     sl.indexLevel + 1
 
@@ -1466,7 +1466,7 @@ let maybeAddItem ~gold room state m =
     let t = Matrix.get m p in
     let i =
         if gold then
-            let d = depth state in
+            let d = getDepth state in
             Item.rnGold d
         else
             Item.random ()
