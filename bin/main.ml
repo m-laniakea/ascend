@@ -1204,8 +1204,8 @@ let playerCheckHp state =
 let selectionOfItems ~single oc l =
     L.filter_map id l
     |> listTake 26
-    |> L.map
-        ( fun (ix, i) ->
+    |> L.mapi
+        ( fun ix (iix, i) ->
             { letter = 0x61 (* 'a' *) + ix |> Char.chr
             ; iIndex = ix
             ; name = Item.name i
