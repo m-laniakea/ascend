@@ -75,6 +75,28 @@ let name i =
     in
     C.sf "%i %s" count name
 
+let getPriceBase = function
+    | Container c ->
+        ( match c.container_t with
+            | Chest -> 16
+            | Sack -> 2
+        )
+    | Gold i -> i
+    | Potion p ->
+        ( match p.potion_t with
+            | Healing -> 200
+            | HealingExtra -> 100
+            | HealingFull -> 200
+            | Sickness -> 50
+
+        )
+    | Scroll s ->
+        ( match s.scroll_t with
+            | CreateMonster -> 200
+            | MagicMapping -> 100
+            | Teleport -> 100
+        )
+
 let isQuaffable = function
     | Container _ -> false
     | Gold _ -> false
