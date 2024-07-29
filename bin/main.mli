@@ -13,6 +13,3 @@ val terrainAddRooms : room list -> tile Matrix.t -> tile Matrix.t
 
 val terrainAddHallways : room list -> tile Matrix.t -> tile Matrix.t
 
-val getCurrentLevel : state -> tile Matrix.t
-val setCurrentLevel : tile Matrix.t -> state -> state
-
