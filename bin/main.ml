@@ -40,9 +40,18 @@ type wh =
     ; h : int
     }
 
+type shop_t =
+    | General
+
+type shop =
+    { posDoor : pos
+    ; posEntry : pos
+    ; shop_t : shop_t
+    }
+
 type room_t =
     | Regular
-    | Shop
+    | Shop of shop
 
 type room =
     { posNW : pos
@@ -843,7 +852,21 @@ let maybeMakeShop rooms state m =
     let i = rnIndex rooms in
     let room = L.nth rooms i in
 
-    let room = { room with room_t = Shop } in
+    let posDoor = List.hd room.doors in
+    let posEntry = match posDoor with
+        | p when isInRoom room (north p) -> north p
+        | p when isInRoom room (east p) -> east p
+        | p when isInRoom room (south p) -> south p
+        | p when isInRoom room (west p) -> west p
+        | _ -> assert false
+    in
+    let shop =
+        { posDoor
+        ; posEntry
+        ; shop_t = General
+        }
+    in
+    let room = { room with room_t = Shop shop } in
     let rooms = listSet i room rooms in
 
     rooms
@@ -1534,8 +1557,9 @@ let terrainAddObjects rooms state m =
                 |> maybeAddItem ~gold:false r state
                 |> maybeAddItem ~gold:true r state
 
-            | Shop ->
+            | Shop shop ->
                 getRoomPositions r
+                |> L.filter (fun p -> p <> shop.posEntry)
                 |> L.fold_left (fun m p -> addItem ~gold:false state m p) m'
         )
         m
