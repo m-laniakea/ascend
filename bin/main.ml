@@ -1050,6 +1050,8 @@ let rec playerMove mf state =
     | tNew ->
         if not (canMoveTo tNew) then state else
         let tile = Matrix.get m p in
+        let statePlayer = { state.statePlayer with pos = pn } in
+        let state' = { state with statePlayer } in
         let m' =
             Matrix.set { tile with occupant = None } p m
             |> Matrix.set { tNew with occupant = Some Player } pn
@@ -1061,7 +1063,7 @@ let rec playerMove mf state =
                 let _ = addMsg state "You see here:" in
                 List.iter
                     ( fun i ->
-                        let price = if playerIsInShop state then sf "(%i zorkmids)" (Item.getPriceBase i) else "" in
+                        let price = if playerIsInShop state' then sf "(%i zorkmids)" (Item.getPriceBase i) else "" in
                         addMsg state (sf "%s %s" (Item.name i) price)
                     )
                     tNew.items
@@ -1069,8 +1071,7 @@ let rec playerMove mf state =
             ()
         );
 
-        let pn = { state.statePlayer with pos = pn } in
-        { (setCurrentMap m' state) with statePlayer = pn }
+        { (setCurrentMap m' state') with statePlayer }
 
 let playerSearch state =
     (* TODO base search success on stats *)
