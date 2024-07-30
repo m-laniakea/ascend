@@ -983,7 +983,16 @@ let creatureAddHp n t p c state =
         if c.cHp + n < 0 then
             (* TODO drops *)
             let _ = addMsg state (sf "The %s is killed!" c.creatureInfo.name) in
-            { t with occupant = None }
+            let deathDrops = if not (oneIn 6) then [] else
+                let d = getDepth state in
+                let gold = Item.rnGold d in
+                (* TODO Not every creature can leave a corpse *)
+                (* TODO Not every creature can leave gold *)
+                let item = Item.random () in
+                [gold; item]
+            in
+
+            { t with occupant = None; items = deathDrops @ t.items }
         else
             let c' = Creature { c with cHp = c.cHp + n } in
             { t with occupant = Some c' }
