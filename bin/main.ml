@@ -323,6 +323,8 @@ let getDepth state =
     let sl = state.stateLevels in
     sl.indexLevel + 1
 
+let getDepthNext state = (getDepth state) + 1
+
 let setCurrentMap m state =
     let sl = state.stateLevels in
     let cl = getCurrentLevel state in
@@ -854,7 +856,7 @@ let isSuitableForShop m room =
     && not (roomHasStairs room m)
 
 let maybeMakeShop rooms state m =
-    let d = getDepth state in
+    let d = getDepthNext state in
     if d < 1 || (rn 0 d) >= 3 then rooms else
 
     let rooms = L.filter (isSuitableForShop m) rooms in
@@ -1602,7 +1604,7 @@ let addItem ~gold state m p =
     let t = Matrix.get m p in
     let i =
         if gold then
-            let d = getDepth state in
+            let d = getDepthNext state in
             Item.rnGold d
         else
             Item.random ()
