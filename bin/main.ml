@@ -623,6 +623,16 @@ let isInRoom room pos =
     && pos.col <= room.posSE.col
     && pos.col >= room.posNW.col
 
+let playerIsInShop state =
+    let sp = state.statePlayer in
+    let pp = sp.pos in
+    let cl = getCurrentLevel state in
+
+    match L.filter (function | { room_t = Shop _; _ } -> true | _ -> false) cl.rooms with
+        | [] -> false
+        | ( {room_t = Shop s; _ } as r )::[] -> pp <> s.posEntry && isInRoom r pp
+        | shop::_ -> assert false
+
 let randomRoomPos room =
     { row = rn room.posNW.row room.posSE.row
     ; col = rn room.posNW.col room.posSE.col
@@ -1038,7 +1048,8 @@ let rec playerMove mf state =
                 let _ = addMsg state "You see here:" in
                 List.iter
                     ( fun i ->
-                        addMsg state (Item.name i)
+                        let price = if playerIsInShop state then sf "(%i zorkmids)" (Item.getPriceBase i) else "" in
+                        addMsg state (sf "%s %s" (Item.name i) price)
                     )
                     tNew.items
         else
@@ -1278,7 +1289,7 @@ let selectionOfItems ~single oc l =
     |> L.mapi
         ( fun ix (iix, i) ->
             { letter = 0x61 (* 'a' *) + ix |> Char.chr
-            ; iIndex = ix
+            ; iIndex = iix
             ; name = Item.name i
             ; selected = false
             }
@@ -1343,8 +1354,25 @@ let playerPickup sl state =
     let iTaken, iRemain = partitionI (fun ix _ -> contains sI ix) t.items in
 
     let goldTaken, iTaken = L.partition_map (function | Item.Gold n -> Left n | i -> Right i) iTaken in
-    let gold = sp.gold + (List.fold_left (+) 0 goldTaken) in
+    let totalGoldTaken = List.fold_left (+) 0 goldTaken in
 
+    if playerIsInShop state then
+        match totalGoldTaken, iTaken with
+        | goldTaken, _ when goldTaken > 0 -> addMsg state "Hey! That's not your gold!"; state
+        | _, iTaken ->
+            let itemsValue = L.fold_left (fun t i -> t + (Item.getPriceBase i)) 0 iTaken in
+            if itemsValue > sp.gold then
+                let _ = addMsg state "You can't afford that!" in
+                state
+            else
+                let gold = sp.gold - itemsValue in
+                let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
+                let m' = Matrix.set { t with items = iRemain } sp.pos m in
+                { (setCurrentMap m' state) with statePlayer }
+
+    else
+
+    let gold = sp.gold + totalGoldTaken in
     let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
     { (setCurrentMap m' state) with statePlayer }
@@ -1545,7 +1573,7 @@ let addItem ~gold state m p =
     Matrix.set t' p m
 
 let maybeAddItem ~gold room state m =
-    if not (oneIn 1) then m else
+    if not (oneIn 3) then m else
     let p = randomRoomPos room in
     addItem ~gold state m p
 
@@ -1683,7 +1711,7 @@ let stateInitial =
 
     let statePlayer =
         { pos = { row = 0; col = 0 }
-        ; gold = 0
+        ; gold = 100
         ; hp = 613
         ; hpMax = 613
         ; inventory = []
