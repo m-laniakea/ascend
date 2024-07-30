@@ -21,6 +21,8 @@ let distanceSight = 3.17
 
 let itemsDisplayedMax = 5
 
+let pointsSpeedPerTurn = 12
+
 let id a = a
 
 let range min max = List.init (max - min + 1) (fun i -> i + min)
@@ -121,12 +123,14 @@ type creatureInfo =
     ; name : string
     ; difficulty : int
     ; levelBase : int
-    ; hits: hit list
+    ; hits : hit list
+    ; speed : int
     }
 
 type creature =
     { cHp : int
     ; level : int
+    ; pointsSpeed : int
     ; creatureInfo : creatureInfo
     }
 
@@ -762,6 +766,7 @@ let placeCreature ?(preferNearby=false) ~room state =
             let creature =
                 { cHp = 7 (* TODO pick creatures *)
                 ; level = 15
+                ; pointsSpeed = 9
                 ; creatureInfo =
                     { symbol = "D"
                     ; color = A.lightred
@@ -774,6 +779,7 @@ let placeCreature ?(preferNearby=false) ~room state =
                         ; mkHitMelee Claw Physical 1 4
                         ; mkHitMelee Claw Physical 1 4
                         ]
+                    ; speed = 9
                     }
                 }
             in
@@ -1249,31 +1255,42 @@ let hasRangedAttack c =
     c.creatureInfo.hits
     |> List.exists (function | Ranged _ -> true | _ -> false)
 
-let animateCreature c cp state =
+let hasTurn c = match c.pointsSpeed with
+    | ps when ps <= 0 -> false
+    | ps when ps >= pointsSpeedPerTurn -> true
+    | ps -> rn 1 pointsSpeedPerTurn <= ps
+
+let rec animateCreature c cp state =
+    if not (hasTurn c) then state else
+    let state = playerUpdateMapKnowledge state in
     let pp = state.statePlayer.pos in
     (* ^TODO allow attacking other creatures *)
     let cl = getCurrentMap state in
-    if distance cp pp <= 1.5 then
+
+    let cpn, state' = if distance cp pp <= 1.5 then
         (* ^TODO blindness/confusion/etc. *)
-        creatureAttackMelee c pp state
-    else if areLinedUp cp pp
-            && hasRangedAttack c
-            && creatureCanSee c cp pp state then
-            (* ^TODO check that attack has path to target *)
-        creatureAttackRanged c cp pp state
-    else
-        match getCreaturePath cl cp pp with
-        | None -> state
-        | Some path when List.length path <= 2 -> state
-        | Some path ->
-            (* Remove start and end points. TODO improve in aStar *)
-            let h = path
-                |> List.tl
-                |> List.rev
-                |> List.tl
-                |> List.hd
-            in
-            moveCreature cp h state
+            cp, creatureAttackMelee c pp state
+        else if areLinedUp cp pp
+                && hasRangedAttack c
+                && creatureCanSee c cp pp state then
+                (* ^TODO check that attack has path to target *)
+            cp, creatureAttackRanged c cp pp state
+        else
+            match getCreaturePath cl cp pp with
+            | None -> cp, state
+            | Some path when List.length path <= 2 -> cp, state
+            | Some path ->
+                (* Remove start and end points. TODO improve in aStar *)
+                let h = path
+                    |> List.tl
+                    |> List.rev
+                    |> List.tl
+                    |> List.hd
+                in
+                h, moveCreature cp h state
+    in
+    let c = { c with pointsSpeed = c.pointsSpeed - pointsSpeedPerTurn } in
+    animateCreature c cpn state'
 
 let animateCreatures state = Matrix.foldI
     ( fun _ p state' -> function
