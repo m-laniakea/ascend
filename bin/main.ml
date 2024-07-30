@@ -167,6 +167,7 @@ type selectionItem =
     }
 
 type onSelectComplete =
+    | DoDrop
     | DoPickup
     | DoQuaff
     | DoRead
@@ -969,6 +970,7 @@ let canMoveTo t = match t.t with
 
 
 type actionsPlayer =
+    | Drop of selectionItem list
     | MoveDir of (pos -> pos)
     | Pickup of selectionItem list
     | Quaff of selectionItem
@@ -1345,6 +1347,32 @@ let playerRead si state =
                 let mf = posDiff pp pNew |> posAdd in
                 playerMove mf state
 
+let playerDrop sl state =
+    let sI = L.map (fun s -> s.iIndex) sl in
+    let sp = state.statePlayer in
+    let m = getCurrentMap state in
+    let t = Matrix.get m sp.pos in
+
+    let iDropped, iRemain = partitionI (fun ix _ -> contains sI ix) sp.inventory in
+
+    (* TODO allow dropping gold *)
+    let itemsValue = L.fold_left (fun acc i -> acc + (Item.getPriceBase i)) 0 iDropped in
+    let itemsValueTrade = itemsValue / 2 in
+
+    let gold =
+        if playerIsInShop state then
+            let _ = addMsg state (sf "Thank you! Here's %i zorkmids for you." itemsValueTrade) in
+            sp.gold + itemsValueTrade
+        else
+            sp.gold
+    in
+
+    let inventory = iRemain in
+    let statePlayer = { sp with gold; inventory } in
+
+    let m' = Matrix.set { t with items = iDropped @ t.items } sp.pos m in
+    { (setCurrentMap m' state) with statePlayer }
+
 let playerPickup sl state =
     let sI = L.map (fun s -> s.iIndex) sl in
     let sp = state.statePlayer in
@@ -1381,6 +1409,7 @@ let playerPickup sl state =
 let actionPlayer a state =
     Q.clear state.messages;
     let s' = match a with
+        | Drop sl -> playerDrop sl state
         | MoveDir mf -> playerMove mf state
         | Pickup sl -> playerPickup sl state
         | Quaff si -> playerQuaff si state
@@ -1407,6 +1436,7 @@ let handleSelect k s state = match k with
         let firstSelected = List.hd selected in
         let state = { state with mode = Playing } in
         ( match s.onComplete with
+            | DoDrop -> actionPlayer (Drop selected) state
             | DoPickup -> actionPlayer (Pickup selected) state
             | DoQuaff -> actionPlayer (Quaff firstSelected) state
             | DoRead -> actionPlayer (Read firstSelected) state
@@ -1639,6 +1669,18 @@ let playerGoDown state =
             in
             s'
 
+let modeSelectDrop state =
+    let inv = state.statePlayer.inventory in
+    let items = L.mapi (fun ix i -> Some (ix, i)) inv in
+    let selection = selectionOfItems ~single:false DoDrop items in
+    match items with
+        | [] ->
+            let _ = addMsg state "You don't have anything you can drop." in
+            Some state
+        | _ ->
+            let mode = Selecting selection in
+            Some { state with mode }
+
 let modeSelectPickup state =
     let pp = state.statePlayer.pos in
     let m = getCurrentMap state in
@@ -1683,6 +1725,7 @@ let modePlaying event state = match event with
 
     | `Key (`ASCII 's', _) -> actionPlayer Search state
 
+    | `Key (`ASCII 'd', _) -> modeSelectDrop state
     | `Key (`ASCII ',', _) -> modeSelectPickup state
     | `Key (`ASCII 'q', _) -> modeSelectQuaff state
     | `Key (`ASCII 'r', _) -> modeSelectRead state

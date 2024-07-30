@@ -84,7 +84,7 @@ let getPriceBase = function
     | Gold i -> i
     | Potion p ->
         ( match p.potion_t with
-            | Healing -> 200
+            | Healing -> 20
             | HealingExtra -> 100
             | HealingFull -> 200
             | Sickness -> 50
