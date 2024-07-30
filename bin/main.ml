@@ -40,10 +40,24 @@ type wh =
     ; h : int
     }
 
+type shop_t =
+    | General
+
+type shop =
+    { posDoor : pos
+    ; posEntry : pos
+    ; shop_t : shop_t
+    }
+
+type room_t =
+    | Regular
+    | Shop of shop
+
 type room =
     { posNW : pos
     ; posSE : pos
     ; doors : pos list
+    ; room_t : room_t
     }
 
 type stateDoor = Closed | Open | Hidden
@@ -124,7 +138,13 @@ type tile =
     ; items : Item.t list
     }
 
-type levels = tile Matrix.t list
+type level =
+    { map : tile Matrix.t
+    ; rooms : room list
+    }
+
+type levels = level list
+
 type stateLevels =
     { indexLevel : int
     ; levels : levels
@@ -147,6 +167,7 @@ type selectionItem =
     }
 
 type onSelectComplete =
+    | DoDrop
     | DoPickup
     | DoQuaff
     | DoRead
@@ -288,25 +309,34 @@ let getCurrentLevel state =
     let sl = state.stateLevels in
     List.nth sl.levels sl.indexLevel
 
-let getCurrentLevelKnowledge state =
+let getCurrentMap state =
+    (getCurrentLevel state).map
+
+let getKnowledgeCurrentLevel state =
     let sl = state.stateLevels in
     List.nth state.statePlayer.knowledgeLevels sl.indexLevel
+
+let getKnowledgeCurrentMap state =
+    (getKnowledgeCurrentLevel state).map
 
 let getDepth state =
     let sl = state.stateLevels in
     sl.indexLevel + 1
 
-let setCurrentLevel m state =
+let getDepthNext state = (getDepth state) + 1
+
+let setCurrentMap m state =
     let sl = state.stateLevels in
-    let nl = listSet sl.indexLevel m sl.levels in
+    let cl = getCurrentLevel state in
+    let nl = listSet sl.indexLevel { cl with map = m } sl.levels in
     let sln = {sl with levels = nl} in
     { state with stateLevels = sln }
 
-let setCurrentLevelKnowledge m state =
-    let sl = state.stateLevels in
-    let i = sl.indexLevel in
-    let pk = state.statePlayer.knowledgeLevels in
-    let knowledgeLevels = listSet i m pk in
+let setKnowledgeCurrentMap m state =
+    let sp = state.statePlayer in
+    let i = state.stateLevels.indexLevel in
+    let ckl = getKnowledgeCurrentLevel state in
+    let knowledgeLevels = listSet i { ckl with map = m } sp.knowledgeLevels in
     let statePlayer = { state.statePlayer with knowledgeLevels} in
     { state with statePlayer }
 
@@ -432,7 +462,7 @@ let imageCreate ?(animationLayer=[]) state =
             <->
             (
                 let mView =
-                    getCurrentLevelKnowledge state
+                    getKnowledgeCurrentMap state
                     |> Matrix.mapI imageOfTile
                     |> applyAnimatedTiles animationLayer
                 in
@@ -521,7 +551,7 @@ let canSee distanceSight from toSee state =
         false
     else
     let pathTo = getPathRay from toSee in
-    let m = getCurrentLevel state in
+    let m = getCurrentMap state in
     rayCanHitTarget m (Matrix.get m from) pathTo
 
 let playerCanSee state toSee =
@@ -547,14 +577,14 @@ let playerAddHp n state =
     { state with statePlayer }
 
 let playerAddMapKnowledgeEmpty state =
-    let knowledgeEmpty = Matrix.fill mapSize unseenEmpty in
+    let knowledgeEmpty = { rooms = []; map = Matrix.fill mapSize unseenEmpty } in
     let knowledgeLevels = state.statePlayer.knowledgeLevels @ [knowledgeEmpty] in
     let statePlayer = { state.statePlayer with knowledgeLevels } in
     { state with statePlayer }
 
 let playerUpdateMapKnowledge state =
-    let m  = getCurrentLevel state in
-    let pk = getCurrentLevelKnowledge state in
+    let m  = getCurrentMap state in
+    let pk = getKnowledgeCurrentMap state in
     let pkUpdated = Matrix.foldI
         ( fun _ p pk' known ->
             let actual = Matrix.get m p in
@@ -564,10 +594,10 @@ let playerUpdateMapKnowledge state =
                 pk'
         ) pk pk
     in
-    setCurrentLevelKnowledge pkUpdated state
+    setKnowledgeCurrentMap pkUpdated state
 
 let playerKnowledgeDeleteCreatures state =
-    let pk = getCurrentLevelKnowledge state in
+    let pk = getKnowledgeCurrentMap state in
     let pk' = Matrix.map
         ( fun v -> match v with
             | { occupant = Some (Creature _); _ } ->
@@ -577,19 +607,34 @@ let playerKnowledgeDeleteCreatures state =
             | _ -> v
         ) pk
     in
-    setCurrentLevelKnowledge pk' state
+    setKnowledgeCurrentMap pk' state
+
+let rnIndex l =
+    assert (List.length l > 0);
+
+    let iLast = List.length l - 1 in
+    rn 0 iLast
 
 let rnItem l =
     assert (List.length l > 0);
 
-    let iLast = List.length l - 1 in
-    List.nth l (rn 0 iLast)
+    List.nth l (rnIndex l)
 
 let isInRoom room pos =
     pos.row <= room.posSE.row
     && pos.row >= room.posNW.row
     && pos.col <= room.posSE.col
     && pos.col >= room.posNW.col
+
+let playerIsInShop state =
+    let sp = state.statePlayer in
+    let pp = sp.pos in
+    let cl = getCurrentLevel state in
+
+    match L.filter (function | { room_t = Shop _; _ } -> true | _ -> false) cl.rooms with
+        | [] -> false
+        | ( {room_t = Shop s; _ } as r )::[] -> pp <> s.posEntry && isInRoom r pp
+        | shop::_ -> assert false
 
 let randomRoomPos room =
     { row = rn room.posNW.row room.posSE.row
@@ -607,18 +652,24 @@ let getRoomPositions room =
     ) ri
     |> List.flatten
 
+let getRoomTiles room m =
+    getRoomPositions room
+    |> L.map (fun p -> Matrix.get m p)
+
+let roomHasStairs room state = L.exists isStairs (getRoomTiles room state)
+
 let allMapPositions =
     { posNW = {row = 0; col = 0}
     ; posSE = northWest mapSize
     ; doors = []
+    ; room_t = Regular
     }
     |> getRoomPositions
-
 
 let roomMake pu pl =
     assert (pu.row < pl.row);
     assert (pu.col < pl.col);
-    { posNW = pu; posSE = pl; doors = []; }
+    { posNW = pu; posSE = pl; doors = []; room_t = Regular }
 
 let roomMakeWh p wh =
     assert (wh.w > 0);
@@ -676,7 +727,7 @@ let canSpawnHere ?(forbidPos=None) m p =
             )
 
 let placeCreature ?(preferNearby=false) ~room state =
-    let m = getCurrentLevel state in
+    let m = getCurrentMap state in
     let pp = state.statePlayer.pos in
     let spawnPositions =
         allMapPositions
@@ -726,11 +777,11 @@ let placeCreature ?(preferNearby=false) ~room state =
                     }
                 }
             in
-            let map = getCurrentLevel state in
+            let map = getCurrentMap state in
             let t = Matrix.get map p in
             let t' = { t with occupant = Some (Creature creature) } in
             let map' = Matrix.set t' p map in
-            setCurrentLevel map' state
+            setCurrentMap map' state
 
 let rec placeCreatures ?(preferNearby=false) ~room count state =
     if count <= 0 then state else
@@ -799,6 +850,39 @@ let rec roomGen rooms tries =
     match roomPlace rooms { w = w; h = h } 42 with
     | None -> roomGen rooms (tries - 1)
     | sr -> sr
+
+let isSuitableForShop m room =
+    1 = L.length room.doors
+    && not (roomHasStairs room m)
+
+let maybeMakeShop rooms state m =
+    let d = getDepthNext state in
+    if d < 1 || (rn 0 d) >= 3 then rooms else
+
+    let rooms = L.filter (isSuitableForShop m) rooms in
+    if L.is_empty rooms then rooms else
+
+    let i = rnIndex rooms in
+    let room = L.nth rooms i in
+
+    let posDoor = List.hd room.doors in
+    let posEntry = match posDoor with
+        | p when isInRoom room (north p) -> north p
+        | p when isInRoom room (east p) -> east p
+        | p when isInRoom room (south p) -> south p
+        | p when isInRoom room (west p) -> west p
+        | _ -> assert false
+    in
+    let shop =
+        { posDoor
+        ; posEntry
+        ; shop_t = General
+        }
+    in
+    let room = { room with room_t = Shop shop } in
+    let rooms = listSet i room rooms in
+
+    rooms
 
 let roomsGen () =
     let roomsMax = rn 4 7 in
@@ -888,6 +972,7 @@ let canMoveTo t = match t.t with
 
 
 type actionsPlayer =
+    | Drop of selectionItem list
     | MoveDir of (pos -> pos)
     | Pickup of selectionItem list
     | Quaff of selectionItem
@@ -895,18 +980,27 @@ type actionsPlayer =
     | Search
 
 let creatureAddHp n t p c state =
-    let cl = getCurrentLevel state in
+    let cl = getCurrentMap state in
     let t' =
         if c.cHp + n < 0 then
             (* TODO drops *)
             let _ = addMsg state (sf "The %s is killed!" c.creatureInfo.name) in
-            { t with occupant = None }
+            let deathDrops = if not (oneIn 6) then [] else
+                let d = getDepth state in
+                let gold = Item.rnGold d in
+                (* TODO Not every creature can leave a corpse *)
+                (* TODO Not every creature can leave gold *)
+                let item = Item.random () in
+                [gold; item]
+            in
+
+            { t with occupant = None; items = deathDrops @ t.items }
         else
             let c' = Creature { c with cHp = c.cHp + n } in
             { t with occupant = Some c' }
     in
     let cl' = Matrix.set t' p cl in
-    setCurrentLevel cl' state
+    setCurrentMap cl' state
 
 
 let playerAttackMelee t p c state =
@@ -916,7 +1010,7 @@ let playerAttackMelee t p c state =
 
 let rec playerMove mf state =
     let p = state.statePlayer.pos in
-    let m = getCurrentLevel state in
+    let m = getCurrentMap state in
     let pn = mf p in
     if not (isInMap pn) then state else
 
@@ -929,7 +1023,7 @@ let rec playerMove mf state =
         else
             let _  = addMsg state "You open the door." in
             let tn = Matrix.set { tile with t = Door (Open, ori) } pn m in
-            setCurrentLevel tn state
+            setCurrentMap tn state
 
     | { occupant = Some (Creature c); _ } as t ->
         playerAttackMelee t pn c state
@@ -950,12 +1044,14 @@ let rec playerMove mf state =
                     |> Matrix.set t' pn
                 in
                 addMsg state "With great effort you push the boulder.";
-                playerMove mf (setCurrentLevel m' state)
+                playerMove mf (setCurrentMap m' state)
         )
 
     | tNew ->
         if not (canMoveTo tNew) then state else
         let tile = Matrix.get m p in
+        let statePlayer = { state.statePlayer with pos = pn } in
+        let state' = { state with statePlayer } in
         let m' =
             Matrix.set { tile with occupant = None } p m
             |> Matrix.set { tNew with occupant = Some Player } pn
@@ -967,19 +1063,19 @@ let rec playerMove mf state =
                 let _ = addMsg state "You see here:" in
                 List.iter
                     ( fun i ->
-                        addMsg state (Item.name i)
+                        let price = if playerIsInShop state' then sf "(%i zorkmids)" (Item.getPriceBase i) else "" in
+                        addMsg state (sf "%s %s" (Item.name i) price)
                     )
                     tNew.items
         else
             ()
         );
 
-        let pn = { state.statePlayer with pos = pn } in
-        { (setCurrentLevel m' state) with statePlayer = pn }
+        { (setCurrentMap m' state') with statePlayer }
 
 let playerSearch state =
     (* TODO base search success on stats *)
-    let currentLevel = getCurrentLevel state in
+    let currentLevel = getCurrentMap state in
     let hiddenTerrainAround =
         posAround state.statePlayer.pos
         |> List.filter (fun pa -> Matrix.get currentLevel pa |> isTerrainHidden)
@@ -1001,10 +1097,10 @@ let playerSearch state =
         ) currentLevel hiddenTerrainAround
     in
 
-    setCurrentLevel terrain' state
+    setCurrentMap terrain' state
 
 let moveCreature a b state =
-    let level = getCurrentLevel state in
+    let level = getCurrentMap state in
     let ct = Matrix.get level a in
     let tt = Matrix.get level b in
     if Option.is_some tt.occupant then
@@ -1012,7 +1108,7 @@ let moveCreature a b state =
     else
     let level' = Matrix.set { ct with occupant = None } a level in
     let level'' = Matrix.set { tt with occupant = ct.occupant } b level' in
-    setCurrentLevel level'' state
+    setCurrentMap level'' state
 
 let getCreaturePath m start goal =
   let open AStar in
@@ -1100,7 +1196,7 @@ let getImageForAnimation t dir =
 let creatureAttackRanged c cp tp state =
     let rec processPath effectSize msgsHit cp pd pTarget state =
         let cp' = posAdd cp pd in
-        let m = getCurrentLevel state in
+        let m = getCurrentMap state in
 
         let state' = match Matrix.get m cp' with
             | { occupant = Some Boulder; _ } -> addMsg state (sf "The %s whizzes past the boulder." msgsHit.msgCause); state (* TODO rays/vs weapons *)
@@ -1156,7 +1252,7 @@ let hasRangedAttack c =
 let animateCreature c cp state =
     let pp = state.statePlayer.pos in
     (* ^TODO allow attacking other creatures *)
-    let cl = getCurrentLevel state in
+    let cl = getCurrentMap state in
     if distance cp pp <= 1.5 then
         (* ^TODO blindness/confusion/etc. *)
         creatureAttackMelee c pp state
@@ -1185,7 +1281,7 @@ let animateCreatures state = Matrix.foldI
             let state = playerUpdateMapKnowledge state' in
             animateCreature c p state
         | _ -> state'
-    ) state (getCurrentLevel state)
+    ) state (getCurrentMap state)
 
 let maybeAddCreature state =
     if oneIn 50 then
@@ -1207,7 +1303,7 @@ let selectionOfItems ~single oc l =
     |> L.mapi
         ( fun ix (iix, i) ->
             { letter = 0x61 (* 'a' *) + ix |> Char.chr
-            ; iIndex = ix
+            ; iIndex = iix
             ; name = Item.name i
             ; selected = false
             }
@@ -1250,11 +1346,11 @@ let playerRead si state =
             let state = { state with statePlayer } in
             match s.scroll_t with
             | CreateMonster -> addMsg state "The area feels more dangerous!"; placeCreatures ~preferNearby:true ~room:None (rn 1 5) state
-            | MagicMapping -> addMsg state "An image coalesces in your mind."; setCurrentLevelKnowledge (getCurrentLevel state) state (* TODO remove item positions *)
+            | MagicMapping -> addMsg state "An image coalesces in your mind."; setKnowledgeCurrentMap (getCurrentMap state) state (* TODO remove item positions *)
             | Teleport ->
                 addMsg state "Your position feels more uncertain.";
                 let pp = sp.pos in
-                let m = getCurrentLevel state in
+                let m = getCurrentMap state in
                 let spawnPositions =
                     allMapPositions
                     |> L.filter (fun p -> canSpawnHere ~forbidPos:None m p)
@@ -1263,25 +1359,69 @@ let playerRead si state =
                 let mf = posDiff pp pNew |> posAdd in
                 playerMove mf state
 
+let playerDrop sl state =
+    let sI = L.map (fun s -> s.iIndex) sl in
+    let sp = state.statePlayer in
+    let m = getCurrentMap state in
+    let t = Matrix.get m sp.pos in
+
+    let iDropped, iRemain = partitionI (fun ix _ -> contains sI ix) sp.inventory in
+
+    (* TODO allow dropping gold *)
+    let itemsValue = L.fold_left (fun acc i -> acc + (Item.getPriceBase i)) 0 iDropped in
+    let itemsValueTrade = itemsValue / 2 in
+
+    let gold =
+        if playerIsInShop state then
+            let _ = addMsg state (sf "Thank you! Here's %i zorkmids for you." itemsValueTrade) in
+            sp.gold + itemsValueTrade
+        else
+            sp.gold
+    in
+
+    let inventory = iRemain in
+    let statePlayer = { sp with gold; inventory } in
+
+    let m' = Matrix.set { t with items = iDropped @ t.items } sp.pos m in
+    { (setCurrentMap m' state) with statePlayer }
+
 let playerPickup sl state =
     let sI = L.map (fun s -> s.iIndex) sl in
     let sp = state.statePlayer in
-    let m = getCurrentLevel state in
+    let m = getCurrentMap state in
     let t = Matrix.get m sp.pos in
 
     let iTaken, iRemain = partitionI (fun ix _ -> contains sI ix) t.items in
 
     let goldTaken, iTaken = L.partition_map (function | Item.Gold n -> Left n | i -> Right i) iTaken in
-    let gold = sp.gold + (List.fold_left (+) 0 goldTaken) in
+    let totalGoldTaken = List.fold_left (+) 0 goldTaken in
 
+    if playerIsInShop state then
+        match totalGoldTaken, iTaken with
+        | goldTaken, _ when goldTaken > 0 -> addMsg state "Hey! That's not your gold!"; state
+        | _, iTaken ->
+            let itemsValue = L.fold_left (fun t i -> t + (Item.getPriceBase i)) 0 iTaken in
+            if itemsValue > sp.gold then
+                let _ = addMsg state "You can't afford that!" in
+                state
+            else
+                let gold = sp.gold - itemsValue in
+                let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
+                let m' = Matrix.set { t with items = iRemain } sp.pos m in
+                { (setCurrentMap m' state) with statePlayer }
+
+    else
+
+    let gold = sp.gold + totalGoldTaken in
     let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
-    { (setCurrentLevel m' state) with statePlayer }
+    { (setCurrentMap m' state) with statePlayer }
     (* ^TODO combine items *)
 
 let actionPlayer a state =
     Q.clear state.messages;
     let s' = match a with
+        | Drop sl -> playerDrop sl state
         | MoveDir mf -> playerMove mf state
         | Pickup sl -> playerPickup sl state
         | Quaff si -> playerQuaff si state
@@ -1308,6 +1448,7 @@ let handleSelect k s state = match k with
         let firstSelected = List.hd selected in
         let state = { state with mode = Playing } in
         ( match s.onComplete with
+            | DoDrop -> actionPlayer (Drop selected) state
             | DoPickup -> actionPlayer (Pickup selected) state
             | DoQuaff -> actionPlayer (Quaff firstSelected) state
             | DoRead -> actionPlayer (Read firstSelected) state
@@ -1453,20 +1594,18 @@ let playerMoveToStairs ~dir state =
         | Up -> StairsUp
         | Down -> StairsDown
     in
-    let m = getCurrentLevel state in
+    let m = getCurrentMap state in
     let posStairs = getPosTerrain m stairType in
     let t = Matrix.get m posStairs in
     let m' = Matrix.set { t with occupant = Some Player } posStairs m in
     let statePlayer = { state.statePlayer with pos = posStairs } in
-    { (setCurrentLevel m' state) with statePlayer;  }
+    { (setCurrentMap m' state) with statePlayer;  }
 
-let maybeAddItem ~gold room state m =
-    if not (oneIn 3) then m else
-    let p = randomRoomPos room in
+let addItem ~gold state m p =
     let t = Matrix.get m p in
     let i =
         if gold then
-            let d = getDepth state in
+            let d = getDepthNext state in
             Item.rnGold d
         else
             Item.random ()
@@ -1475,12 +1614,23 @@ let maybeAddItem ~gold room state m =
     let t' = { t with items = i::t.items } in
     Matrix.set t' p m
 
+let maybeAddItem ~gold room state m =
+    if not (oneIn 3) then m else
+    let p = randomRoomPos room in
+    addItem ~gold state m p
+
 let terrainAddObjects rooms state m =
     List.fold_left
-        ( fun m' r ->
-            m'
-            |> maybeAddItem ~gold:false r state
-            |> maybeAddItem ~gold:true r state
+        ( fun m' r -> match r.room_t with
+            | Regular ->
+                m'
+                |> maybeAddItem ~gold:false r state
+                |> maybeAddItem ~gold:true r state
+
+            | Shop shop ->
+                getRoomPositions r
+                |> L.filter (fun p -> p <> shop.posEntry)
+                |> L.fold_left (fun m p -> addItem ~gold:false state m p) m'
         )
         m
         rooms
@@ -1489,19 +1639,20 @@ let mapGen state =
     let rooms = roomsGen () in
     let terrain = Matrix.fill mapSize { t = Stone; occupant = None; items = [] }
         |> terrainAddRooms rooms
-        |> terrainAddObjects rooms state
         |> terrainAddStairs ~dir:Up rooms
         |> terrainAddStairs ~dir:Down rooms
         |> terrainAddHallways rooms
     in
-    addLevel terrain state
+    let rooms = maybeMakeShop rooms state terrain in
+    let map = terrainAddObjects rooms state terrain in
+    addLevel { rooms; map } state
     |> playerMoveToStairs ~dir:Up
     |> placeRoomCreatures rooms
 
 
 let playerGoUp state =
     let p = state.statePlayer.pos in
-    if Matrix.get (getCurrentLevel state) p |> isTerrainOf StairsUp |> not then
+    if Matrix.get (getCurrentMap state) p |> isTerrainOf StairsUp |> not then
         state
     else
         let sl = state.stateLevels in
@@ -1515,7 +1666,7 @@ let playerGoUp state =
 
 let playerGoDown state =
     let p = state.statePlayer.pos in
-    if Matrix.get (getCurrentLevel state) p |> isTerrainOf StairsDown |> not then
+    if Matrix.get (getCurrentMap state) p |> isTerrainOf StairsDown |> not then
         state
     else
         let sl = state.stateLevels in
@@ -1530,9 +1681,21 @@ let playerGoDown state =
             in
             s'
 
+let modeSelectDrop state =
+    let inv = state.statePlayer.inventory in
+    let items = L.mapi (fun ix i -> Some (ix, i)) inv in
+    let selection = selectionOfItems ~single:false DoDrop items in
+    match items with
+        | [] ->
+            let _ = addMsg state "You don't have anything you can drop." in
+            Some state
+        | _ ->
+            let mode = Selecting selection in
+            Some { state with mode }
+
 let modeSelectPickup state =
     let pp = state.statePlayer.pos in
-    let m = getCurrentLevel state in
+    let m = getCurrentMap state in
     let t = Matrix.get m pp in
     let items = L.mapi (fun ix i -> Some (ix, i)) t.items in
     let selection = selectionOfItems ~single:false DoPickup items in
@@ -1574,6 +1737,7 @@ let modePlaying event state = match event with
 
     | `Key (`ASCII 's', _) -> actionPlayer Search state
 
+    | `Key (`ASCII 'd', _) -> modeSelectDrop state
     | `Key (`ASCII ',', _) -> modeSelectPickup state
     | `Key (`ASCII 'q', _) -> modeSelectQuaff state
     | `Key (`ASCII 'r', _) -> modeSelectRead state
@@ -1602,7 +1766,7 @@ let stateInitial =
 
     let statePlayer =
         { pos = { row = 0; col = 0 }
-        ; gold = 0
+        ; gold = 100
         ; hp = 613
         ; hpMax = 613
         ; inventory = []
