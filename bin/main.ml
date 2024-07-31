@@ -725,7 +725,7 @@ let isSuitableForShop m room =
 
 let maybeMakeShop rooms state m =
     let d = getDepthNext state in
-    if d < 1 || (rn 0 d) >= 3 then rooms else
+    if d <= 1 || (rn 0 d) >= 3 then rooms else
 
     let rooms = L.filter (isSuitableForShop m) rooms in
     if L.is_empty rooms then rooms else
