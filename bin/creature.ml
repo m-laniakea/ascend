@@ -38,8 +38,8 @@ let creatures =
     ]
 
 let mkCreature ci =
-    { hp = 7
-    ; level = 7
+    { hp = C.doRoll { rolls = ci.levelBase; sides = 8 }
+    ; level = ci.levelBase
     ; pointsSpeed = ci.speed
     ; info = ci
     }

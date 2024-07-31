@@ -24,8 +24,6 @@ let itemsDisplayedMax = 5
 
 let id a = a
 
-let range min max = List.init (max - min + 1) (fun i -> i + min)
-
 let partitionI f l =
     L.mapi (fun i v -> i, v) l
     |> L.partition_map (fun (i, v) -> if f i v then Left v else Right v)
@@ -989,11 +987,6 @@ let getCreaturePath m start goal =
     in
     search problem start
 
-let rollEffectSize roll =
-    range 1 roll.rolls
-    |> List.map (fun _ -> rn 1 roll.sides)
-    |> List.fold_left (+) 0
-
 let getHitThreshold ac attackerLevel =
     let ac' = if ac < 0 then rn ac (-1) else ac in
     10 + ac' + attackerLevel |> max 1
@@ -1030,7 +1023,7 @@ let creatureAttackMelee (c : Creature.t) p state =
                     state'
                 else
                 let effectSize =
-                    rollEffectSize hm.stats.roll
+                    doRoll hm.stats.roll
                     |> rollReducedDamage 0
                     (* ^TODO player AC *)
                 in
@@ -1081,7 +1074,7 @@ let creatureAttackRanged (c : Creature.t) cp tp state =
             let pDir = posDir pDiff in
             let hs = hr.stats in
             let effectSize =
-                rollEffectSize hs.roll
+                doRoll hs.roll
             in
             let animation =
                 { dir = pDir
@@ -1183,8 +1176,8 @@ let playerQuaff si state =
             let statePlayer = { sp with inventory } in
             let state = { state with statePlayer } in
             match p.potion_t with
-            | Healing -> addMsg state "You feel better."; playerAddHp (8 + (rollEffectSize {sides=4; rolls=4})) state
-            | HealingExtra -> addMsg state "You feel much better."; playerAddHp (16 + (rollEffectSize {sides=4; rolls=8})) state
+            | Healing -> addMsg state "You feel better."; playerAddHp (8 + (doRoll {sides=4; rolls=4})) state
+            | HealingExtra -> addMsg state "You feel much better."; playerAddHp (16 + (doRoll {sides=4; rolls=8})) state
             | HealingFull -> addMsg state "You feel completely healed."; playerAddHp(sp.hpMax) state
             | Sickness -> addMsg state "This tastes like poison."; playerAddHp(rn (-100) (-10)) state
 

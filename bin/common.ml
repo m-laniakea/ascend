@@ -14,6 +14,8 @@ let listSet i v =
 
 let contains l v = List.find_opt ((=) v) l |> Option.is_some
 
+let range min max = List.init (max - min + 1) (fun i -> i + min)
+
 let rn min max = Random.int_in_range ~min ~max
 
 let oneIn n = rn 0 (n - 1) = 0
@@ -48,3 +50,8 @@ type roll =
     { rolls : int
     ; sides : int
     }
+
+let doRoll roll =
+    range 1 roll.rolls
+    |> List.map (fun _ -> rn 1 roll.sides)
+    |> List.fold_left (+) 0
