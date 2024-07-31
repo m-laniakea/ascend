@@ -3,6 +3,7 @@ open Notty
 open Common
 open Matrix
 
+module Cr = Creature
 module L = List
 module Q = Queue
 
@@ -20,8 +21,6 @@ let mapSize =
 let distanceSight = 3.17
 
 let itemsDisplayedMax = 5
-
-let pointsSpeedPerTurn = 12
 
 let id a = a
 
@@ -76,65 +75,7 @@ type terrain =
     | Unseen
     | Wall of orientation
 
-type roll =
-    { rolls : int
-    ; sides : int
-    }
-
-type hitEffect =
-    | Physical
-    | Fire
-
-type passive =
-    { maxRoll : int
-    ; hitEffect : hitEffect
-    }
-
-type melee =
-    | Bite
-    | Claw
-
-type ranged =
-    | Breath
-
-type hitStats =
-    { roll : roll
-    ; effect : hitEffect
-    }
-
-type hitRanged =
-    { ranged_t : ranged
-    ; hitStatsR : hitStats
-    }
-
-type hitMelee =
-    { melee_t : melee
-    ; hitStats : hitStats
-    }
-
-type hit =
-    | Passive of passive
-    | Ranged of hitRanged
-    | Melee of hitMelee
-
-type creatureInfo =
-    { symbol : string
-    ; color : A.color
-    ; name : string
-    ; difficulty : int
-    ; levelBase : int
-    ; hits : hit list
-    ; speed : int
-    }
-
-type creature =
-    { cHp : int
-    ; level : int
-    ; pointsSpeed : int
-    ; creatureInfo : creatureInfo
-    }
-
-type occupant = Creature of creature | Player | Boulder
+type occupant = Creature of Creature.t | Player | Boulder
 
 type tile =
     { t : terrain
@@ -201,55 +142,6 @@ type animation =
     ; posCurrent : pos
     ; posEnd : pos
     ; image : image
-    }
-
-type msgHit =
-    { msgHit : string
-    ; msgCause : string
-    ; msgEffect : string
-    }
-
-let getEffect = function
-    | Passive p -> assert false (* TODO *)
-    | Ranged r -> r.hitStatsR.effect
-    | Melee m -> m.hitStats.effect
-
-let getMsgsCauseEffect a =
-    let msgCause, msgEffect = match getEffect a with
-        | Physical -> "attack", "hits"
-        | Fire -> "fire", "burns"
-    in
-    { msgHit = ""; msgCause; msgEffect }
-
-let getMsgsHit a =
-    let msgHit = match a with
-        | Passive p -> assert false (* TODO *)
-        | Ranged r ->
-            ( match r.ranged_t with
-                | Breath -> "breathes"
-            )
-
-        | Melee m -> match m.melee_t with
-            | Bite -> "bites"
-            | Claw -> "claws at"
-    in
-    let msgBase = getMsgsCauseEffect a in
-    { msgBase with msgHit }
-
-let mkHitMelee t e rolls sides = Melee
-    { melee_t = t
-    ; hitStats =
-        { effect = e
-        ; roll = { rolls; sides }
-        }
-    }
-
-let mkHitRanged t e rolls sides = Ranged
-    { ranged_t = t
-    ; hitStatsR =
-        { effect = e
-        ; roll = { rolls; sides }
-        }
     }
 
 let addMsg state s = Q.push s state.messages
@@ -420,7 +312,7 @@ let imageOfTile m pos = function
     | { occupant = Some occ; _ } ->
         ( match occ with
             | Creature c ->
-                I.string A.(st bold ++ fg c.creatureInfo.color) c.creatureInfo.symbol
+                I.string A.(st bold ++ fg c.info.color) c.info.symbol
             | Player -> I.string A.(st bold ++ fg lightwhite) "@"
             | Boulder -> I.string A.(st bold ++ fg white) "0"
         )
@@ -613,17 +505,6 @@ let playerKnowledgeDeleteCreatures state =
     in
     setKnowledgeCurrentMap pk' state
 
-let rnIndex l =
-    assert (List.length l > 0);
-
-    let iLast = List.length l - 1 in
-    rn 0 iLast
-
-let rnItem l =
-    assert (List.length l > 0);
-
-    List.nth l (rnIndex l)
-
 let isInRoom room pos =
     pos.row <= room.posSE.row
     && pos.row >= room.posNW.row
@@ -763,26 +644,7 @@ let placeCreature ?(preferNearby=false) ~room state =
     match creaturePos with
         | None -> state
         | Some p ->
-            let creature =
-                { cHp = 7 (* TODO pick creatures *)
-                ; level = 15
-                ; pointsSpeed = 9
-                ; creatureInfo =
-                    { symbol = "D"
-                    ; color = A.lightred
-                    ; name = "red dragon"
-                    ; difficulty = 20
-                    ; levelBase = 15
-                    ; hits =
-                        [ mkHitRanged Breath Fire 6 6
-                        ; mkHitMelee Bite Physical 3 8
-                        ; mkHitMelee Claw Physical 1 4
-                        ; mkHitMelee Claw Physical 1 4
-                        ]
-                    ; speed = 9
-                    }
-                }
-            in
+            let creature = Cr.random() in
             let map = getCurrentMap state in
             let t = Matrix.get map p in
             let t' = { t with occupant = Some (Creature creature) } in
@@ -985,12 +847,12 @@ type actionsPlayer =
     | Read of selectionItem
     | Search
 
-let creatureAddHp n t p c state =
+let creatureAddHp n t p (c : Creature.t) state =
     let cl = getCurrentMap state in
     let t' =
-        if c.cHp + n < 0 then
+        if c.hp + n < 0 then
             (* TODO drops *)
-            let _ = addMsg state (sf "The %s is killed!" c.creatureInfo.name) in
+            let _ = addMsg state (sf "The %s is killed!" c.info.name) in
             let deathDrops = if not (oneIn 6) then [] else
                 let d = getDepth state in
                 let gold = Item.rnGold d in
@@ -1002,16 +864,16 @@ let creatureAddHp n t p c state =
 
             { t with occupant = None; items = deathDrops @ t.items }
         else
-            let c' = Creature { c with cHp = c.cHp + n } in
+            let c' = Creature { c with hp = c.hp + n } in
             { t with occupant = Some c' }
     in
     let cl' = Matrix.set t' p cl in
     setCurrentMap cl' state
 
 
-let playerAttackMelee t p c state =
+let playerAttackMelee t p (c : Creature.t) state =
     (* TODO base on stats *)
-    addMsg state (sf "You attack the %s." c.creatureInfo.name);
+    addMsg state (sf "You attack the %s." c.info.name);
     creatureAddHp (-5) t p c state
 
 let rec playerMove mf state =
@@ -1152,29 +1014,29 @@ let rollReducedDamage ac damage =
     if ac >= 0 then damage else
     (rn ac (-1)) + damage |> min 1
 
-let creatureAttackMelee c p state =
+let creatureAttackMelee (c : Creature.t) p state =
     if p = state.statePlayer.pos then
         let hitThreshold = getHitThreshold (-10) c.level in
         (* ^TODO player AC *)
-        c.creatureInfo.hits
-        |> List.filter_map (function | Melee hm -> Some hm | _ -> None)
+        c.info.hits
+        |> List.filter_map (function | Hit.Melee hm -> Some hm | _ -> None)
         |> List.mapi (fun i v -> i, v)
         |> List.fold_left
-            ( fun state' (addSides, hm) ->
+            ( fun state' (addSides, (hm : Hit.melee)) ->
                 let miss = rollMiss hitThreshold addSides in
                 if miss.missed then
                     let mJust = if miss.justMissed then " just" else "" in
-                    let _ = addMsg state (sf "The %s%s misses you." c.creatureInfo.name mJust) in
+                    let _ = addMsg state (sf "The %s%s misses you." c.info.name mJust) in
                     state'
                 else
                 let effectSize =
-                    rollEffectSize hm.hitStats.roll
+                    rollEffectSize hm.stats.roll
                     |> rollReducedDamage 0
                     (* ^TODO player AC *)
                 in
-                let msgsHit = getMsgsHit (Melee hm) in
+                let msgsHit = Hit.getMsgs (Melee hm) in
 
-                addMsg state (sf "The %s %s you." c.creatureInfo.name msgsHit.msgHit);
+                addMsg state (sf "The %s %s you." c.info.name msgsHit.msgHit);
                 playerAddHp (-effectSize) state'
             )
             state
@@ -1183,31 +1045,16 @@ let creatureAttackMelee c p state =
         let _ = assert false in
         state
 
-let getImageForAnimation t dir =
-    let color = match t with
-    | Physical -> A.(fg white)
-    | Fire -> A.(fg lightred)
-    in
 
-    let c = match dir with
-    | _ when dir.row = 0 -> "-"
-    | _ when dir.col = 0 -> "|"
-    | _ when dir.row = dir.col -> "\\"
-    | _ when dir.row <> dir.col -> "/"
-    | _ -> assert false
-    in
-
-    I.string A.(st bold ++ color) c
-
-let creatureAttackRanged c cp tp state =
-    let rec processPath effectSize msgsHit cp pd pTarget state =
+let creatureAttackRanged (c : Creature.t) cp tp state =
+    let rec processPath effectSize (msgsHit : Hit.msgs) cp pd pTarget state =
         let cp' = posAdd cp pd in
         let m = getCurrentMap state in
 
         let state' = match Matrix.get m cp' with
             | { occupant = Some Boulder; _ } -> addMsg state (sf "The %s whizzes past the boulder." msgsHit.msgCause); state (* TODO rays/vs weapons *)
             | { occupant = Some Creature c'; _ } as t ->
-                    addMsg state (sf "The %s %s the %s." msgsHit.msgCause msgsHit.msgEffect c'.creatureInfo.name);
+                    addMsg state (sf "The %s %s the %s." msgsHit.msgCause msgsHit.msgEffect c'.info.name);
                     creatureAddHp (-effectSize) t cp' c' state
                     (* ^TODO resistances *)
             | { occupant = Some Player; _ } ->
@@ -1226,13 +1073,13 @@ let creatureAttackRanged c cp tp state =
         else
             processPath effectSize msgsHit cp' pd pTarget state'
     in
-    c.creatureInfo.hits
-    |> List.filter_map (function | Ranged hr -> Some hr | _ -> None)
+    c.info.hits
+    |> List.filter_map (function | Hit.Ranged hr -> Some hr | _ -> None)
     |> List.fold_left
-        ( fun state' hr ->
+        ( fun state' (hr : Hit.ranged) ->
             let pDiff = posDiff cp tp in
             let pDir = posDir pDiff in
-            let hs = hr.hitStatsR in
+            let hs = hr.stats in
             let effectSize =
                 rollEffectSize hs.roll
             in
@@ -1241,27 +1088,18 @@ let creatureAttackRanged c cp tp state =
                 ; posStart = cp
                 ; posCurrent = cp
                 ; posEnd = tp
-                ; image = getImageForAnimation hs.effect pDir
+                ; image = Hit.getImageForAnimation hs.effect pDir
                 }
             in
-            let msgsHit = getMsgsHit (Ranged hr) in
-            addMsg state (sf "The %s %s %s." c.creatureInfo.name msgsHit.msgHit msgsHit.msgCause);
+            let msgsHit = Hit.getMsgs (Ranged hr) in
+            addMsg state (sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
             animate state' animation;
             processPath effectSize msgsHit cp pDir tp state'
         )
         state
 
-let hasRangedAttack c =
-    c.creatureInfo.hits
-    |> List.exists (function | Ranged _ -> true | _ -> false)
-
-let hasTurn c = match c.pointsSpeed with
-    | ps when ps <= 0 -> false
-    | ps when ps >= pointsSpeedPerTurn -> true
-    | ps -> rn 1 pointsSpeedPerTurn <= ps
-
 let rec animateCreature c cp state =
-    if not (hasTurn c) then state else
+    if not (Cr.hasTurn c) then state else
     let state = playerUpdateMapKnowledge state in
     let pp = state.statePlayer.pos in
     (* ^TODO allow attacking other creatures *)
@@ -1271,7 +1109,7 @@ let rec animateCreature c cp state =
         (* ^TODO blindness/confusion/etc. *)
             cp, creatureAttackMelee c pp state
         else if areLinedUp cp pp
-                && hasRangedAttack c
+                && Cr.hasRangedAttack c
                 && creatureCanSee c cp pp state then
                 (* ^TODO check that attack has path to target *)
             cp, creatureAttackRanged c cp pp state

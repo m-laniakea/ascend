@@ -1,3 +1,5 @@
+let pointsSpeedPerTurn = 12
+
 let sf = Format.sprintf
 
 type pos =
@@ -16,6 +18,17 @@ let rn min max = Random.int_in_range ~min ~max
 
 let oneIn n = rn 0 (n - 1) = 0
 
+let rnIndex l =
+    assert (List.length l > 0);
+
+    let iLast = List.length l - 1 in
+    rn 0 iLast
+
+let rnItem l =
+    assert (List.length l > 0);
+
+    List.nth l (rnIndex l)
+
 let rnRelative l =
     let freqTotal =
         List.map (fun (i, freq) -> freq) l
@@ -30,3 +43,8 @@ let rnRelative l =
     in
     let ix = rn 1 freqTotal in
     aux ix l
+
+type roll =
+    { rolls : int
+    ; sides : int
+    }
