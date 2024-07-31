@@ -14,7 +14,9 @@ type passive =
 
 type melee_t =
     | Bite
+    | Butt
     | Claw
+    | Kick
 
 type ranged_t =
     | Breath
@@ -83,7 +85,9 @@ let getMsgs a =
 
         | Melee m -> match m.melee_t with
             | Bite -> "bites"
+            | Butt -> "butts"
             | Claw -> "claws at"
+            | Kick -> "kicks"
     in
     let msgBase = getMsgsCauseEffect a in
     { msgBase with msgHit }

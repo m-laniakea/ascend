@@ -11,8 +11,6 @@ module Term = Notty_unix.Term
 
 let term = Term.create ()
 
-let brown = A.(fg yellow)
-
 let mapSize =
     { row = 21
     ; col = 80
@@ -317,7 +315,7 @@ let imageOfTile m pos = function
     | { items = topItem::others; _ } ->
         let styles = if others = [] then A.(st bold) else A.(bg lightblack ++ st bold) in
         ( match topItem with
-            | Container _ -> I.string A.(styles ++ brown) "("
+            | Container _ -> I.string A.(styles ++ fg brown) "("
             | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
             | Potion _ -> I.string A.(styles ++ fg white) "!"
             | Scroll _ -> I.string A.(styles ++ fg white) "?"
@@ -642,12 +640,15 @@ let placeCreature ?(preferNearby=false) ~room state =
     match creaturePos with
         | None -> state
         | Some p ->
-            let creature = Cr.random() in
-            let map = getCurrentMap state in
-            let t = Matrix.get map p in
-            let t' = { t with occupant = Some (Creature creature) } in
-            let map' = Matrix.set t' p map in
-            setCurrentMap map' state
+            let d = getDepth state in (* TODO difficulty ob1 on level gen *)
+            match Cr.random d with
+                | None -> state
+                | Some creature ->
+                    let map = getCurrentMap state in
+                    let t = Matrix.get map p in
+                    let t' = { t with occupant = Some (Creature creature) } in
+                    let map' = Matrix.set t' p map in
+                    setCurrentMap map' state
 
 let rec placeCreatures ?(preferNearby=false) ~room count state =
     if count <= 0 then state else
@@ -1009,7 +1010,7 @@ let rollReducedDamage ac damage =
 
 let creatureAttackMelee (c : Creature.t) p state =
     if p = state.statePlayer.pos then
-        let hitThreshold = getHitThreshold (-10) c.level in
+        let hitThreshold = getHitThreshold 10 c.level in
         (* ^TODO player AC *)
         c.info.hits
         |> List.filter_map (function | Hit.Melee hm -> Some hm | _ -> None)
@@ -1024,7 +1025,7 @@ let creatureAttackMelee (c : Creature.t) p state =
                 else
                 let effectSize =
                     doRoll hm.stats.roll
-                    |> rollReducedDamage 0
+                    |> rollReducedDamage 10
                     (* ^TODO player AC *)
                 in
                 let msgsHit = Hit.getMsgs (Melee hm) in
@@ -1614,9 +1615,9 @@ let stateInitial =
 
     let statePlayer =
         { pos = { row = 0; col = 0 }
-        ; gold = 100
-        ; hp = 613
-        ; hpMax = 613
+        ; gold = 20
+        ; hp = 66
+        ; hpMax = 66
         ; inventory = []
         ; knowledgeLevels = []
         }

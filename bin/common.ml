@@ -1,5 +1,7 @@
 let pointsSpeedPerTurn = 12
 
+let brown = Notty.A.yellow
+
 let sf = Format.sprintf
 
 type pos =
