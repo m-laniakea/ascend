@@ -29,6 +29,11 @@ type container_t =
     | Sack
     | Chest
 
+type corpse =
+    { creature : Creature.info
+    ; turnDeceased : int
+    }
+
 type container =
     { container_t : container_t
     ; items : item list
@@ -36,6 +41,7 @@ type container =
 
 and item =
     | Container of container
+    | Corpse of corpse
     | Gold of int
     | Potion of potion
     | Scroll of scroll
@@ -46,6 +52,7 @@ type t = item
 
 let count = function
     | Container _ -> 1
+    | Corpse _ -> 1
     | Gold t -> t
     | Potion { stats = s; _ } -> s.count
     | Scroll { stats = s; _ } -> s.count
@@ -54,6 +61,7 @@ let name i =
     let count = count i in
     let mPlural = if count = 1 then "" else "s" in
     let name = match i with
+        | Corpse c -> c.creature.name ^ " corpse"
         | Gold t -> "gold piece" ^ mPlural
         | Potion p -> "potion" ^ mPlural ^ " of " ^
             ( match p.potion_t with
@@ -81,6 +89,7 @@ let getPriceBase = function
             | Chest -> 16
             | Sack -> 2
         )
+    | Corpse c -> 0
     | Gold i -> i
     | Potion p ->
         ( match p.potion_t with
@@ -99,12 +108,14 @@ let getPriceBase = function
 
 let isQuaffable = function
     | Container _ -> false
+    | Corpse _ -> false
     | Gold _ -> false
     | Potion _ -> true
     | Scroll _ -> false
 
 let isReadable = function
     | Container _ -> false
+    | Corpse _ -> false
     | Gold _ -> false
     | Potion _ -> false
     | Scroll _ -> true
@@ -140,3 +151,24 @@ let random () = match C.rn 1 32 with
     | c when c >= 1  && c <= 16 -> rnPotion ()
     | c when c >= 16 && c <= 32 -> rnScroll ()
     | _ -> assert false
+
+let isCorpse = function
+    | Corpse _ -> true
+    | _ -> false
+
+let turnsCorpseRot = 100
+let corpseAgeZombie = 50
+
+let mkCorpse (ci : Creature.info) t =
+    let addAge = if String.ends_with ~suffix:"zombie" ci.name then corpseAgeZombie else 0 in
+    Corpse
+        { creature = ci
+        ; turnDeceased = t - addAge
+        }
+
+let rotCorpses turns l =
+    List.fold_left
+        ( fun items i -> match i with
+            | Corpse c when turns - c.turnDeceased > turnsCorpseRot -> items
+            | i -> i::items
+        ) [] (List.rev l)

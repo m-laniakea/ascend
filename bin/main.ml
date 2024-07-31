@@ -129,6 +129,7 @@ type state =
     ; statePlayer : statePlayer
     ; messages : string Q.t
     ; mode : mode
+    ; turns : int
     (* objects : list Object *)
     }
 
@@ -316,6 +317,7 @@ let imageOfTile m pos = function
         let styles = if others = [] then A.(st bold) else A.(bg lightblack ++ st bold) in
         ( match topItem with
             | Container _ -> I.string A.(styles ++ fg brown) "("
+            | Corpse c -> I.string A.(styles ++ fg c.creature.color) "%"
             | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
             | Potion _ -> I.string A.(styles ++ fg white) "!"
             | Scroll _ -> I.string A.(styles ++ fg white) "?"
@@ -856,15 +858,12 @@ let creatureAddHp n t p (c : Creature.t) state =
         if c.hp + n < 0 then
             (* TODO drops *)
             let _ = addMsg state (sf "The %s is killed!" c.info.name) in
-            let deathDrops = if not (oneIn 6) then [] else
-                let d = getDepth state in
-                let gold = Item.rnGold d in
+            let deathDrops =
+                let corpse = Item.mkCorpse c.info state.turns in
                 (* TODO Not every creature can leave a corpse *)
-                (* TODO Not every creature can leave gold *)
-                let item = Item.random () in
-                [gold; item]
+                let item = if oneIn 6 then [Item.random ()] else [] in
+                corpse::item
             in
-
             { t with occupant = None; items = deathDrops @ t.items }
         else
             let c' = Creature { c with hp = c.hp + n } in
@@ -1174,6 +1173,7 @@ let playerQuaff si state =
     let item = List.nth sp.inventory si.iIndex in
     match item with
         | Container _ -> addMsg state "What a silly thing to quaff!"; state
+        | Corpse _ -> addMsg state "What a silly thing to quaff!"; state
         | Gold _ -> addMsg state "You were unable to swallow the gold piece."; state
         | Scroll _ -> addMsg state "This scroll is quite solid. Quite difficult to drink..."; state
         | Potion p ->
@@ -1191,6 +1191,7 @@ let playerRead si state =
     let item = List.nth sp.inventory si.iIndex in
     match item with
         | Container _ -> addMsg state "What a silly thing to read!"; state
+        | Corpse _ -> addMsg state "What a silly thing to read!"; state
         | Gold _ -> addMsg state "The gold is shiny!"; state
         | Potion _ -> addMsg state "This potion is unlabeled"; state
         | Scroll s ->
@@ -1223,6 +1224,11 @@ let playerDrop sl state =
     (* TODO allow dropping gold *)
     let itemsValue = L.fold_left (fun acc i -> acc + (Item.getPriceBase i)) 0 iDropped in
     let itemsValueTrade = itemsValue / 2 in
+
+    if playerIsInShop state && L.exists Item.isCorpse iDropped then
+        let _ = addMsg state "Keep that filthy corpse out of my shop!" in
+        state
+    else
 
     let gold =
         if playerIsInShop state then
@@ -1271,6 +1277,28 @@ let playerPickup sl state =
     { (setCurrentMap m' state) with statePlayer }
     (* ^TODO combine items *)
 
+let rotCorpses state =
+    let m = getCurrentMap state in
+
+    let m' = Matrix.foldI
+        ( fun _ p m t -> match t.items with
+            | [] -> m
+            | items ->
+                let items = Item.rotCorpses state.turns items in
+                Matrix.set { t with items } p m
+        ) m m
+    in
+
+    let sp = state.statePlayer in
+    let inventory = Item.rotCorpses state.turns sp.inventory in
+
+    let statePlayer = { sp with inventory } in
+    let state = { state with statePlayer } in
+    setCurrentMap m' state
+
+let incTurns state =
+    { state with turns = state.turns + 1 }
+
 let actionPlayer a state =
     Q.clear state.messages;
     let s' = match a with
@@ -1281,10 +1309,12 @@ let actionPlayer a state =
         | Read si -> playerRead si state
         | Search -> playerSearch state
     in
-    playerUpdateMapKnowledge s'
+    rotCorpses s'
+    |> playerUpdateMapKnowledge
     |> animateCreatures
     (* TODO update playerMap after each creature move *)
     |> maybeAddCreature
+    |> incTurns
     |> playerKnowledgeDeleteCreatures
     |> playerUpdateMapKnowledge
     |> playerAddHp (if oneIn 3 then 1 else 0)
@@ -1504,6 +1534,7 @@ let mapGen state =
 
 
 let playerGoUp state =
+    (* ^ TODO move to actionPlayer *)
     let p = state.statePlayer.pos in
     if Matrix.get (getCurrentMap state) p |> isTerrainOf StairsUp |> not then
         state
@@ -1512,12 +1543,13 @@ let playerGoUp state =
         if sl.indexLevel = 0 then
             state
         else
-            let s' = setIndexLevel (sl.indexLevel - 1) state
-                |> playerMoveToStairs ~dir:Down
-            in
-            s'
+            setIndexLevel (sl.indexLevel - 1) state
+            |> rotCorpses
+            |> playerUpdateMapKnowledge
+            |> playerMoveToStairs ~dir:Down
 
 let playerGoDown state =
+    (* ^ TODO move to actionPlayer *)
     let p = state.statePlayer.pos in
     if Matrix.get (getCurrentMap state) p |> isTerrainOf StairsDown |> not then
         state
@@ -1529,10 +1561,10 @@ let playerGoDown state =
             |> playerAddMapKnowledgeEmpty
             |> playerUpdateMapKnowledge
         else
-            let s' = setIndexLevel (sl.indexLevel + 1) state
-                |> playerMoveToStairs ~dir:Up
-            in
-            s'
+            setIndexLevel (sl.indexLevel + 1) state
+            |> rotCorpses
+            |> playerUpdateMapKnowledge
+            |> playerMoveToStairs ~dir:Up
 
 let modeSelectDrop state =
     let inv = state.statePlayer.inventory in
@@ -1632,6 +1664,7 @@ let stateInitial =
         ; statePlayer
         ; messages = Q.create ()
         ; mode = Playing
+        ; turns = 0
         }
     in
     Q.push "Welcome." stateI.messages;
