@@ -533,6 +533,8 @@ let getRoomPositions room =
     ) ri
     |> List.flatten
 
+let getRoomArea room = getRoomPositions room |> L.length
+
 let getRoomTiles room m =
     getRoomPositions room
     |> L.map (fun p -> Matrix.get m p)
@@ -712,7 +714,7 @@ let doorsGen rooms =
 
 let rec roomGen rooms tries =
     if tries <= 0 then None else
-    let w = rn 3 15 in
+    let w = rn 2 13 in
     let h = rn 2 8 in
     match roomPlace rooms { w = w; h = h } 42 with
     | None -> roomGen rooms (tries - 1)
@@ -721,6 +723,8 @@ let rec roomGen rooms tries =
 let isSuitableForShop m room =
     1 = L.length room.doors
     && not (roomHasStairs room m)
+    && getRoomArea room <= 24
+    && getRoomArea room >= 4
 
 let maybeMakeShop rooms state m =
     let d = getDepthNext state in
