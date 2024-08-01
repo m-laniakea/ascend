@@ -321,6 +321,7 @@ let imageOfTile m pos = function
             | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
             | Potion _ -> I.string A.(styles ++ fg white) "!"
             | Scroll _ -> I.string A.(styles ++ fg white) "?"
+            | Weapon w -> I.string A.(styles ++ fg w.color) ")"
         )
     | t ->
         let c = match t.t with
@@ -1177,6 +1178,7 @@ let playerQuaff si state =
         | Corpse _ -> addMsg state "What a silly thing to quaff!"; state
         | Gold _ -> addMsg state "You were unable to swallow the gold piece."; state
         | Scroll _ -> addMsg state "This scroll is quite solid. Quite difficult to drink..."; state
+        | Weapon _ -> addMsg state "You change your mind about swallowing your weapon."; state
         | Potion p ->
             let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
             let statePlayer = { sp with inventory } in
@@ -1195,6 +1197,7 @@ let playerRead si state =
         | Corpse _ -> addMsg state "What a silly thing to read!"; state
         | Gold _ -> addMsg state "The gold is shiny!"; state
         | Potion _ -> addMsg state "This potion is unlabeled"; state
+        | Weapon _ -> addMsg state "There's nothing to read on this weapon."; state
         | Scroll s ->
             let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
             let statePlayer = { sp with inventory } in

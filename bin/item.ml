@@ -1,4 +1,15 @@
+module N = Notty
+module A = N.A
+
 module C = Common
+
+type weapon =
+    { name : string
+    ; color : A.color
+    ; damage : C.roll
+    ; price : int
+    ; freqRel : int
+    }
 
 type stats =
     { count : int
@@ -45,6 +56,7 @@ and item =
     | Gold of int
     | Potion of potion
     | Scroll of scroll
+    | Weapon of weapon
 
 type itemList = item list
 
@@ -56,6 +68,7 @@ let count = function
     | Gold t -> t
     | Potion { stats = s; _ } -> s.count
     | Scroll { stats = s; _ } -> s.count
+    | Weapon _ -> 1
 
 let name i =
     let count = count i in
@@ -77,9 +90,12 @@ let name i =
                 | MagicMapping -> "magic mapping"
                 | Teleport -> "teleportation"
             )
-        | Container c -> match c.container_t with
+        | Container c ->
+            ( match c.container_t with
             | Sack -> "sack"
             | Chest -> "chest"
+            )
+        | Weapon w -> w.name
     in
     C.sf "%i %s" count name
 
@@ -105,6 +121,7 @@ let getPriceBase = function
             | MagicMapping -> 100
             | Teleport -> 100
         )
+    | Weapon w -> w.price
 
 let isQuaffable = function
     | Container _ -> false
@@ -112,6 +129,7 @@ let isQuaffable = function
     | Gold _ -> false
     | Potion _ -> true
     | Scroll _ -> false
+    | Weapon _ -> false
 
 let isReadable = function
     | Container _ -> false
@@ -119,6 +137,26 @@ let isReadable = function
     | Gold _ -> false
     | Potion _ -> false
     | Scroll _ -> true
+    | Weapon _ -> false
+
+let weapons =
+    [   { name = "dagger"
+        ; color = A.cyan
+        ; damage = { rolls = 1; sides = 4 }
+        ; price = 4
+        ; freqRel = 30
+        }
+    ;   { name = "club"
+        ; color = C.brown
+        ; damage = { rolls = 1; sides = 6 }
+        ; price = 3
+        ; freqRel = 12
+        }
+    ]
+
+let rnWeapon () =
+    let freq = List.map (fun w -> w, w.freqRel) weapons in
+    Weapon (C.rnRelative freq)
 
 let rnGold d =
     let den = max (12 - d) 2 in
@@ -147,10 +185,15 @@ let rnScroll () =
     let t = C.rnRelative freq in
     Scroll { scroll_t = t; stats = {count = 1} }
 
-let random () = match C.rn 1 32 with
-    | c when c >= 1  && c <= 16 -> rnPotion ()
-    | c when c >= 16 && c <= 32 -> rnScroll ()
-    | _ -> assert false
+let random () =
+    let freq =
+        [ rnPotion, 16
+        ; rnScroll, 16
+        ; rnWeapon, 10
+        ]
+    in
+    let t = C.rnRelative freq in
+    t ()
 
 let isCorpse = function
     | Corpse _ -> true
