@@ -732,10 +732,11 @@ let maybeMakeShop rooms state m =
     let d = getDepthNext state in
     if d <= 1 || (rn 0 d) >= 3 then rooms else
 
-    let rooms = L.filter (isSuitableForShop m) rooms in
-    if L.is_empty rooms then rooms else
+    let indices = L.mapi (fun i _ -> i) rooms in
+    let ixsRoomOk = L.filter (fun i -> L.nth rooms i |> isSuitableForShop m) indices in
+    if L.is_empty ixsRoomOk then rooms else
 
-    let i = rnIndex rooms in
+    let i = rnItem ixsRoomOk in
     let room = L.nth rooms i in
 
     let posDoor = List.hd room.doors in
