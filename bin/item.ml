@@ -195,6 +195,14 @@ let random () =
     let t = C.rnRelative freq in
     t ()
 
+let isWeapon = function
+    | Weapon _ -> true
+    | _ -> false
+
+let toWeapon = function
+    | Weapon w -> w
+    | _ -> assert false
+
 let isCorpse = function
     | Corpse _ -> true
     | _ -> false

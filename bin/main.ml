@@ -96,6 +96,7 @@ type statePlayer =
     ; gold : int
     ; hp : int
     ; hpMax : int
+    ; weaponWielded : Item.weapon option
     ; inventory : Item.t list
     ; knowledgeLevels : levels
     }
@@ -112,6 +113,7 @@ type onSelectComplete =
     | DoPickup
     | DoQuaff
     | DoRead
+    | DoWield
 
 type selection =
     { sItems : selectionItem list
@@ -853,6 +855,7 @@ type actionsPlayer =
     | Quaff of selectionItem
     | Read of selectionItem
     | Search
+    | Wield of selectionItem
 
 let creatureAddHp n t p (c : Creature.t) state =
     let cl = getCurrentMap state in
@@ -878,7 +881,12 @@ let creatureAddHp n t p (c : Creature.t) state =
 let playerAttackMelee t p (c : Creature.t) state =
     (* TODO base on stats *)
     addMsg state (sf "You attack the %s." c.info.name);
-    creatureAddHp (-5) t p c state
+    let sp = state.statePlayer in
+    let damage = match sp.weaponWielded with
+        | None -> rn 1 2 (* bare-handed *)
+        | Some w -> doRoll w.damage
+    in
+    creatureAddHp (-damage) t p c state
 
 let rec playerMove mf state =
     let p = state.statePlayer.pos in
@@ -1217,6 +1225,27 @@ let playerRead si state =
                 let mf = posDiff pp pNew |> posAdd in
                 playerMove mf state
 
+let playerWield si state =
+    let sp = state.statePlayer in
+    let item = List.nth sp.inventory si.iIndex in
+    let weaponWielded = Some (Item.toWeapon item) in
+    addMsg state (sf "You wield %s." (Item.name item));
+
+    let unwielded = match sp.weaponWielded with
+        | None -> []
+        | Some w -> [Item.(Weapon w)]
+    in
+
+    let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
+    let inventory = unwielded @ inventory in
+    let statePlayer =
+        { sp with weaponWielded
+        ; inventory
+        }
+
+    in
+    { state with statePlayer }
+
 let playerDrop sl state =
     let sI = L.map (fun s -> s.iIndex) sl in
     let sp = state.statePlayer in
@@ -1312,6 +1341,7 @@ let actionPlayer a state =
         | Quaff si -> playerQuaff si state
         | Read si -> playerRead si state
         | Search -> playerSearch state
+        | Wield si -> playerWield si state
     in
     rotCorpses s'
     |> playerUpdateMapKnowledge
@@ -1339,6 +1369,7 @@ let handleSelect k s state = match k with
             | DoPickup -> actionPlayer (Pickup selected) state
             | DoQuaff -> actionPlayer (Quaff firstSelected) state
             | DoRead -> actionPlayer (Read firstSelected) state
+            | DoWield -> actionPlayer (Wield firstSelected) state
         )
     | ',' ->
         let hasUnselected = L.exists (fun s -> not s.selected) s.sItems in
@@ -1613,6 +1644,13 @@ let modeSelectQuaff state =
     let mode = Selecting (selectionOfItems ~single:true DoQuaff quaffables) in
     Some { state with mode }
 
+let modeSelectWield state =
+    let sp = state.statePlayer in
+    let wieldables = L.mapi (fun ix i -> if Item.isWeapon i then Some (ix, i) else None) sp.inventory in
+    if not (L.exists Option.is_some wieldables) then Some state else
+    let mode = Selecting (selectionOfItems ~single:true DoWield wieldables) in
+    Some { state with mode }
+
 let modePlaying event state = match event with
     | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> actionPlayer (MoveDir west) state
     | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> actionPlayer (MoveDir east) state
@@ -1630,6 +1668,7 @@ let modePlaying event state = match event with
     | `Key (`ASCII ',', _) -> modeSelectPickup state
     | `Key (`ASCII 'q', _) -> modeSelectQuaff state
     | `Key (`ASCII 'r', _) -> modeSelectRead state
+    | `Key (`ASCII 'w', _) -> modeSelectWield state
 
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
@@ -1658,6 +1697,7 @@ let stateInitial =
         ; gold = 20
         ; hp = 66
         ; hpMax = 66
+        ; weaponWielded = None
         ; inventory = []
         ; knowledgeLevels = []
         }
