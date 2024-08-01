@@ -1545,8 +1545,8 @@ let playerGoUp state =
         else
             setIndexLevel (sl.indexLevel - 1) state
             |> rotCorpses
-            |> playerUpdateMapKnowledge
             |> playerMoveToStairs ~dir:Down
+            |> playerUpdateMapKnowledge
 
 let playerGoDown state =
     (* ^ TODO move to actionPlayer *)
@@ -1563,8 +1563,8 @@ let playerGoDown state =
         else
             setIndexLevel (sl.indexLevel + 1) state
             |> rotCorpses
-            |> playerUpdateMapKnowledge
             |> playerMoveToStairs ~dir:Up
+            |> playerUpdateMapKnowledge
 
 let modeSelectDrop state =
     let inv = state.statePlayer.inventory in
