@@ -108,19 +108,27 @@ type selectionItem =
     ; letter : char
     }
 
-type onSelectComplete =
+type onSelectItemsComplete =
     | DoDrop
     | DoPickup
     | DoQuaff
     | DoRead
     | DoWield
+    | SelectDirThrow
 
-type selection =
+type selectDir =
+    | DoThrow of selectionItem
+
+type selectItems =
     { sItems : selectionItem list
     ; single : bool
     ; complete : bool
-    ; onComplete : onSelectComplete
+    ; onComplete : onSelectItemsComplete
     }
+
+type selection =
+    | SelectDir of selectDir
+    | SelectItems of selectItems
 
 type mode =
     | Playing
@@ -307,6 +315,14 @@ let isFloorOrStairsOpt = function
     | None -> false
     | Some t -> isFloorOrStairs t
 
+let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
+    | Container _ -> I.string A.(styles ++ fg brown) "("
+    | Corpse c -> I.string A.(styles ++ fg c.creature.color) "%"
+    | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
+    | Potion _ -> I.string A.(styles ++ fg white) "!"
+    | Scroll _ -> I.string A.(styles ++ fg white) "?"
+    | Weapon w -> I.string A.(styles ++ fg w.color) ")"
+
 let imageOfTile m pos = function
     | { occupant = Some occ; _ } ->
         ( match occ with
@@ -317,14 +333,7 @@ let imageOfTile m pos = function
         )
     | { items = topItem::others; _ } ->
         let styles = if others = [] then A.(st bold) else A.(bg lightblack ++ st bold) in
-        ( match topItem with
-            | Container _ -> I.string A.(styles ++ fg brown) "("
-            | Corpse c -> I.string A.(styles ++ fg c.creature.color) "%"
-            | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
-            | Potion _ -> I.string A.(styles ++ fg white) "!"
-            | Scroll _ -> I.string A.(styles ++ fg white) "?"
-            | Weapon w -> I.string A.(styles ++ fg w.color) ")"
-        )
+        imageOfItem ~styles topItem
     | t ->
         let c = match t.t with
         | Stone -> " "
@@ -371,30 +380,42 @@ let imageCreate ?(animationLayer=[]) state =
                 Q.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
             )
         | Selecting s ->
-            s.sItems
-            |> L.sort (fun s s'-> Char.compare s.letter s'.letter)
-            |> L.map (fun s -> I.string A.empty (sf "%c %s %s" s.letter (if s.selected then "+" else "-") s.name))
-            |> I.vcat
+                ( match s with
+                | SelectDir _ ->
+                    [ "y  k  u"
+                    ; " \\ | / "
+                    ; "h  @  l"
+                    ; " / | \\"
+                    ; "b  j  n"
+                    ]
+                    |> L.map (I.string A.empty)
+                    |> I.vcat
+
+                | SelectItems s ->
+                    s.sItems
+                    |> L.sort (fun s s'-> Char.compare s.letter s'.letter)
+                    |> L.map (fun s -> I.string A.empty (sf "%c %s %s" s.letter (if s.selected then "+" else "-") s.name))
+                    |> I.vcat
+                )
     )
     |> Term.image term
 
-let rec animate state ?(animationLayer=[]) a =
-    let animationLayer' =
-        if a.posCurrent = a.posStart then
-            []
-        else
-            (a.posCurrent, a.image)::animationLayer
+let rec animate state ?(cumulative=true) ?(linger=true) ?(animationLayer=[]) a =
+    let animationLayer' = match cumulative with
+        | _ when a.posCurrent = a.posStart -> []
+        | true -> (a.posCurrent, a.image)::animationLayer
+        | false -> [a.posCurrent, a.image]
     in
     imageCreate ~animationLayer:animationLayer' state;
     Unix.sleepf 0.05;
 
     if a.posCurrent = a.posEnd then
-        Unix.sleepf 0.3
+        if linger then Unix.sleepf 0.3 else ()
     else
     let posCurrent = posAdd a.posCurrent a.dir in
     let a' = { a with posCurrent } in
 
-    animate state ~animationLayer:animationLayer' a'
+    animate state ~cumulative ~linger ~animationLayer:animationLayer' a'
 
 let getPathRay from target =
     let rec aux path =
@@ -839,6 +860,7 @@ let solve m start goal =
 
 
 let canMoveTo t = match t.t with
+    (* TODO name not correct *)
     | Floor | StairsUp | StairsDown | Hallway HallRegular -> true
     | Door (Open, _) -> true
     | Door (Closed, _) | Door (Hidden, _) -> false
@@ -847,14 +869,16 @@ let canMoveTo t = match t.t with
     | Unseen -> false
     | Wall Horizontal | Wall Vertical -> false
 
+type fDir = pos -> pos
 
 type actionsPlayer =
     | Drop of selectionItem list
-    | MoveDir of (pos -> pos)
+    | MoveDir of fDir
     | Pickup of selectionItem list
     | Quaff of selectionItem
     | Read of selectionItem
     | Search
+    | Throw of selectionItem * fDir
     | Wield of selectionItem
 
 let creatureAddHp n t p (c : Creature.t) state =
@@ -1310,6 +1334,67 @@ let playerPickup sl state =
     { (setCurrentMap m' state) with statePlayer }
     (* ^TODO combine items *)
 
+let playerThrow si dir state =
+    let rangeThrown = 6 in (* TODO *)
+    let sp = state.statePlayer in
+    let m = getCurrentMap state in
+
+    let item = List.nth sp.inventory si.iIndex in
+
+    let rec getPosEnd ~checkSight pc range = match dir pc with
+        | _ when range <= 0 -> pc
+        | pn ->
+            if checkSight && not (playerCanSee state pn) then pc else
+            ( match Matrix.get m pn with
+            | { occupant = Some Boulder; _ } -> getPosEnd ~checkSight pn (range - 1)
+            | { occupant = Some _; _ } -> pn
+            | t -> if canMoveTo t then getPosEnd ~checkSight pn (range - 1) else pc
+            )
+    in
+    let posLanded = getPosEnd ~checkSight:false sp.pos rangeThrown in
+    let posEnd = getPosEnd ~checkSight:true sp.pos rangeThrown in
+
+    let animation =
+        { dir = dir { row = 0; col = 0 }
+        ; posStart = sp.pos
+        ; posCurrent = sp.pos
+        ; posEnd
+        ; image = imageOfItem item
+        }
+    in
+    addMsg state (sf "You throw %s." (Item.name item));
+    animate state ~cumulative:false ~linger:false animation;
+
+    let t = Matrix.get m posLanded in
+    let t = { t with items = item::t.items } in
+    let m' = Matrix.set t posLanded m in
+    let state = setCurrentMap m' state in
+
+    let state = match t.occupant with
+          | Some (Creature c) ->
+            let isMiss = oneIn 4 in
+            (* ^TODO miss check belongs in getPosEnd *)
+            let _ = match playerCanSee state posLanded, isMiss with
+                | false, false -> addMsg state "You hit it." (* TODO deaf *)
+                | false, true -> addMsg state "You miss it."
+                | true, false -> addMsg state (sf "You hit the %s." c.info.name)
+                | true, true -> addMsg state (sf "You miss the %s." c.info.name)
+            in
+            if isMiss then state else
+            let damage = match item with
+                | Weapon w -> doRoll w.damage
+                | _ -> rn 1 2
+            in
+            creatureAddHp (-damage) t posLanded c state
+          | _ -> state
+    in
+
+    let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
+    let statePlayer = { sp with inventory } in
+
+    { state with statePlayer }
+
+
 let rotCorpses state =
     let m = getCurrentMap state in
 
@@ -1341,6 +1426,7 @@ let actionPlayer a state =
         | Quaff si -> playerQuaff si state
         | Read si -> playerRead si state
         | Search -> playerSearch state
+        | Throw (si, dir) -> playerThrow si dir state
         | Wield si -> playerWield si state
     in
     rotCorpses s'
@@ -1354,7 +1440,7 @@ let actionPlayer a state =
     |> playerAddHp (if oneIn 3 then 1 else 0)
     |> playerCheckHp
 
-let handleSelect k s state = match k with
+let handleSelectItems k s state = match k with
     | ' ' ->
         let selected = L.filter (fun s -> s.selected) s.sItems in
         let nSelected = L.length selected in
@@ -1370,12 +1456,16 @@ let handleSelect k s state = match k with
             | DoQuaff -> actionPlayer (Quaff firstSelected) state
             | DoRead -> actionPlayer (Read firstSelected) state
             | DoWield -> actionPlayer (Wield firstSelected) state
+            | SelectDirThrow ->
+                    let mode = Selecting (SelectDir (DoThrow firstSelected)) in
+                    Some { state with mode }
+
         )
     | ',' ->
         let hasUnselected = L.exists (fun s -> not s.selected) s.sItems in
         let selected = hasUnselected in
         let sItems = List.map (fun si -> { si with selected }) s.sItems in
-        let mode = Selecting { s with sItems } in
+        let mode = Selecting (SelectItems { s with sItems }) in
 
         Some { state with mode }
 
@@ -1390,8 +1480,33 @@ let handleSelect k s state = match k with
                 s.sItems
             in
             let sItems = listSet i { si with selected = not (si.selected) } sItems in
-            let mode = Selecting { s with sItems } in
+            let mode = Selecting (SelectItems { s with sItems }) in
             Some { state with mode }
+
+let handleSelectDir k sd state =
+    let dir = match k with
+        | 'y' -> Some northWest
+        | 'u' -> Some northEast
+        | 'b' -> Some southWest
+        | 'n' -> Some southEast
+        | 'k' -> Some north
+        | 'j' -> Some south
+        | 'l' -> Some east
+        | 'h' -> Some west
+        | _ -> None
+    in
+    match dir with
+        | None -> Some state
+        | Some dir ->
+            let mode = Playing in
+            let state = { state with mode } in
+            ( match sd with
+            | DoThrow si -> actionPlayer (Throw (si, dir)) state
+            )
+
+let handleSelect k s state = match s with
+    | SelectDir sd -> handleSelectDir k sd state
+    | SelectItems si -> handleSelectItems k si state
 
 let terrainAddRoom m room =
     let rp = getRoomPositions room in
@@ -1610,7 +1725,7 @@ let modeSelectDrop state =
             let _ = addMsg state "You don't have anything you can drop." in
             Some state
         | _ ->
-            let mode = Selecting selection in
+            let mode = Selecting (SelectItems selection) in
             Some { state with mode }
 
 let modeSelectPickup state =
@@ -1626,14 +1741,15 @@ let modeSelectPickup state =
         | i::[] ->
             actionPlayer (Pickup selection.sItems) state
         | _ ->
-            let mode = Selecting selection in
+            let mode = Selecting (SelectItems selection) in
             Some { state with mode }
 
 let modeSelectRead state =
     let sp = state.statePlayer in
     let readables = L.mapi (fun ix i -> if Item.isReadable i then Some (ix, i) else None) sp.inventory in
     if not (L.exists Option.is_some readables) then Some state else
-    let mode = Selecting (selectionOfItems ~single:true DoRead readables) in
+    let selection = selectionOfItems ~single:true DoRead readables in
+    let mode = Selecting (SelectItems selection) in
     Some { state with mode }
 
 let modeSelectQuaff state =
@@ -1641,14 +1757,26 @@ let modeSelectQuaff state =
     let quaffables = L.mapi (fun ix i -> if Item.isQuaffable i then Some (ix, i) else None) sp.inventory in
     (* ^TODO refactor *)
     if not (L.exists Option.is_some quaffables) then Some state else
-    let mode = Selecting (selectionOfItems ~single:true DoQuaff quaffables) in
+    let selection = selectionOfItems ~single:true DoQuaff quaffables in
+    let mode = Selecting (SelectItems selection) in
+    Some { state with mode }
+
+let modeSelectThrow state =
+    (* ^TODO refactor *)
+    let sp = state.statePlayer in
+    let throwables = L.mapi (fun ix i -> if Item.isWeapon i then Some (ix, i) else None) sp.inventory in
+    (* TODO allow throwing non-weapons *)
+    if not (L.exists Option.is_some throwables) then Some state else
+    let selection = selectionOfItems ~single:true SelectDirThrow throwables in
+    let mode = Selecting (SelectItems selection) in
     Some { state with mode }
 
 let modeSelectWield state =
     let sp = state.statePlayer in
     let wieldables = L.mapi (fun ix i -> if Item.isWeapon i then Some (ix, i) else None) sp.inventory in
     if not (L.exists Option.is_some wieldables) then Some state else
-    let mode = Selecting (selectionOfItems ~single:true DoWield wieldables) in
+    let selection = selectionOfItems ~single:true DoWield wieldables in
+    let mode = Selecting (SelectItems selection) in
     Some { state with mode }
 
 let modePlaying event state = match event with
@@ -1668,6 +1796,7 @@ let modePlaying event state = match event with
     | `Key (`ASCII ',', _) -> modeSelectPickup state
     | `Key (`ASCII 'q', _) -> modeSelectQuaff state
     | `Key (`ASCII 'r', _) -> modeSelectRead state
+    | `Key (`ASCII 't', _) -> modeSelectThrow state
     | `Key (`ASCII 'w', _) -> modeSelectWield state
 
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
