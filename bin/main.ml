@@ -151,7 +151,7 @@ type animation =
     ; image : image
     }
 
-let addMsg state s = Q.push s state.messages
+let msgAdd state s = Q.push s state.messages
 
 let unseenEmpty = { t = Unseen; occupant = None; items = [] }
 
@@ -886,7 +886,7 @@ let creatureAddHp n t p (c : Creature.t) state =
     let t' =
         if c.hp + n < 0 then
             (* TODO drops *)
-            let _ = addMsg state (sf "The %s is killed!" c.info.name) in
+            let _ = msgAdd state (sf "The %s is killed!" c.info.name) in
             let deathDrops =
                 let corpse = Item.mkCorpse c.info state.turns in
                 (* TODO Not every creature can leave a corpse *)
@@ -904,7 +904,7 @@ let creatureAddHp n t p (c : Creature.t) state =
 
 let playerAttackMelee t p (c : Creature.t) state =
     (* TODO base on stats *)
-    addMsg state (sf "You attack the %s." c.info.name);
+    msgAdd state (sf "You attack the %s." c.info.name);
     let sp = state.statePlayer in
     let damage = match sp.weaponWielded with
         | None -> rn 1 2 (* bare-handed *)
@@ -922,10 +922,10 @@ let rec playerMove mf state =
     | { t = Door (Closed, ori) } as tile ->
         (* TODO make chance based on stats *)
         if oneIn 3 then
-            let _ = addMsg state "The door resists!" in
+            let _ = msgAdd state "The door resists!" in
             state
         else
-            let _  = addMsg state "You open the door." in
+            let _  = msgAdd state "You open the door." in
             let tn = Matrix.set { tile with t = Door (Open, ori) } pn m in
             setCurrentMap tn state
 
@@ -934,12 +934,12 @@ let rec playerMove mf state =
 
     | { occupant = Some Boulder; _ } as t ->
         let pbNew = mf pn in
-        if not (isInMap pbNew) then (addMsg state "The boulder won't budge!"; state) else
+        if not (isInMap pbNew) then (msgAdd state "The boulder won't budge!"; state) else
         let behindBoulder = Matrix.get m pbNew in
-        if canMoveTo behindBoulder |> not then (addMsg state "The boulder won't budge."; state) else
+        if canMoveTo behindBoulder |> not then (msgAdd state "The boulder won't budge."; state) else
         ( match behindBoulder with
-            | { occupant = Some Boulder } -> addMsg state "There's something blocking the boulder!"; state
-            | { occupant = Some _ } -> addMsg state "There's something alive behind the boulder!"; state
+            | { occupant = Some Boulder } -> msgAdd state "There's something blocking the boulder!"; state
+            | { occupant = Some _ } -> msgAdd state "There's something alive behind the boulder!"; state
             | _ ->
                 let behind' = { behindBoulder with occupant = Some Boulder } in
                 let t' = { t with occupant = None } in
@@ -947,7 +947,7 @@ let rec playerMove mf state =
                     Matrix.set behind' pbNew m
                     |> Matrix.set t' pn
                 in
-                addMsg state "With great effort you push the boulder.";
+                msgAdd state "With great effort you push the boulder.";
                 playerMove mf (setCurrentMap m' state)
         )
 
@@ -962,13 +962,13 @@ let rec playerMove mf state =
         in
         ( if not (List.is_empty tNew.items) then
             if List.length tNew.items > itemsDisplayedMax then
-                addMsg state "You see here many items."
+                msgAdd state "You see here many items."
             else
-                let _ = addMsg state "You see here:" in
+                let _ = msgAdd state "You see here:" in
                 List.iter
                     ( fun i ->
                         let price = if playerIsInShop state' then sf "(%i zorkmids)" (Item.getPriceBase i) else "" in
-                        addMsg state (sf "%s %s" (Item.name i) price)
+                        msgAdd state (sf "%s %s" (Item.name i) price)
                     )
                     tNew.items
         else
@@ -991,8 +991,8 @@ let playerSearch state =
             else
                 let current = Matrix.get m p in
                 let tt' = match current.t with
-                    | Door (Hidden, ori) -> addMsg state "You find a hidden door!"; Door (Closed, ori)
-                    | Hallway HallHidden -> addMsg state "You find a hidden hallway!"; Hallway HallRegular
+                    | Door (Hidden, ori) -> msgAdd state "You find a hidden door!"; Door (Closed, ori)
+                    | Hallway HallHidden -> msgAdd state "You find a hidden hallway!"; Hallway HallRegular
                     | _ -> assert false
                 in
                 Matrix.set
@@ -1057,7 +1057,7 @@ let creatureAttackMelee (c : Creature.t) p state =
                 let miss = rollMiss hitThreshold addSides in
                 if miss.missed then
                     let mJust = if miss.justMissed then " just" else "" in
-                    let _ = addMsg state (sf "The %s%s misses you." c.info.name mJust) in
+                    let _ = msgAdd state (sf "The %s%s misses you." c.info.name mJust) in
                     state'
                 else
                 let effectSize =
@@ -1067,7 +1067,7 @@ let creatureAttackMelee (c : Creature.t) p state =
                 in
                 let msgsHit = Hit.getMsgs (Melee hm) in
 
-                addMsg state (sf "The %s %s you." c.info.name msgsHit.msgHit);
+                msgAdd state (sf "The %s %s you." c.info.name msgsHit.msgHit);
                 playerAddHp (-effectSize) state'
             )
             state
@@ -1083,13 +1083,13 @@ let creatureAttackRanged (c : Creature.t) cp tp state =
         let m = getCurrentMap state in
 
         let state' = match Matrix.get m cp' with
-            | { occupant = Some Boulder; _ } -> addMsg state (sf "The %s whizzes past the boulder." msgsHit.msgCause); state (* TODO rays/vs weapons *)
+            | { occupant = Some Boulder; _ } -> msgAdd state (sf "The %s whizzes past the boulder." msgsHit.msgCause); state (* TODO rays/vs weapons *)
             | { occupant = Some Creature c'; _ } as t ->
-                    addMsg state (sf "The %s %s the %s." msgsHit.msgCause msgsHit.msgEffect c'.info.name);
+                    msgAdd state (sf "The %s %s the %s." msgsHit.msgCause msgsHit.msgEffect c'.info.name);
                     creatureAddHp (-effectSize) t cp' c' state
                     (* ^TODO resistances *)
             | { occupant = Some Player; _ } ->
-                addMsg state (sf "The %s %s you!" msgsHit.msgCause msgsHit.msgEffect);
+                msgAdd state (sf "The %s %s you!" msgsHit.msgCause msgsHit.msgEffect);
                 playerAddHp (-effectSize) state
 
             | { occupant = None; _ } -> state (* TODO burning items, etc. *)
@@ -1123,7 +1123,7 @@ let creatureAttackRanged (c : Creature.t) cp tp state =
                 }
             in
             let msgsHit = Hit.getMsgs (Ranged hr) in
-            addMsg state (sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
+            msgAdd state (sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
             animate state' animation;
             processPath effectSize msgsHit cp pDir tp state'
         )
@@ -1178,7 +1178,7 @@ let maybeAddCreature state =
 let playerCheckHp state =
     let sp = state.statePlayer in
     if sp.hp <= 0 then
-        let _ = addMsg state "You died..." in
+        let _ = msgAdd state "You died..." in
         None
     else
         Some state
@@ -1206,39 +1206,39 @@ let playerQuaff si state =
     let sp = state.statePlayer in
     let item = List.nth sp.inventory si.iIndex in
     match item with
-        | Container _ -> addMsg state "What a silly thing to quaff!"; state
-        | Corpse _ -> addMsg state "What a silly thing to quaff!"; state
-        | Gold _ -> addMsg state "You were unable to swallow the gold piece."; state
-        | Scroll _ -> addMsg state "This scroll is quite solid. Quite difficult to drink..."; state
-        | Weapon _ -> addMsg state "You change your mind about swallowing your weapon."; state
+        | Container _ -> msgAdd state "What a silly thing to quaff!"; state
+        | Corpse _ -> msgAdd state "What a silly thing to quaff!"; state
+        | Gold _ -> msgAdd state "You were unable to swallow the gold piece."; state
+        | Scroll _ -> msgAdd state "This scroll is quite solid. Quite difficult to drink..."; state
+        | Weapon _ -> msgAdd state "You change your mind about swallowing your weapon."; state
         | Potion p ->
             let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
             let statePlayer = { sp with inventory } in
             let state = { state with statePlayer } in
             match p.potion_t with
-            | Healing -> addMsg state "You feel better."; playerAddHp (8 + (doRoll {sides=4; rolls=4})) state
-            | HealingExtra -> addMsg state "You feel much better."; playerAddHp (16 + (doRoll {sides=4; rolls=8})) state
-            | HealingFull -> addMsg state "You feel completely healed."; playerAddHp(sp.hpMax) state
-            | Sickness -> addMsg state "This tastes like poison."; playerAddHp(rn (-100) (-10)) state
+            | Healing -> msgAdd state "You feel better."; playerAddHp (8 + (doRoll {sides=4; rolls=4})) state
+            | HealingExtra -> msgAdd state "You feel much better."; playerAddHp (16 + (doRoll {sides=4; rolls=8})) state
+            | HealingFull -> msgAdd state "You feel completely healed."; playerAddHp(sp.hpMax) state
+            | Sickness -> msgAdd state "This tastes like poison."; playerAddHp(rn (-100) (-10)) state
 
 let playerRead si state =
     let sp = state.statePlayer in
     let item = List.nth sp.inventory si.iIndex in
     match item with
-        | Container _ -> addMsg state "What a silly thing to read!"; state
-        | Corpse _ -> addMsg state "What a silly thing to read!"; state
-        | Gold _ -> addMsg state "The gold is shiny!"; state
-        | Potion _ -> addMsg state "This potion is unlabeled"; state
-        | Weapon _ -> addMsg state "There's nothing to read on this weapon."; state
+        | Container _ -> msgAdd state "What a silly thing to read!"; state
+        | Corpse _ -> msgAdd state "What a silly thing to read!"; state
+        | Gold _ -> msgAdd state "The gold is shiny!"; state
+        | Potion _ -> msgAdd state "This potion is unlabeled"; state
+        | Weapon _ -> msgAdd state "There's nothing to read on this weapon."; state
         | Scroll s ->
             let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
             let statePlayer = { sp with inventory } in
             let state = { state with statePlayer } in
             match s.scroll_t with
-            | CreateMonster -> addMsg state "The area feels more dangerous!"; placeCreatures ~preferNearby:true ~room:None (rn 1 5) state
-            | MagicMapping -> addMsg state "An image coalesces in your mind."; setKnowledgeCurrentMap (getCurrentMap state) state (* TODO remove item positions *)
+            | CreateMonster -> msgAdd state "The area feels more dangerous!"; placeCreatures ~preferNearby:true ~room:None (rn 1 5) state
+            | MagicMapping -> msgAdd state "An image coalesces in your mind."; setKnowledgeCurrentMap (getCurrentMap state) state (* TODO remove item positions *)
             | Teleport ->
-                addMsg state "Your position feels more uncertain.";
+                msgAdd state "Your position feels more uncertain.";
                 let pp = sp.pos in
                 let m = getCurrentMap state in
                 let spawnPositions =
@@ -1253,7 +1253,7 @@ let playerWield si state =
     let sp = state.statePlayer in
     let item = List.nth sp.inventory si.iIndex in
     let weaponWielded = Some (Item.toWeapon item) in
-    addMsg state (sf "You wield %s." (Item.name item));
+    msgAdd state (sf "You wield %s." (Item.name item));
 
     let unwielded = match sp.weaponWielded with
         | None -> []
@@ -1283,13 +1283,13 @@ let playerDrop sl state =
     let itemsValueTrade = itemsValue / 2 in
 
     if playerIsInShop state && L.exists Item.isCorpse iDropped then
-        let _ = addMsg state "Keep that filthy corpse out of my shop!" in
+        let _ = msgAdd state "Keep that filthy corpse out of my shop!" in
         state
     else
 
     let gold =
         if playerIsInShop state then
-            let _ = addMsg state (sf "Thank you! Here's %i zorkmids for you." itemsValueTrade) in
+            let _ = msgAdd state (sf "Thank you! Here's %i zorkmids for you." itemsValueTrade) in
             sp.gold + itemsValueTrade
         else
             sp.gold
@@ -1314,11 +1314,11 @@ let playerPickup sl state =
 
     if playerIsInShop state then
         match totalGoldTaken, iTaken with
-        | goldTaken, _ when goldTaken > 0 -> addMsg state "Hey! That's not your gold!"; state
+        | goldTaken, _ when goldTaken > 0 -> msgAdd state "Hey! That's not your gold!"; state
         | _, iTaken ->
             let itemsValue = L.fold_left (fun t i -> t + (Item.getPriceBase i)) 0 iTaken in
             if itemsValue > sp.gold then
-                let _ = addMsg state "You can't afford that!" in
+                let _ = msgAdd state "You can't afford that!" in
                 state
             else
                 let gold = sp.gold - itemsValue in
@@ -1362,7 +1362,7 @@ let playerThrow si dir state =
         ; image = imageOfItem item
         }
     in
-    addMsg state (sf "You throw %s." (Item.name item));
+    msgAdd state (sf "You throw %s." (Item.name item));
     animate state ~cumulative:false ~linger:false animation;
 
     let t = Matrix.get m posLanded in
@@ -1375,10 +1375,10 @@ let playerThrow si dir state =
             let isMiss = oneIn 4 in
             (* ^TODO miss check belongs in getPosEnd *)
             let _ = match playerCanSee state posLanded, isMiss with
-                | false, false -> addMsg state "You hit it." (* TODO deaf *)
-                | false, true -> addMsg state "You miss it."
-                | true, false -> addMsg state (sf "You hit the %s." c.info.name)
-                | true, true -> addMsg state (sf "You miss the %s." c.info.name)
+                | false, false -> msgAdd state "You hit it." (* TODO deaf *)
+                | false, true -> msgAdd state "You miss it."
+                | true, false -> msgAdd state (sf "You hit the %s." c.info.name)
+                | true, true -> msgAdd state (sf "You miss the %s." c.info.name)
             in
             if isMiss then state else
             let damage = match item with
@@ -1648,7 +1648,7 @@ let addItem ~gold state m p =
     Matrix.set t' p m
 
 let maybeAddItem ~gold room state m =
-    if not (oneIn 3) then m else
+    if not (oneIn 1) then m else
     let p = randomRoomPos room in
     addItem ~gold state m p
 
@@ -1722,7 +1722,7 @@ let modeSelectDrop state =
     let selection = selectionOfItems ~single:false DoDrop items in
     match items with
         | [] ->
-            let _ = addMsg state "You don't have anything you can drop." in
+            let _ = msgAdd state "You don't have anything you can drop." in
             Some state
         | _ ->
             let mode = Selecting (SelectItems selection) in
@@ -1736,7 +1736,7 @@ let modeSelectPickup state =
     let selection = selectionOfItems ~single:false DoPickup items in
     match t.items with
         | [] ->
-            let _ = addMsg state "There's nothing to pick up here." in
+            let _ = msgAdd state "There's nothing to pick up here." in
             Some state
         | i::[] ->
             actionPlayer (Pickup selection.sItems) state
