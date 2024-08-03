@@ -404,6 +404,8 @@ let imageCreate ?(animationLayer=[]) state =
     )
     |> Term.image term
 
+let closestTo p p1 p2 = Int.compare (distanceManhattan p p1) (distanceManhattan p p2)
+
 let rec animate state ?(cumulative=true) ?(linger=true) ?(animationLayer=[]) a =
     let animationLayer' = match cumulative with
         | _ when a.posCurrent = a.posStart -> []
@@ -466,7 +468,6 @@ let rec rayCanHitTarget m prev path =
             | Unseen -> false
             | Wall _ -> false
 
-
 let canSee distanceSight from toSee state =
     let d = distance from toSee in
     if d > distanceSight && not (isLit toSee) then
@@ -484,6 +485,16 @@ let playerCanSee state toSee =
 let creatureCanSee c from toSee state =
     (* TODO use creature info *)
     canSee 6.16 from toSee state
+
+let findItemMatchingInSight c f from state =
+    getCurrentMap state
+    |> Matrix.mapIFindAll
+        ( fun _ p t -> match L.exists f t.items with
+            | true -> Some p
+            | false -> None
+        )
+    |> L.filter (fun p -> creatureCanSee c from p state)
+    |> L.sort (closestTo from)
 
 let areLinedUp a b =
     (* x or + shaped lines only *)
@@ -657,7 +668,7 @@ let placeCreature ?(preferNearby=false) ~room state =
               L.filter (isInRoom r) pInView
             , L.filter (isInRoom r) pOutOfView
     in
-    let closestFirst = L.sort (fun p1 p2 -> Int.compare (distanceManhattan pp p1) (distanceManhattan pp p2)) in
+    let closestFirst = L.sort (closestTo pp) in
     let creaturePos =
         if preferNearby then
             L.nth_opt
@@ -1028,7 +1039,15 @@ let getCreaturePath m start goal =
         ; get_next_states = get_next_states goal ~manhattan:false ~allowHallway:true ~isMapGen:false m
         }
     in
-    search problem start
+    match search problem start with
+    | None -> None
+    | Some path when List.length path <= 1 -> Some []
+    | Some path ->
+        Some
+        ( path
+        |> List.rev
+        |> List.tl
+        )
 
 let getHitThreshold ac attackerLevel =
     let ac' = if ac < 0 then rn ac (-1) else ac in
@@ -1249,34 +1268,51 @@ let creatureAttackRanged (c : Creature.t) cp tp state =
         )
         state
 
+let creaturePickupWeapons (c : Creature.t) p state =
+    let m = getCurrentMap state in
+    let t = Matrix.get m p in
+    let weps, remain = L.partition Item.isWeapon t.items in
+
+    let c = { c with inventory = weps @ c.inventory } in
+    let t = { t with items = remain; occupant = Some (Creature c) } in
+    let m' = Matrix.set t p m in
+    setCurrentMap m' state
+
 let rec animateCreature c cp state =
     if not (Cr.hasTurn c) then state else
     let state = playerUpdateMapKnowledge state in
     let pp = state.statePlayer.pos in
     (* ^TODO allow attacking other creatures *)
-    let cl = getCurrentMap state in
+    let m = getCurrentMap state in
+    let canSeePlayer = creatureCanSee c cp pp state in
 
     let cpn, state' = if distance cp pp <= 1.5 then
         (* ^TODO blindness/confusion/etc. *)
             cp, creatureAttackMelee c pp state
         else if areLinedUp cp pp
                 && Cr.hasAttackRanged c
-                && creatureCanSee c cp pp state then
+                && canSeePlayer then
                 (* ^TODO check that attack has path to target *)
             cp, creatureAttackRanged c cp pp state
         else
-            match getCreaturePath cl cp pp with
-            | None -> cp, state
-            | Some path when List.length path <= 2 -> cp, state
-            | Some path ->
-                (* Remove start and end points. TODO improve in aStar *)
-                let h = path
-                    |> List.tl
-                    |> List.rev
-                    |> List.tl
-                    |> List.hd
-                in
-                h, moveCreature cp h state
+            let pathToPlayer = getCreaturePath m cp pp in
+            let pathToWeapon =
+                if not (Cr.hasAttackWeapon c.info) then
+                    None
+                else
+                    match findItemMatchingInSight c Item.isWeapon cp state with
+                    | [] -> None
+                    | wp::_ -> getCreaturePath m cp wp
+            in
+            let moveAlongPath = function
+                | None | Some [] -> cp, state
+                | Some (np::_) -> np, moveCreature cp np state
+            in
+            match pathToWeapon with
+                | None -> moveAlongPath pathToPlayer
+                | Some [] -> cp, creaturePickupWeapons c cp state
+                | Some p when canSeePlayer -> moveAlongPath pathToPlayer
+                | Some _ -> moveAlongPath pathToWeapon
     in
     let c = { c with pointsSpeed = c.pointsSpeed - pointsSpeedPerTurn } in
     animateCreature c cpn state'

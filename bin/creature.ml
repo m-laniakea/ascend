@@ -145,7 +145,7 @@ let mkCreature ci =
     { hp = rollHp ci
     ; level = ci.levelBase
     ; pointsSpeed = ci.speed
-    ; inventory = if hasAttackWeapon ci then [Item.rnWeapon ()] else []
+    ; inventory = if hasAttackWeapon ci && C.oneIn 2 then [Item.rnWeapon ()] else []
     ; info = ci
     }
 
