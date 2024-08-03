@@ -1105,6 +1105,7 @@ let creatureThrow (c : Creature.t) p item dir state =
     (* TODO use in playerThrow *)
     let rec doThrow pc msgs range = match posAdd dir pc with
         | _ when range <= 0 -> state, pc, msgs
+        | pn when not (isInMap pn) -> state, pc, msgs
         | pn ->
             ( match Matrix.get m pn with
             | { occupant = Some Boulder; _ } -> doThrow pn msgs (range - 1)
