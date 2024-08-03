@@ -57,3 +57,6 @@ let doRoll roll =
     range 1 roll.rolls
     |> List.map (fun _ -> rn 1 roll.sides)
     |> List.fold_left (+) 0
+
+let rollCompare a b =
+    Int.compare (a.sides * a.rolls) (b.sides * b.rolls)

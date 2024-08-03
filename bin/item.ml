@@ -41,7 +41,8 @@ type container_t =
     | Chest
 
 type corpse =
-    { creature : Creature.info
+    { name : string
+    ; color : A.color
     ; turnDeceased : int
     }
 
@@ -70,34 +71,34 @@ let count = function
     | Scroll { stats = s; _ } -> s.count
     | Weapon _ -> 1
 
-let name i =
+let name ?(mPlural="") = function
+    | Corpse c -> c.name ^ " corpse"
+    | Gold t -> "gold piece" ^ mPlural
+    | Potion p -> "potion" ^ mPlural ^ " of " ^
+        ( match p.potion_t with
+            | Healing -> "healing"
+            | HealingExtra -> "extra healing"
+            | HealingFull -> "full healing"
+            | Sickness -> "sickness"
+        )
+
+    | Scroll s -> "scroll" ^ mPlural ^ " of " ^
+        ( match s.scroll_t with
+            | CreateMonster -> "create monster"
+            | MagicMapping -> "magic mapping"
+            | Teleport -> "teleportation"
+        )
+    | Container c ->
+        ( match c.container_t with
+        | Sack -> "sack"
+        | Chest -> "chest"
+        )
+    | Weapon w -> w.name
+
+let nameDisplay i =
     let count = count i in
     let mPlural = if count = 1 then "" else "s" in
-    let name = match i with
-        | Corpse c -> c.creature.name ^ " corpse"
-        | Gold t -> "gold piece" ^ mPlural
-        | Potion p -> "potion" ^ mPlural ^ " of " ^
-            ( match p.potion_t with
-                | Healing -> "healing"
-                | HealingExtra -> "extra healing"
-                | HealingFull -> "full healing"
-                | Sickness -> "sickness"
-            )
-
-        | Scroll s -> "scroll" ^ mPlural ^ " of " ^
-            ( match s.scroll_t with
-                | CreateMonster -> "create monster"
-                | MagicMapping -> "magic mapping"
-                | Teleport -> "teleportation"
-            )
-        | Container c ->
-            ( match c.container_t with
-            | Sack -> "sack"
-            | Chest -> "chest"
-            )
-        | Weapon w -> w.name
-    in
-    C.sf "%i %s" count name
+    C.sf "%i %s" count (name ~mPlural i)
 
 let getPriceBase = function
     | Container c ->
@@ -203,6 +204,15 @@ let toWeapon = function
     | Weapon w -> w
     | _ -> assert false
 
+let getWeaponsByDamage l =
+    List.filter isWeapon l
+    |> List.map toWeapon
+    |> List.sort (fun w1 w2 -> C.rollCompare w2.damage w1.damage)
+
+let getWeaponMostDamaging l =
+    let bd = getWeaponsByDamage l in
+    List.nth_opt bd 0
+
 let isCorpse = function
     | Corpse _ -> true
     | _ -> false
@@ -210,10 +220,11 @@ let isCorpse = function
 let turnsCorpseRot = 100
 let corpseAgeZombie = 50
 
-let mkCorpse (ci : Creature.info) t =
-    let addAge = if String.ends_with ~suffix:"zombie" ci.name then corpseAgeZombie else 0 in
+let mkCorpse name color t =
+    let addAge = if String.ends_with ~suffix:"zombie" name then corpseAgeZombie else 0 in
     Corpse
-        { creature = ci
+        { name
+        ; color
         ; turnDeceased = t - addAge
         }
 

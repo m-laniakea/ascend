@@ -40,6 +40,7 @@ type t =
     | Passive of passive
     | Ranged of ranged
     | Melee of melee
+    | Weapon of C.roll
 
 type msgs =
     { msgHit : string
@@ -63,10 +64,13 @@ let mkRanged t e rolls sides = Ranged
         }
     }
 
+let mkWeapon rolls sides = Weapon { rolls; sides }
+
 let getEffect = function
     | Passive p -> p.effect
     | Ranged r -> r.stats.effect
     | Melee m -> m.stats.effect
+    | Weapon _ -> Physical
 
 let getMsgsCauseEffect a =
     let msgCause, msgEffect = match getEffect a with
@@ -83,11 +87,15 @@ let getMsgs a =
                 | Breath -> "breathes"
             )
 
-        | Melee m -> match m.melee_t with
+        | Melee m ->
+            ( match m.melee_t with
             | Bite -> "bites"
             | Butt -> "butts"
             | Claw -> "claws at"
             | Kick -> "kicks"
+            )
+
+        | Weapon _ -> "attacks"
     in
     let msgBase = getMsgsCauseEffect a in
     { msgBase with msgHit }

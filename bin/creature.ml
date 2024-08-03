@@ -18,6 +18,7 @@ type t =
     { hp : int
     ; level : int
     ; pointsSpeed : int
+    ; inventory : Item.t list
     ; info : info
     }
 
@@ -41,6 +42,26 @@ let creatures =
             [ H.mkMelee Bite Physical 1 6
             ]
         ; speed = 22
+        }
+    ;   { name = "hill orc"
+        ; symbol = "o"
+        ; color = A.lightyellow
+        ; difficulty = 4
+        ; levelBase = 2
+        ; hits =
+            [ H.mkWeapon 1 6
+            ]
+        ; speed = 9
+        }
+    ;   { name = "Uruk-hai"
+        ; symbol = "o"
+        ; color = A.black
+        ; difficulty = 5
+        ; levelBase = 3
+        ; hits =
+            [ H.mkWeapon 1 8
+            ]
+        ; speed = 7
         }
     ;   { name = "human zombie"
         ; symbol = "Z"
@@ -118,10 +139,13 @@ let rollHp ci = match ci.levelBase with
     | 0 -> C.rn 1 4
     | l -> C.doRoll { rolls = l; sides = 8 }
 
+let hasAttackWeapon ci = List.exists (function | Hit.Weapon _ -> true | _ -> false) ci.hits
+
 let mkCreature ci =
     { hp = rollHp ci
     ; level = ci.levelBase
     ; pointsSpeed = ci.speed
+    ; inventory = if hasAttackWeapon ci then [Item.rnWeapon ()] else []
     ; info = ci
     }
 
@@ -134,9 +158,18 @@ let random difficultyLevel =
     let creatureInfo = C.rnItem creaturesOk in
     Some (mkCreature creatureInfo)
 
-let hasRangedAttack c =
+let getWeaponForThrow c = match Item.getWeaponsByDamage c.inventory with
+    | [] | _::[] -> None
+    | md::sd::_ -> Some sd
+
+let hasAttackRanged c =
     c.info.hits
-    |> List.exists (function | Hit.Ranged _ -> true | _ -> false)
+    |> List.exists
+        ( function
+            | Hit.Ranged _ -> true
+            | Hit.Weapon _ -> getWeaponForThrow c |> Option.is_some
+            | _ -> false
+        )
 
 let hasTurn c = match c.pointsSpeed with
     | ps when ps <= 0 -> false
