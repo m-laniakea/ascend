@@ -486,16 +486,6 @@ let creatureCanSee c from toSee state =
     (* TODO use creature info *)
     canSee 6.16 from toSee state
 
-let findItemMatchingInSight c f from state =
-    getCurrentMap state
-    |> Matrix.mapIFindAll
-        ( fun _ p t -> match L.exists f t.items with
-            | true -> Some p
-            | false -> None
-        )
-    |> L.filter (fun p -> creatureCanSee c from p state)
-    |> L.sort (closestTo from)
-
 let areLinedUp a b =
     (* x or + shaped lines only *)
     let pd = posDiff a b in
@@ -649,6 +639,18 @@ let canSpawnHere ?(forbidPos=None) m p =
                 | Unseen -> false
                 | Wall Horizontal | Wall Vertical -> false
             )
+
+let findItemMatchingInSight c f from state =
+    getCurrentMap state
+    |> Matrix.mapIFindAll
+        ( fun m p t -> match L.exists f t.items with
+            | false -> None
+            | true when from <> p && not (canSpawnHere m p) -> None
+            | true -> Some p
+        )
+    |> L.filter (fun p -> creatureCanSee c from p state)
+    |> L.sort (closestTo from)
+
 
 let placeCreature ?(preferNearby=false) ~room state =
     let m = getCurrentMap state in
@@ -1328,7 +1330,8 @@ let rec animateCreature c cp state =
             in
             match pathToWeapon with
                 | None -> moveAlongPath pathToPlayer
-                | Some [] -> cp, creaturePickupWeapons c cp state
+                | Some [] when not canSeePlayer || oneIn 2 -> cp, creaturePickupWeapons c cp state
+                | Some [] -> moveAlongPath pathToPlayer
                 | Some p when canSeePlayer -> moveAlongPath pathToPlayer
                 | Some _ -> moveAlongPath pathToWeapon
     in
