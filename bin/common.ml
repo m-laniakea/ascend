@@ -35,14 +35,14 @@ let rnItem l =
 
 let rnRelative l =
     let freqTotal =
-        List.map (fun (i, freq) -> freq) l
+        List.map (fun (_, freq) -> freq) l
         |> List.fold_left (+) 0
     in
     assert (freqTotal > 0);
 
     let rec aux ix = function
         | [] -> assert false
-        | (i, freq)::tl when ix <= freq -> i
+        | (i, freq)::_ when ix <= freq -> i
         | (_, freq)::tl -> aux (ix - freq) tl
     in
     let ix = rn 1 freqTotal in

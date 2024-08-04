@@ -160,7 +160,7 @@ let random difficultyLevel =
 
 let getWeaponForThrow c = match Item.getWeaponsByDamage c.inventory with
     | [] | _::[] -> None
-    | md::sd::_ -> Some sd
+    | _::sd::_ -> Some sd
 
 let hasAttackRanged c =
     c.info.hits

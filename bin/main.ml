@@ -34,7 +34,7 @@ let listTake n = L.filteri (fun i _ -> i < n)
 
 let listRemove v l = match L.find_index ((=) v) l with
     | None -> l
-    | Some i -> partitionI (fun ix v -> ix <> i) l |> fst
+    | Some i -> partitionI (fun ix _ -> ix <> i) l |> fst
 
 type wh =
     { w : int
@@ -126,7 +126,6 @@ type selectDir =
 type selectItems =
     { sItems : selectionItem list
     ; single : bool
-    ; complete : bool
     ; onComplete : onSelectItemsComplete
     }
 
@@ -207,10 +206,6 @@ let getSurrounding m p =
 
 let isTerrainOf t this =
     this.t = t
-
-let hasAroundTerrain m p t =
-    getSurrounding m p
-    |> List.exists (isTerrainOf t)
 
 let getCurrentLevel state =
     let sl = state.stateLevels in
@@ -315,10 +310,6 @@ let isStairs t =
 let isFloorOrStairs t =
     t.t = Floor || isStairs t
 
-let isFloorOrStairsOpt = function
-    | None -> false
-    | Some t -> isFloorOrStairs t
-
 let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
     | Container _ -> I.string A.(styles ++ fg brown) "("
     | Corpse c -> I.string A.(styles ++ fg c.color) "%"
@@ -327,7 +318,7 @@ let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
     | Scroll _ -> I.string A.(styles ++ fg white) "?"
     | Weapon w -> I.string A.(styles ++ fg w.color) ")"
 
-let imageOfTile m pos = function
+let imageOfTile _ _ = function
     | { occupant = Some occ; _ } ->
         ( match occ with
             | Creature c ->
@@ -546,7 +537,7 @@ let playerIsInShop state =
     match L.filter (function | { room_t = Shop _; _ } -> true | _ -> false) cl.rooms with
         | [] -> false
         | ( {room_t = Shop s; _ } as r )::[] -> pp <> s.posEntry && isInRoom r pp
-        | shop::_ -> assert false
+        | _::_ -> assert false
 
 let randomRoomPos room =
     { row = rn room.posNW.row room.posSE.row
@@ -937,7 +928,7 @@ let rec playerMove mf state =
     if not (isInMap pn) then state else
 
     match Matrix.get m pn with
-    | { t = Door (Closed, ori) } as tile ->
+    | { t = Door (Closed, ori); _ } as tile ->
         (* TODO make chance based on stats *)
         if oneIn 3 then
             let _ = msgAdd state "The door resists!" in
@@ -956,8 +947,8 @@ let rec playerMove mf state =
         let behindBoulder = Matrix.get m pbNew in
         if canMoveTo behindBoulder |> not then (msgAdd state "The boulder won't budge."; state) else
         ( match behindBoulder with
-            | { occupant = Some Boulder } -> msgAdd state "There's something blocking the boulder!"; state
-            | { occupant = Some _ } -> msgAdd state "There's something alive behind the boulder!"; state
+            | { occupant = Some Boulder; _ } -> msgAdd state "There's something blocking the boulder!"; state
+            | { occupant = Some _; _ } -> msgAdd state "There's something alive behind the boulder!"; state
             | _ ->
                 let behind' = { behindBoulder with occupant = Some Boulder } in
                 let t' = { t with occupant = None } in
@@ -1210,14 +1201,14 @@ let throw item pFrom dir range msgThrower state =
     let tLanded = { tLanded with items = item::tLanded.items } in
     let m' = Matrix.set tLanded posLanded m in
 
-    setCurrentMap m' state, posLanded
+    setCurrentMap m' state
 
 let rangeThrownCreature = 8
 
 let creatureThrow (c : Creature.t) p item dir state =
 
     let msgThrower = sf "The %s throws a %s." c.info.name (Item.name item) in (* TODO a vs an *)
-    let state, posLanded = throw item p dir rangeThrownCreature msgThrower state in
+    let state = throw item p dir rangeThrownCreature msgThrower state in
 
     let m = getCurrentMap state in
     let tCreature = Matrix.get m p in
@@ -1332,7 +1323,7 @@ let rec animateCreature c cp state =
                 | None -> moveAlongPath pathToPlayer
                 | Some [] when not canSeePlayer || oneIn 2 -> cp, creaturePickupWeapons c cp state
                 | Some [] -> moveAlongPath pathToPlayer
-                | Some p when canSeePlayer -> moveAlongPath pathToPlayer
+                | Some _ when canSeePlayer -> moveAlongPath pathToPlayer
                 | Some _ -> moveAlongPath pathToWeapon
     in
     let c = { c with pointsSpeed = c.pointsSpeed - pointsSpeedPerTurn } in
@@ -1374,7 +1365,6 @@ let selectionOfItems ~single oc l =
     |>  ( fun l ->
             { sItems = l
             ; single
-            ; complete = false
             ; onComplete = oc
             }
         )
@@ -1519,7 +1509,7 @@ let playerThrow si fDir state =
     let item = List.nth sp.inventory si.iIndex in
 
     let msgThrower = sf "You throw the %s." (Item.name item) in (* TODO a vs an *)
-    let state, posLanded = throw item sp.pos dir rangeThrown msgThrower state in
+    let state = throw item sp.pos dir rangeThrown msgThrower state in
 
     let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
     let statePlayer = { sp with inventory } in
@@ -1674,7 +1664,7 @@ let terrainAddRoom m room =
                 | _ -> assert false
             in
             let ori = match Matrix.get m d with
-                | { t = Wall ori } -> ori
+                | { t = Wall ori; _ } -> ori
                 | _ -> assert false
             in
             Matrix.set
@@ -1869,7 +1859,7 @@ let modeSelectPickup state =
         | [] ->
             let _ = msgAdd state "There's nothing to pick up here." in
             Some state
-        | i::[] ->
+        | _::[] ->
             actionPlayer (Pickup selection.sItems) state
         | _ ->
             let mode = Selecting (SelectItems selection) in

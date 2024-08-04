@@ -73,7 +73,7 @@ let count = function
 
 let name ?(mPlural="") = function
     | Corpse c -> c.name ^ " corpse"
-    | Gold t -> "gold piece" ^ mPlural
+    | Gold _ -> "gold piece" ^ mPlural
     | Potion p -> "potion" ^ mPlural ^ " of " ^
         ( match p.potion_t with
             | Healing -> "healing"
@@ -106,7 +106,7 @@ let getPriceBase = function
             | Chest -> 16
             | Sack -> 2
         )
-    | Corpse c -> 0
+    | Corpse _ -> 0
     | Gold i -> i
     | Potion p ->
         ( match p.potion_t with

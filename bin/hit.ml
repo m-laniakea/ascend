@@ -81,7 +81,7 @@ let getMsgsCauseEffect a =
 
 let getMsgs a =
     let msgHit = match a with
-        | Passive p -> assert false (* TODO *)
+        | Passive _ -> assert false (* TODO *)
         | Ranged r ->
             ( match r.ranged_t with
                 | Breath -> "breathes"
