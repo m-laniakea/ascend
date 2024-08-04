@@ -909,17 +909,40 @@ let creatureAddHp n t p (c : Creature.t) state =
     let cl' = Matrix.set t' p cl in
     setCurrentMap cl' state
 
+type attackLanded =
+    | Miss
+    | MissBarely
+    | Hit
+
+let rollAttackLanded threshold addSides =
+    let roll = rn 1 (20 + addSides) in
+    match roll with
+    | _ when roll < threshold -> Hit
+    | _ when roll = threshold -> MissBarely
+    | _ -> Miss
+
+let reduceDamage ac damage =
+    if ac >= 0 then damage else
+    (rn ac (-1)) + damage |> min 1
 
 let playerAttackMelee t p (c : Creature.t) state =
     (* TODO base on stats *)
-    msgAdd state (sf "You attack the %s." c.info.name);
-    (* TODO creature AC *)
-    let sp = state.statePlayer in
-    let damage = match sp.weaponWielded with
-        | None -> rn 1 2 (* bare-handed *)
-        | Some w -> doRoll w.damage
-    in
-    creatureAddHp (-damage) t p c state
+    match rollAttackLanded 15 0 with
+    | Miss ->
+        msgAdd state (sf "You miss the %s." c.info.name);
+        state
+    | MissBarely ->
+        msgAdd state (sf "You just miss the %s." c.info.name);
+        state
+    | Hit ->
+        msgAdd state (sf "You hit the %s." c.info.name);
+        (* TODO creature AC *)
+        let sp = state.statePlayer in
+        let damage = match sp.weaponWielded with
+            | None -> rn 1 2 (* bare-handed *)
+            | Some w -> doRoll w.damage
+        in
+        creatureAddHp (-damage) t p c state
 
 let priceShop i = (Item.getPriceBase i) * 4 / 3
 
@@ -1048,22 +1071,6 @@ let getHitThreshold ac attackerLevel =
     let ac' = if ac < 0 then rn ac (-1) else ac in
     10 + ac' + attackerLevel |> max 1
 
-type miss =
-    { missed : bool
-    ; justMissed : bool
-    }
-
-let rollMiss threshold addSides =
-    let roll = rn 1 (20 + addSides) in
-    let justMissed = roll = threshold in
-    { missed = roll >= threshold
-    ; justMissed
-    }
-
-let reduceDamage ac damage =
-    if ac >= 0 then damage else
-    (rn ac (-1)) + damage |> min 1
-
 let creatureAttackMelee (c : Creature.t) p state =
     if p = state.statePlayer.pos then
         let hitThreshold = getHitThreshold 10 c.level in
@@ -1073,30 +1080,32 @@ let creatureAttackMelee (c : Creature.t) p state =
         |> List.mapi (fun i v -> i, v)
         |> List.fold_left
             ( fun state' (addSides, h) ->
-                let miss = rollMiss hitThreshold addSides in
-                if miss.missed then
-                    let mJust = if miss.justMissed then " just" else "" in
-                    let _ = msgAdd state (sf "The %s%s misses you." c.info.name mJust) in
+                match rollAttackLanded hitThreshold addSides with
+                | Miss ->
+                    let _ = msgAdd state (sf "The %s misses you." c.info.name) in
                     state'
-                else
-                let damage =
-                    ( match h with
-                    | Hit.Melee hm -> doRoll hm.stats.roll
-                    | Hit.Weapon h ->
-                        ( match Item.getWeaponMostDamaging c.inventory with
-                        | None -> doRoll h
-                        | Some w -> (doRoll h) + (doRoll w.damage)
+                | MissBarely ->
+                    let _ = msgAdd state (sf "The %s just misses you." c.info.name) in
+                    state'
+                | Hit ->
+                    let damage =
+                        ( match h with
+                        | Hit.Melee hm -> doRoll hm.stats.roll
+                        | Hit.Weapon h ->
+                            ( match Item.getWeaponMostDamaging c.inventory with
+                            | None -> doRoll h
+                            | Some w -> (doRoll h) + (doRoll w.damage)
+                            )
+                        | _ -> assert false
                         )
-                    | _ -> assert false
-                    )
-                    |> reduceDamage 10
-                    (* ^TODO player AC *)
-                in
+                        |> reduceDamage 10
+                        (* ^TODO player AC *)
+                    in
 
-                let msgsHit = Hit.getMsgs h in
-                msgAdd state (sf "The %s %s you." c.info.name msgsHit.msgHit);
+                    let msgsHit = Hit.getMsgs h in
+                    msgAdd state (sf "The %s %s you." c.info.name msgsHit.msgHit);
 
-                playerAddHp (-damage) state'
+                    playerAddHp (-damage) state'
             )
             state
 
