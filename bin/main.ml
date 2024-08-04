@@ -921,6 +921,8 @@ let playerAttackMelee t p (c : Creature.t) state =
     in
     creatureAddHp (-damage) t p c state
 
+let priceShop i = (Item.getPriceBase i) * 4 / 3
+
 let rec playerMove mf state =
     let p = state.statePlayer.pos in
     let m = getCurrentMap state in
@@ -976,7 +978,7 @@ let rec playerMove mf state =
                 let _ = msgAdd state "You see here:" in
                 List.iter
                     ( fun i ->
-                        let price = if playerIsInShop state' then sf "(%i zorkmids)" (Item.getPriceBase i) else "" in
+                        let price = if playerIsInShop state' then sf "(%i zorkmids)" (priceShop i) else "" in
                         msgAdd state (sf "%s %s" (Item.nameDisplay i) price)
                     )
                     tNew.items
@@ -1483,7 +1485,7 @@ let playerPickup sl state =
         match totalGoldTaken, iTaken with
         | goldTaken, _ when goldTaken > 0 -> msgAdd state "Hey! That's not your gold!"; state
         | _, iTaken ->
-            let itemsValue = L.fold_left (fun t i -> t + (Item.getPriceBase i)) 0 iTaken in
+            let itemsValue = L.fold_left (fun t i -> t + (priceShop i)) 0 iTaken in
             if itemsValue > sp.gold then
                 let _ = msgAdd state "You can't afford that!" in
                 state
