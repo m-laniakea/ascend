@@ -1109,56 +1109,10 @@ let creatureAttackMelee (c : Creature.t) p state =
         let _ = assert false in
         state
 
-let rangeThrownCreature = 8
-
-let creatureThrow (c : Creature.t) p item dir state =
+let throw item pFrom dir range msgThrower state =
     let m = getCurrentMap state in
-
     let isMiss () = oneIn 4 in
 
-    let damage = match item with
-        | Item.Weapon w -> doRoll w.damage
-        | _ -> rn 1 2
-    in
-
-    (* TODO use in playerThrow *)
-    let rec doThrow pc msgs range = match posAdd dir pc with
-        | _ when range <= 0 -> state, pc, msgs
-        | pn when not (isInMap pn) -> state, pc, msgs
-        | pn ->
-            ( match Matrix.get m pn with
-            | { occupant = Some Boulder; _ } -> doThrow pn msgs (range - 1)
-            | { occupant = Some (Creature c); _ } as t ->
-                ( match isMiss () with
-                | true ->
-                    let msgsNew = if playerCanSee state pn then
-                        [ sf "The %s misses the %s." (Item.name item) c.info.name ]
-                        (* TODO invisible creatures *)
-                    else
-                        []
-                    in
-                    doThrow pn (msgsNew @ msgs) (range - 1)
-                | false ->
-                    let msgsNew = if playerCanSee state pn then
-                        [ sf "The %s hits the %s." (Item.name item) c.info.name ]
-                        (* TODO invisible creatures *)
-                    else
-                        []
-                    in
-                    creatureAddHp (-damage) t pn c state, pn, msgsNew @ msgs
-                )
-            | { occupant = Some Player; _ } ->
-                ( match isMiss () with
-                | true ->
-                    let msg = sf "The %s misses you." (Item.name item) in
-                    doThrow pn (msg::msgs) (range - 1)
-                | false ->
-                    let msg = sf "The %s hits you." (Item.name item) in
-                    (playerAddHp (-damage) state), pn, msg::msgs
-                )
-            | t -> if canMoveTo t then doThrow pn msgs (range - 1) else state, pc, msgs
-            )
-    in
     let rec getPosStart pc posLanded = match posAdd dir pc with
         | _ when pc = posLanded -> None
         | _ when playerCanSee state pc -> Some (posDiff dir pc)
@@ -1169,17 +1123,70 @@ let creatureThrow (c : Creature.t) p item dir state =
         | pn when not (playerCanSee state pn) -> pc
         | pn -> getPosEnd pn posLanded
     in
+    let msgCreatureMissed (c : Creature.t) p =
+        if playerCanSee state p then
+            [ sf "The %s misses the %s." (Item.name item) c.info.name ]
+                    (* TODO invisible creatures *)
+            else
+                []
+    in
+    let msgCreatureHit (c : Creature.t) p = if playerCanSee state p then
+        [ sf "The %s hits the %s." (Item.name item) c.info.name ]
+            (* TODO invisible creatures *)
+        else
+            []
+    in
 
-    let state, posLanded, msgs = doThrow p [] rangeThrownCreature in
-    let posStart = getPosStart p posLanded in
+    let rollDamage () = match item with
+        | Item.Weapon w -> doRoll w.damage
+        | _ -> rn 1 2
+    in
+
+    let rec doThrow item dir pc msgs range state = match posAdd dir pc with
+        | _ when range <= 0 -> state, pc, msgs
+        | pn when not (isInMap pn) -> state, pc, msgs
+        | pn ->
+            ( match Matrix.get m pn with
+            | { occupant = Some Boulder; _ } -> doThrow item dir pn msgs (range - 1) state
+            | { occupant = Some (Creature c); _ } as t ->
+                ( match isMiss () with
+                | true ->
+                    let msg = msgCreatureMissed c pn in
+                    doThrow item dir pn (msg @ msgs) (range - 1) state
+                | false ->
+                    let msg = msgCreatureHit c pn in
+                    let damage = rollDamage () in
+                    creatureAddHp (-damage) t pn c state, pn, msg @ msgs
+                )
+            | { occupant = Some Player; _ } ->
+                ( match isMiss () with
+                | true ->
+                    let msg = sf "The %s misses you." (Item.name item) in
+                    doThrow item dir pn (msg::msgs) (range - 1) state
+                | false ->
+                    let msg = sf "The %s hits you." (Item.name item) in
+                    let damage = rollDamage () in
+                    (playerAddHp (-damage) state), pn, msg::msgs
+                )
+            | t ->
+                if canMoveTo t then
+                    doThrow item dir pn msgs (range - 1) state
+                else
+                    state, pc, msgs
+            )
+    in
+
+    let state, posLanded, msgs = doThrow item dir pFrom [] range state in
+    let posStart = getPosStart pFrom posLanded in
 
     ( match posStart with
         | None -> () (* At no point did player see the item *)
         | Some ps ->
-            ( if playerCanSee state p then
-                msgAdd state (sf "The %s throws a %s." c.info.name (Item.name item)) (* TODO a vs an *)
-            else
-                msgAdd state (sf "You see a %s fly." (Item.name item))
+            ( if playerCanSee state pFrom
+                then
+                    msgAdd state msgThrower
+                else
+                    msgAdd state (sf "You see a %s fly." (Item.name item))
             );
 
             let animation =
@@ -1196,15 +1203,26 @@ let creatureThrow (c : Creature.t) p item dir state =
             |> L.iter (fun m -> msgAdd state m)
     );
 
+    let m = getCurrentMap state in
     let tLanded = Matrix.get m posLanded in
     let tLanded = { tLanded with items = item::tLanded.items } in
+    let m' = Matrix.set tLanded posLanded m in
+
+    setCurrentMap m' state, posLanded
+
+let rangeThrownCreature = 8
+
+let creatureThrow (c : Creature.t) p item dir state =
+
+    let msgThrower = sf "The %s throws a %s." c.info.name (Item.name item) in (* TODO a vs an *)
+    let state, posLanded = throw item p dir rangeThrownCreature msgThrower state in
+
+    let m = getCurrentMap state in
     let tCreature = Matrix.get m p in
     let creature = Creature { c with inventory = listRemove item c.inventory } in
     let tCreature = { tCreature with occupant = Some creature } in
-    let m' =
-        Matrix.set tLanded posLanded m
-        |> Matrix.set tCreature p
-    in
+
+    let m' = Matrix.set tCreature p m in
     setCurrentMap m' state
 
 let creatureAttackRanged (c : Creature.t) cp tp state =
@@ -1490,66 +1508,20 @@ let playerPickup sl state =
     { (setCurrentMap m' state) with statePlayer }
     (* ^TODO combine items *)
 
-let playerThrow si dir state =
+let playerThrow si fDir state =
     let rangeThrown = 6 in (* TODO *)
     let sp = state.statePlayer in
-    let m = getCurrentMap state in
+    let dir = fDir { row = 0; col = 0 } in
 
     let item = List.nth sp.inventory si.iIndex in
 
-    let rec getPosEnd ~checkSight pc range = match dir pc with
-        | _ when range <= 0 -> pc
-        | pn ->
-            if checkSight && not (playerCanSee state pn) then pc else
-            ( match Matrix.get m pn with
-            | { occupant = Some Boulder; _ } -> getPosEnd ~checkSight pn (range - 1)
-            | { occupant = Some _; _ } -> pn
-            | t -> if canMoveTo t then getPosEnd ~checkSight pn (range - 1) else pc
-            )
-    in
-    let posLanded = getPosEnd ~checkSight:false sp.pos rangeThrown in
-    let posEnd = getPosEnd ~checkSight:true sp.pos rangeThrown in
-
-    let animation =
-        { dir = dir { row = 0; col = 0 }
-        ; posStart = sp.pos
-        ; posCurrent = sp.pos
-        ; posEnd
-        ; image = imageOfItem item
-        }
-    in
-    msgAdd state (sf "You throw the %s." (Item.name item));
-    animate state ~cumulative:false ~linger:false animation;
-
-    let t = Matrix.get m posLanded in
-    let t = { t with items = item::t.items } in
-    let m' = Matrix.set t posLanded m in
-    let state = setCurrentMap m' state in
-
-    let state = match t.occupant with
-          | Some (Creature c) ->
-            let isMiss = oneIn 3 in
-            (* ^TODO miss check belongs in getPosEnd *)
-            let _ = match playerCanSee state posLanded, isMiss with
-                | false, false -> msgAdd state "You hit it." (* TODO deaf *)
-                | false, true -> msgAdd state "You miss it."
-                | true, false -> msgAdd state (sf "You hit the %s." c.info.name)
-                | true, true -> msgAdd state (sf "You miss the %s." c.info.name)
-            in
-            if isMiss then state else
-            let damage = match item with
-                | Weapon w -> doRoll w.damage
-                | _ -> rn 1 2
-            in
-            creatureAddHp (-damage) t posLanded c state
-          | _ -> state
-    in
+    let msgThrower = sf "You throw the %s." (Item.name item) in (* TODO a vs an *)
+    let state, posLanded = throw item sp.pos dir rangeThrown msgThrower state in
 
     let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
     let statePlayer = { sp with inventory } in
 
     { state with statePlayer }
-
 
 let rotCorpses state =
     let m = getCurrentMap state in
