@@ -72,8 +72,8 @@ let getEffect = function
     | Melee m -> m.stats.effect
     | Weapon _ -> Physical
 
-let getMsgsCauseEffect a =
-    let msgCause, msgEffect = match getEffect a with
+let getMsgsEffect e =
+    let msgCause, msgEffect = match e with
         | Physical -> "attack", "hits"
         | Fire -> "fire", "burns"
     in
@@ -97,7 +97,7 @@ let getMsgs a =
 
         | Weapon _ -> "attacks"
     in
-    let msgBase = getMsgsCauseEffect a in
+    let msgBase = getMsgsEffect (getEffect a) in
     { msgBase with msgHit }
 
 let getImageForAnimation t dir =

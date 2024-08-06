@@ -272,12 +272,16 @@ let posDiff a b =
     }
 
 let posDir p =
-    (* normalizes delta. WARN: only works lines on x or + shapes *)
+    (* normalizes delta. WARN: only works for lines on x or + shapes *)
     assert (p.row <> 0 || p.col <> 0);
     let den = max (abs p.row) (abs p.col) in
     { row = p.row / den
     ; col = p.col / den
     }
+
+let dirRevCol d = { d with col = -d.col }
+let dirRevRow d = { d with row = -d.row }
+let dirRevBoth d = dirRevCol d |> dirRevRow
 
 let distance b a =
     let dr = b.row - a.row in
@@ -1229,33 +1233,79 @@ let creatureThrow (c : Creature.t) p item dir state =
     let m' = Matrix.set tCreature p m in
     setCurrentMap m' state
 
-let creatureAttackRanged (c : Creature.t) cp tp state =
-    let rec processPath effectSize (msgsHit : Hit.msgs) cp pd pTarget state =
-        let cp' = posAdd cp pd in
+let getReflectedDir p dir state =
+    assert (isInMap p);
+    if 0 = dir.row || 0 = dir.col then dirRevBoth dir else
+    (* ^ easy case for + shaped rays *)
+
+    let m = getCurrentMap state in
+
+    let tAlongDirCol = posDiff { dir with row = 0 } p |> Matrix.get m in
+    let tAlongDirRow = posDiff { dir with col = 0 } p |> Matrix.get m in
+
+    let dirReflectRow = dirRevRow dir in
+    let dirReflectCol = dirRevCol dir in
+
+    match canMoveTo tAlongDirCol, canMoveTo tAlongDirRow with
+    | false, false -> dirRevBoth dir (* room (internal) corner *)
+    | true, false -> dirReflectCol (* vertical reflection *)
+    | false, true -> dirReflectRow (* horizontal reflection *)
+    | true, true -> rnItem [ dirReflectCol; dirReflectRow ] (* exposed corner *)
+
+let castRay (effect : Hit.effect) from dir roll state =
+    let reductionRangeOnHit = 3 in
+    let damage =
+        doRoll roll
+    in
+    let range = 20 + rn 1 8 in
+
+    let msgs = Hit.getMsgsEffect effect in
+    let rec doRay from pc dir state range =
+        if range <= 0 then state else
+        let pn = posAdd pc dir in
+        if not (isInMap pn) then state else
+
         let m = getCurrentMap state in
 
-        let state' = match Matrix.get m cp' with
-            | { occupant = Some Boulder; _ } -> msgAdd state (sf "The %s whizzes past the boulder." msgsHit.msgCause); state (* TODO rays/vs weapons *)
-            | { occupant = Some Creature c'; _ } as t ->
-                    msgAdd state (sf "The %s %s the %s." msgsHit.msgCause msgsHit.msgEffect c'.info.name);
-                    creatureAddHp (-effectSize) t cp' c' state
-                    (* ^TODO resistances *)
+        let state, shouldReflect, range = match Matrix.get m pn with
+            | { occupant = Some Boulder; _ } -> msgAdd state (sf "The %s whizzes past the boulder." msgs.msgCause); state, false, range
+            | { occupant = Some Creature c; _ } as t ->
+                msgAdd state (sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name);
+                creatureAddHp (-damage) t pn c state, false, range - reductionRangeOnHit
+                (* ^TODO resistances *)
             | { occupant = Some Player; _ } ->
-                msgAdd state (sf "The %s %s you!" msgsHit.msgCause msgsHit.msgEffect);
-                playerAddHp (-effectSize) state
+                msgAdd state (sf "The %s %s you!" msgs.msgCause msgs.msgEffect);
+                playerAddHp (-damage) state, false, range - reductionRangeOnHit
+                (* ^TODO resistances *)
 
-            | { occupant = None; _ } -> state (* TODO burning items, etc. *)
+            | { occupant = None; _ } as t ->
+                if not (canMoveTo t) then
+                    state, true, range (* TODO reflection *)
+                else
+                    state, false, range (* TODO burning items, etc. *)
         in
 
-        (* TODO stop ray when ranged sufficiently reduced
-        -- not necessarily on target hit
-        -- TODO Reflections
-        *)
-        if cp' = pTarget then
-            state'
+        if shouldReflect || range <= 1 then
+            let animation =
+                { dir
+                ; posStart = from
+                ; posCurrent = from
+                ; posEnd = if shouldReflect then pc else pn
+                ; image = Hit.getImageForAnimation effect dir
+                }
+            in
+            animate ~linger:(range <= 1) state animation;
+
+            if shouldReflect then
+                doRay pn pn (getReflectedDir pn dir state) state (range - 1)
+            else
+                state
         else
-            processPath effectSize msgsHit cp' pd pTarget state'
+            doRay from pn dir state (range - 1)
     in
+    doRay from from dir state range
+
+let creatureAttackRanged (c : Creature.t) cp tp state =
     c.info.hits
     |> List.filter (function | Hit.Ranged _ -> true | Weapon _ -> true | _ -> false)
     |> List.fold_left
@@ -1269,23 +1319,11 @@ let creatureAttackRanged (c : Creature.t) cp tp state =
                     | None -> assert false
                     | Some w -> creatureThrow c cp (Item.Weapon w) pDir state'
                     )
-                | Ranged hr ->
+                | Ranged hr as h ->
                     let hs = hr.stats in
-                    let effectSize =
-                        doRoll hs.roll
-                    in
-                    let animation =
-                        { dir = pDir
-                        ; posStart = cp
-                        ; posCurrent = cp
-                        ; posEnd = tp
-                        ; image = Hit.getImageForAnimation hs.effect pDir
-                        }
-                    in
-                    let msgsHit = Hit.getMsgs (Ranged hr) in
+                    let msgsHit = Hit.getMsgs h in
                     msgAdd state (sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
-                    animate state' animation;
-                    processPath effectSize msgsHit cp pDir tp state'
+                    castRay (Hit.getEffect h) cp pDir hs.roll state'
                 | _ -> assert false
         )
         state
@@ -1569,7 +1607,7 @@ let actionPlayer a state =
     |> incTurns
     |> playerKnowledgeDeleteCreatures
     |> playerUpdateMapKnowledge
-    |> playerAddHp (if oneIn 3 then 1 else 0)
+    |> playerAddHp (if oneIn 3 then 1 else 0) (* TODO player hp can go to 0 then back up *)
     |> playerCheckHp
 
 let handleSelectItems k s state = match k with
