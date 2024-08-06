@@ -119,9 +119,11 @@ type onSelectItemsComplete =
     | DoRead
     | DoWield
     | SelectDirThrow
+    | SelectDirZap
 
 type selectDir =
     | DoThrow of selectionItem
+    | DoZap of selectionItem
 
 type selectItems =
     { sItems : selectionItem list
@@ -321,6 +323,7 @@ let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
     | Potion _ -> I.string A.(styles ++ fg white) "!"
     | Scroll _ -> I.string A.(styles ++ fg white) "?"
     | Weapon w -> I.string A.(styles ++ fg w.color) ")"
+    | Wand _ -> I.string A.(styles ++ fg A.cyan) "/"
 
 let imageOfTile _ _ = function
     | { occupant = Some occ; _ } ->
@@ -892,6 +895,7 @@ type actionsPlayer =
     | Search
     | Throw of selectionItem * fDir
     | Wield of selectionItem
+    | Zap of selectionItem * fDir
 
 let creatureAddHp n t p (c : Creature.t) state =
     let cl = getCurrentMap state in
@@ -1265,10 +1269,19 @@ let castRay (effect : Hit.effect) from dir roll state =
         let pn = posAdd pc dir in
         if not (isInMap pn) then state else
 
-        let m = getCurrentMap state in
-
-        let state, shouldReflect, range = match Matrix.get m pn with
-            | { occupant = Some Boulder; _ } -> msgAdd state (sf "The %s whizzes past the boulder." msgs.msgCause); state, false, range
+        let state, shouldReflect, range =
+            let m = getCurrentMap state in match Matrix.get m pn with
+            | { occupant = Some Boulder; _ } as t ->
+                ( match effect with
+                | Sonic ->
+                    let t = { t with occupant = None } in
+                    let m = Matrix.set t pn m in
+                    msgAdd state (sf "The %s crumbles the boulder." msgs.msgCause);
+                    setCurrentMap m state, false, range - reductionRangeOnHit
+                | _ ->
+                    msgAdd state (sf "The %s whizzes past the boulder." msgs.msgCause);
+                    state, false, range
+                )
             | { occupant = Some Creature c; _ } as t ->
                 msgAdd state (sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name);
                 creatureAddHp (-damage) t pn c state, false, range - reductionRangeOnHit
@@ -1294,7 +1307,11 @@ let castRay (effect : Hit.effect) from dir roll state =
                 ; image = Hit.getImageForAnimation effect dir
                 }
             in
-            animate ~linger:(range <= 1) state animation;
+            ( match effect with
+            | Sonic -> ()
+            | _ -> animate ~linger:(range <= 1) state animation
+            (* TODO neater way? *)
+            );
 
             if shouldReflect then
                 doRay pn pn (getReflectedDir pn dir state) state (range - 1)
@@ -1427,6 +1444,7 @@ let playerQuaff si state =
         | Gold _ -> msgAdd state "You were unable to swallow the gold piece."; state
         | Scroll _ -> msgAdd state "This scroll is quite solid. Quite difficult to drink..."; state
         | Weapon _ -> msgAdd state "You change your mind about swallowing your weapon."; state
+        | Wand _ -> msgAdd state "You change your mind about swallowing your wand."; state
         | Potion p ->
             let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
             let statePlayer = { sp with inventory } in
@@ -1446,6 +1464,7 @@ let playerRead si state =
         | Gold _ -> msgAdd state "The gold is shiny!"; state
         | Potion _ -> msgAdd state "This potion is unlabeled"; state
         | Weapon _ -> msgAdd state "There's nothing to read on this weapon."; state
+        | Wand _ -> msgAdd state "This is indeed a wand."; state
         | Scroll s ->
             let inventory, _ = partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
             let statePlayer = { sp with inventory } in
@@ -1485,6 +1504,39 @@ let playerWield si state =
 
     in
     { state with statePlayer }
+
+let playerZap si fDir state =
+    let sp = state.statePlayer in
+    let item = List.nth sp.inventory si.iIndex in
+    let item = match item with
+        | Item.Wand w -> Item.Wand { w with charges = max 0 (w.charges - 1) }
+        | _ -> assert false
+    in
+    let inventory = listSet si.iIndex item sp.inventory in
+    let statePlayer = { sp with inventory } in
+    let state = { state with statePlayer } in
+
+    let dir = fDir { row = 0; col = 0 } in
+
+    match item with
+        | Wand w ->
+            if w.charges <= 0 then
+                let _ = msgAdd state "nothing happens." in
+                state
+            else
+            ( match w.wand_t with
+            | Fire ->
+                msgAdd state "A column of fire erupts from your wand.";
+                castRay Hit.Fire sp.pos dir { rolls = 6; sides = 6 } state
+            | MagicMissile ->
+                msgAdd state "A hail of particles shoots from your wand.";
+                castRay Hit.Physical sp.pos dir { rolls = 2; sides = 6 } state
+            | Striking ->
+                msgAdd state "Your wand emits a loud burst.";
+                castRay Hit.Sonic sp.pos dir { rolls = 1; sides = 6 } state
+                (* TODO it's invisible and crumbles boulders *)
+            )
+        | _ -> msgAdd state "can't zap that."; state
 
 let playerDrop sl state =
     let sI = L.map (fun s -> s.iIndex) sl in
@@ -1598,6 +1650,7 @@ let actionPlayer a state =
         | Search -> playerSearch state
         | Throw (si, dir) -> playerThrow si dir state
         | Wield si -> playerWield si state
+        | Zap (si, dir) -> playerZap si dir state
     in
     rotCorpses s'
     |> playerUpdateMapKnowledge
@@ -1628,6 +1681,9 @@ let handleSelectItems k s state = match k with
             | DoWield -> actionPlayer (Wield firstSelected) state
             | SelectDirThrow ->
                     let mode = Selecting (SelectDir (DoThrow firstSelected)) in
+                    Some { state with mode }
+            | SelectDirZap ->
+                    let mode = Selecting (SelectDir (DoZap firstSelected)) in
                     Some { state with mode }
 
         )
@@ -1672,6 +1728,8 @@ let handleSelectDir k sd state =
             let state = { state with mode } in
             ( match sd with
             | DoThrow si -> actionPlayer (Throw (si, dir)) state
+            | DoZap si -> actionPlayer (Zap (si, dir)) state
+            (* TODO wand charge is still used up if direction is cancelled (Escape) *)
             )
 
 let handleSelect k s state = match s with
@@ -1949,6 +2007,15 @@ let modeSelectWield state =
     let mode = Selecting (SelectItems selection) in
     Some { state with mode }
 
+let modeSelectZap state =
+    (* ^TODO refactor *)
+    let sp = state.statePlayer in
+    let zappables = L.mapi (fun ix i -> if Item.isZappable i then Some (ix, i) else None) sp.inventory in
+    if not (L.exists Option.is_some zappables ) then Some state else
+    let selection = selectionOfItems ~single:true SelectDirZap zappables in
+    let mode = Selecting (SelectItems selection) in
+    Some { state with mode }
+
 let modePlaying event state = match event with
     | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> actionPlayer (MoveDir west) state
     | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> actionPlayer (MoveDir east) state
@@ -1968,6 +2035,7 @@ let modePlaying event state = match event with
     | `Key (`ASCII 'r', _) -> modeSelectRead state
     | `Key (`ASCII 't', _) -> modeSelectThrow state
     | `Key (`ASCII 'w', _) -> modeSelectWield state
+    | `Key (`ASCII 'z', _) -> modeSelectZap state
 
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)

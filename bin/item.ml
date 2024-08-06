@@ -36,6 +36,16 @@ type potion =
     ; potion_t : potion_t
     }
 
+type wand_t =
+    | Fire
+    | MagicMissile
+    | Striking
+
+type wand =
+    { charges : int
+    ; wand_t : wand_t
+    }
+
 type container_t =
     | Sack
     | Chest
@@ -58,6 +68,7 @@ and item =
     | Potion of potion
     | Scroll of scroll
     | Weapon of weapon
+    | Wand of wand
 
 type itemList = item list
 
@@ -70,6 +81,7 @@ let count = function
     | Potion { stats = s; _ } -> s.count
     | Scroll { stats = s; _ } -> s.count
     | Weapon _ -> 1
+    | Wand _ -> 1
 
 let name ?(mPlural="") = function
     | Corpse c -> c.name ^ " corpse"
@@ -94,6 +106,12 @@ let name ?(mPlural="") = function
         | Chest -> "chest"
         )
     | Weapon w -> w.name
+    | Wand w -> "wand"^ mPlural ^ " of " ^
+        ( match w.wand_t with
+            | Fire -> "fire"
+            | MagicMissile -> "magic missile"
+            | Striking -> "striking"
+        )
 
 let nameDisplay i =
     let count = count i in
@@ -123,6 +141,12 @@ let getPriceBase = function
             | Teleport -> 100
         )
     | Weapon w -> w.price
+    | Wand w ->
+        ( match w.wand_t with
+            | Fire -> 175
+            | MagicMissile -> 150
+            | Striking -> 150
+        )
 
 let isQuaffable = function
     | Container _ -> false
@@ -131,6 +155,7 @@ let isQuaffable = function
     | Potion _ -> true
     | Scroll _ -> false
     | Weapon _ -> false
+    | Wand _ -> false
 
 let isReadable = function
     | Container _ -> false
@@ -139,6 +164,11 @@ let isReadable = function
     | Potion _ -> false
     | Scroll _ -> true
     | Weapon _ -> false
+    | Wand _ -> false
+
+let isZappable = function
+    | Wand w -> true
+    | _ -> false
 
 let weapons =
     [   { name = "dagger"
@@ -186,11 +216,22 @@ let rnScroll () =
     let t = C.rnRelative freq in
     Scroll { scroll_t = t; stats = {count = 1} }
 
+let rnWand () =
+    let freq =
+        [ Fire, 8
+        ; MagicMissile, 10
+        ; Striking, 15
+        ]
+    in
+    let t = C.rnRelative freq in
+    Wand { wand_t = t; charges = C.rn 4 8 }
+
 let random () =
     let freq =
         [ rnPotion, 16
         ; rnScroll, 16
         ; rnWeapon, 10
+        ; rnWand,    4
         ]
     in
     let t = C.rnRelative freq in

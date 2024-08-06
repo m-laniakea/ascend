@@ -4,8 +4,9 @@ module A = N.A
 module C = Common
 
 type effect =
-    | Physical
     | Fire
+    | Physical
+    | Sonic
 
 type passive =
     { maxRoll : int
@@ -74,8 +75,9 @@ let getEffect = function
 
 let getMsgsEffect e =
     let msgCause, msgEffect = match e with
-        | Physical -> "attack", "hits"
         | Fire -> "fire", "burns"
+        | Physical -> "attack", "hits"
+        | Sonic -> "sound blast", "rattles"
     in
     { msgHit = ""; msgCause; msgEffect }
 
@@ -102,8 +104,9 @@ let getMsgs a =
 
 let getImageForAnimation t dir =
     let color = match t with
-    | Physical -> A.(fg white)
     | Fire -> A.(fg lightred)
+    | Physical -> A.(fg white)
+    | Sonic -> A.empty
     in
 
     let open Common in
