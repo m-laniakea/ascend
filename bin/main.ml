@@ -1152,18 +1152,11 @@ let throw item pFrom dir range msgThrower state =
         | pn when not (playerCanSee state pn) -> pc
         | pn -> getPosEnd pn posLanded
     in
-    let msgCreatureMissed (c : Creature.t) p =
-        if playerCanSee state p then
-            [ sf "The %s misses the %s." (Item.name item) c.info.name ]
-                    (* TODO invisible creatures *)
-            else
-                []
+    let msgAddCreatureMissed (c : Creature.t) p = if playerCanSee state p then
+            msgAdd state (sf "The %s misses the %s." (Item.name item) c.info.name)
     in
-    let msgCreatureHit (c : Creature.t) p = if playerCanSee state p then
-        [ sf "The %s hits the %s." (Item.name item) c.info.name ]
-            (* TODO invisible creatures *)
-        else
-            []
+    let msgAddCreatureHit (c : Creature.t) p = if playerCanSee state p then
+        msgAdd state (sf "The %s hits the %s." (Item.name item) c.info.name)
     in
 
     let rollDamage () = match item with
@@ -1171,52 +1164,54 @@ let throw item pFrom dir range msgThrower state =
         | _ -> rn 1 2
     in
 
-    let rec doThrow item dir pc msgs range state = match posAdd dir pc with
-        | _ when range <= 0 -> state, pc, msgs
-        | pn when not (isInMap pn) -> state, pc, msgs
+    ( if playerCanSee state pFrom
+        then
+            msgAdd state msgThrower
+        else
+            msgAdd state (sf "You see a %s fly." (Item.name item))
+            (* Todo blindness *)
+    );
+
+    let rec doThrow item dir pc range state = match posAdd dir pc with
+        | _ when range <= 0 -> state, pc
+        | pn when not (isInMap pn) -> state, pc
         | pn ->
             ( match Matrix.get m pn with
-            | { occupant = Some Boulder; _ } -> doThrow item dir pn msgs (range - 1) state
+            | { occupant = Some Boulder; _ } -> doThrow item dir pn (range - 1) state
             | { occupant = Some (Creature c); _ } as t ->
                 ( match isMiss () with
                 | true ->
-                    let msg = msgCreatureMissed c pn in
-                    doThrow item dir pn (msg @ msgs) (range - 1) state
+                    msgAddCreatureMissed c pn;
+                    doThrow item dir pn (range - 1) state
                 | false ->
-                    let msg = msgCreatureHit c pn in
+                    msgAddCreatureHit c pn;
                     let damage = rollDamage () in
-                    creatureAddHp (-damage) t pn c state, pn, msg @ msgs
+                    creatureAddHp (-damage) t pn c state, pn
                 )
             | { occupant = Some Player; _ } ->
                 ( match isMiss () with
                 | true ->
-                    let msg = sf "The %s misses you." (Item.name item) in
-                    doThrow item dir pn (msg::msgs) (range - 1) state
+                    msgAdd state (sf "The %s misses you." (Item.name item));
+                    doThrow item dir pn (range - 1) state
                 | false ->
-                    let msg = sf "The %s hits you." (Item.name item) in
+                    msgAdd state (sf "The %s hits you." (Item.name item));
                     let damage = rollDamage () in
-                    (playerAddHp (-damage) state), pn, msg::msgs
+                    (playerAddHp (-damage) state), pn
                 )
             | t ->
                 if canMoveTo t then
-                    doThrow item dir pn msgs (range - 1) state
+                    doThrow item dir pn (range - 1) state
                 else
-                    state, pc, msgs
+                    state, pc
             )
     in
 
-    let state, posLanded, msgs = doThrow item dir pFrom [] range state in
+    let state, posLanded = doThrow item dir pFrom range state in
     let posStart = getPosStart pFrom posLanded in
 
     ( match posStart with
         | None -> () (* At no point did player see the item *)
         | Some ps ->
-            ( if playerCanSee state pFrom
-                then
-                    msgAdd state msgThrower
-                else
-                    msgAdd state (sf "You see a %s fly." (Item.name item))
-            );
 
             let animation =
                 { dir = posAdd dir { row = 0; col = 0 }
@@ -1227,9 +1222,6 @@ let throw item pFrom dir range msgThrower state =
                 }
             in
             animate state ~cumulative:false ~linger:false animation;
-
-            L.rev msgs
-            |> L.iter (fun m -> msgAdd state m)
     );
 
     let m = getCurrentMap state in
