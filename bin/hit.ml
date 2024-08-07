@@ -4,6 +4,7 @@ module A = N.A
 module C = Common
 
 type effect =
+    | Cold
     | Fire
     | Physical
     | Sonic
@@ -18,6 +19,7 @@ type melee_t =
     | Butt
     | Claw
     | Kick
+    | Touch
 
 type ranged_t =
     | Breath
@@ -49,6 +51,11 @@ type msgs =
     ; msgEffect : string
     }
 
+let mkPassive e maxRoll = Passive
+    { effect = e
+    ; maxRoll
+    }
+
 let mkMelee t e rolls sides = Melee
     { melee_t = t
     ; stats =
@@ -75,15 +82,24 @@ let getEffect = function
 
 let getMsgsEffect e =
     let msgCause, msgEffect = match e with
+        | Cold -> "cold", "freezes"
         | Fire -> "fire", "burns"
         | Physical -> "attack", "hits"
         | Sonic -> "sound blast", "rattles"
     in
     { msgHit = ""; msgCause; msgEffect }
 
+let isPassive = function
+    | Passive _ -> true
+    | _ -> false
+
+let toPassive = function
+    | Passive p -> p
+    | _ -> assert false
+
 let getMsgs a =
     let msgHit = match a with
-        | Passive _ -> assert false (* TODO *)
+        | Passive _ -> "jiggles"
         | Ranged r ->
             ( match r.ranged_t with
                 | Breath -> "breathes"
@@ -95,6 +111,7 @@ let getMsgs a =
             | Butt -> "butts"
             | Claw -> "claws at"
             | Kick -> "kicks"
+            | Touch -> "touches"
             )
 
         | Weapon _ -> "attacks"
@@ -104,6 +121,7 @@ let getMsgs a =
 
 let getImageForAnimation t dir =
     let color = match t with
+    | Cold -> A.(fg cyan)
     | Fire -> A.(fg lightred)
     | Physical -> A.(fg white)
     | Sonic -> A.empty

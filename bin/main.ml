@@ -933,6 +933,22 @@ let reduceDamage ac damage =
     if ac >= 0 then damage else
     (rn ac (-1)) + damage |> min 1
 
+let doCreaturePassive c state =
+    let pAttacks = Cr.getAttacksPassive c in
+    if L.is_empty pAttacks then state else
+
+    L.fold_left
+        ( fun state (pa : Hit.passive) ->
+            let msgs = Hit.getMsgs (Hit.Passive pa) in
+            msgAdd state (sf "It %s. The %s %s you." msgs.msgHit msgs.msgCause msgs.msgEffect);
+            let damage = doRoll { rolls = c.info.levelBase + 1; sides = pa.maxRoll } in
+            (* ^TODO based on current level *)
+            playerAddHp (-damage) state
+            (* ^TODO resistances *)
+        )
+        state
+        pAttacks
+
 let playerAttackMelee t p (c : Creature.t) state =
     (* TODO base on stats *)
     match rollAttackLanded 15 0 with
@@ -945,6 +961,7 @@ let playerAttackMelee t p (c : Creature.t) state =
     | Hit ->
         msgAdd state (sf "You hit the %s." c.info.name);
         (* TODO creature AC *)
+        let state = doCreaturePassive c state in
         let sp = state.statePlayer in
         let damage = match sp.weaponWielded with
             | None -> rn 1 2 (* bare-handed *)

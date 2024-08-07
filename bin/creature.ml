@@ -9,6 +9,7 @@ type info =
     ; color : A.color
     ; name : string
     ; difficulty : int
+    ; frequency : int
     ; levelBase : int
     ; hits : Hit.t list
     ; speed : int
@@ -23,33 +24,104 @@ type t =
     }
 
 let creatures =
-    [   { name = "sewer rat"
+    [   { name = "newt"
+        ; symbol = ":"
+        ; color = A.yellow
+        ; difficulty = 1
+        ; levelBase = 0
+        ; frequency = 5
+        ; hits =
+            [ H.mkMelee Bite Physical 1 2
+            ]
+        ; speed = 6
+        }
+    ;   { name = "sewer rat"
         ; symbol = "r"
         ; color = C.brown
         ; difficulty = 1
         ; levelBase = 0
+        ; frequency = 1
         ; hits =
             [ H.mkMelee Bite Physical 1 3
             ]
         ; speed = 12
+        }
+    ;   { name = "bat"
+        ; symbol = "B"
+        ; color = C.brown
+        ; difficulty = 2
+        ; levelBase = 0
+        ; frequency = 1
+        ; hits =
+            [ H.mkMelee Bite Physical 1 4
+            ]
+        ; speed = 22
+        }
+    ;   { name = "brown mold"
+        ; symbol = "F"
+        ; color = C.brown
+        ; difficulty = 2
+        ; levelBase = 2
+        ; frequency = 1
+        ; hits =
+            [ H.mkPassive Cold 6
+            ]
+        ; speed = 0
+        }
+    ;   { name = "red mold"
+        ; symbol = "F"
+        ; color = A.red
+        ; difficulty = 2
+        ; levelBase = 2
+        ; frequency = 1
+        ; hits =
+            [ H.mkPassive Fire 6
+            ]
+        ; speed = 0
         }
     ;   { name = "giant bat"
         ; symbol = "B"
         ; color = A.red
         ; difficulty = 3
         ; levelBase = 2
+        ; frequency = 2
         ; hits =
             [ H.mkMelee Bite Physical 1 6
             ]
         ; speed = 22
+        }
+    ;   { name = "iguana"
+        ; symbol = ":"
+        ; color = A.yellow
+        ; difficulty = 3
+        ; levelBase = 2
+        ; frequency = 5
+        ; hits =
+            [ H.mkMelee Bite Physical 1 4
+            ]
+        ; speed = 6
         }
     ;   { name = "hill orc"
         ; symbol = "o"
         ; color = A.lightyellow
         ; difficulty = 4
         ; levelBase = 2
+        ; frequency = 2
         ; hits =
             [ H.mkWeapon 1 6
+            ]
+        ; speed = 9
+        }
+    ;   { name = "rothe"
+        ; symbol = "q"
+        ; color = C.brown
+        ; difficulty = 4
+        ; levelBase = 2
+        ; frequency = 4
+        ; hits =
+            [ H.mkMelee Claw Physical 1 3
+            ; H.mkMelee Bite Physical 1 3
+            ; H.mkMelee Bite Physical 1 8
             ]
         ; speed = 9
         }
@@ -58,6 +130,7 @@ let creatures =
         ; color = A.black
         ; difficulty = 5
         ; levelBase = 3
+        ; frequency = 1
         ; hits =
             [ H.mkWeapon 1 8
             ]
@@ -68,8 +141,42 @@ let creatures =
         ; color = A.lightwhite
         ; difficulty = 5
         ; levelBase = 4
+        ; frequency = 1
         ; hits =
             [ H.mkMelee Claw Physical 1 8
+            ]
+        ; speed = 6
+        }
+    ;   { name = "giant beetle"
+        ; symbol = "a"
+        ; color = A.black
+        ; difficulty = 6
+        ; levelBase = 5
+        ; frequency = 3
+        ; hits =
+            [ H.mkMelee Bite Physical 3 6
+            ]
+        ; speed = 6
+        }
+    ;   { name = "quivering blob"
+        ; symbol = "b"
+        ; color = A.lightwhite
+        ; difficulty = 6
+        ; levelBase = 5
+        ; frequency = 2
+        ; hits =
+            [ H.mkMelee Touch Physical 1 8
+            ]
+        ; speed = 1
+        }
+    ;   { name = "lizard"
+        ; symbol = ":"
+        ; color = A.green
+        ; difficulty = 6
+        ; levelBase = 5
+        ; frequency = 5
+        ; hits =
+            [ H.mkMelee Bite Physical 1 6
             ]
         ; speed = 6
         }
@@ -78,17 +185,45 @@ let creatures =
         ; color = A.lightblack
         ; difficulty = 7
         ; levelBase = 5
+        ; frequency = 1
         ; hits =
             [ H.mkMelee Butt Physical 4 12
             ; H.mkMelee Bite Physical 2 6
             ]
         ; speed = 9
         }
+    ;   { name = "yeti"
+        ; symbol = "Y"
+        ; color = A.lightwhite
+        ; difficulty = 7
+        ; levelBase = 5
+        ; frequency = 2
+        ; hits =
+            [ H.mkMelee Claw Physical 1 6
+            ; H.mkMelee Claw Physical 1 6
+            ; H.mkMelee Bite Physical 1 4
+            ]
+        ; speed = 15
+        }
+    ;   { name = "gargoyle"
+        ; symbol = "g"
+        ; color = C.brown
+        ; difficulty = 8
+        ; levelBase = 6
+        ; frequency = 2
+        ; hits =
+            [ H.mkMelee Claw Physical 2 6
+            ; H.mkMelee Claw Physical 2 6
+            ; H.mkMelee Bite Physical 2 4
+            ]
+        ; speed = 10
+        }
     ;   { name = "warhorse"
         ; symbol = "u"
         ; color = C.brown
         ; difficulty = 9
         ; levelBase = 7
+        ; frequency = 2
         ; hits =
             [ H.mkMelee Kick Physical 1 10
             ; H.mkMelee Bite Physical 1 4
@@ -100,6 +235,7 @@ let creatures =
         ; color = A.magenta
         ; difficulty = 11
         ; levelBase = 9
+        ; frequency = 1
         ; hits =
             [ H.mkMelee Claw Physical 3 6
             ; H.mkMelee Claw Physical 3 6
@@ -112,6 +248,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 17
         ; levelBase = 15
+        ; frequency = 1
         ; hits =
             [ H.mkMelee Claw Physical 3 10
             ; H.mkMelee Claw Physical 3 10
@@ -124,6 +261,7 @@ let creatures =
         ; color = A.lightred
         ; difficulty = 20
         ; levelBase = 15
+        ; frequency = 1
         ; hits =
             [ H.mkRanged Breath Fire 6 6
             ; H.mkMelee Bite Physical 3 8
@@ -155,8 +293,16 @@ let random difficultyLevel =
     let creaturesOk = List.filter (fun c -> c.difficulty >= difficultyMin && c.difficulty <= difficultyLevel) creatures in
     if List.is_empty creaturesOk then None else
 
-    let creatureInfo = C.rnItem creaturesOk in
+    let freq = List.map (fun c -> c, c.frequency) creaturesOk in
+
+    let creatureInfo = C.rnRelative freq in
     Some (mkCreature creatureInfo)
+
+let getAttacksPassive c =
+    c.info.hits
+    |> List.filter (Hit.isPassive)
+    |> List.map (Hit.toPassive)
+
 
 let getWeaponForThrow c = match Item.getWeaponsByDamage c.inventory with
     | [] | _::[] -> None
