@@ -136,6 +136,7 @@ type selection =
     | SelectItems of selectItems
 
 type mode =
+    | Dead
     | Playing
     | Selecting of selection
 
@@ -363,10 +364,35 @@ let applyAnimatedTiles animationLayer m =
 
 let imageCreate ?(animationLayer=[]) state =
     let open Notty.Infix in
+    let header state =
+        Format.sprintf "HP: %i | DLvl: %i |" state.statePlayer.hp state.stateLevels.indexLevel
+        |> I.string A.empty
+    in
+    let footer state =
+        I.string A.empty (sf "$ %i" state.statePlayer.gold)
+    in
+    let messageDeath state =
+        let gold = state.statePlayer.gold in
+        let valItems = L.map Item.getPriceBase state.statePlayer.inventory |> L.fold_left (+) 0 in
+        [ ""
+        ; "You are dead."
+        ; sf "You died on level %i." state.stateLevels.indexLevel
+        ; sf "You were carrying %i gold and %i zorkmids worth of items." gold valItems
+        ; "Farewell."
+        ]
+        |> L.map (I.string A.(st bold))
+        |> I.vcat
+    in
+    let messages state =
+        Q.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
+    in
     ( match state.mode with
+        | Dead ->
+            header state
+            <-> messages state
+            <-> messageDeath state
         | Playing ->
-            Format.sprintf "HP: %i | DLvl: %i |" state.statePlayer.hp state.stateLevels.indexLevel
-            |> I.string A.empty
+            header state
             <->
             (
                 let mView =
@@ -376,11 +402,9 @@ let imageCreate ?(animationLayer=[]) state =
                 in
                 I.tabulate mapSize.col mapSize.row (fun c r -> Matrix.get mView { row = r; col = c })
             )
-            <-> I.string A.empty (sf "$ %i" state.statePlayer.gold)
-            <|>
-            (
-                Q.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
-            )
+            <-> footer state
+            <|> messages state
+
         | Selecting s ->
                 ( match s with
                 | SelectDir _ ->
@@ -1422,7 +1446,7 @@ let playerCheckHp state =
     let sp = state.statePlayer in
     if sp.hp <= 0 then
         let _ = msgAdd state "You died..." in
-        None
+        Some { state with mode = Dead }
     else
         Some state
 
@@ -2025,6 +2049,10 @@ let modeSelectZap state =
     let mode = Selecting (SelectItems selection) in
     Some { state with mode }
 
+let modeDead event state = match event with
+    | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> None
+    | _ -> Some state
+
 let modePlaying event state = match event with
     | `Key (`ASCII 'h', _) | `Key (`Arrow `Left, _) -> actionPlayer (MoveDir west) state
     | `Key (`ASCII 'l', _) | `Key (`Arrow `Right, _) -> actionPlayer (MoveDir east) state
@@ -2056,6 +2084,7 @@ let modeSelecting event state s = match event with
     | _ -> Some state
 
 let update event state = match state.mode with
+    | Dead -> modeDead event state
     | Playing -> modePlaying event state
     | Selecting s -> modeSelecting event state s
 
