@@ -322,6 +322,7 @@ let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
     | Corpse c -> I.string A.(styles ++ fg c.color) "%"
     | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
     | Potion _ -> I.string A.(styles ++ fg white) "!"
+    | Rock _ -> I.string A.(styles ++ fg white) "*"
     | Scroll _ -> I.string A.(styles ++ fg white) "?"
     | Weapon w -> I.string A.(styles ++ fg w.color) ")"
     | Wand _ -> I.string A.(styles ++ fg A.cyan) "/"
@@ -512,7 +513,6 @@ let areLinedUp a b =
     (* x or + shaped lines only *)
     let pd = posDiff a b in
     abs(pd.row) = abs(pd.col) || (pd.row = 0) <> (pd.col = 0)
-
 
 let playerAddHp n state =
     let sp = state.statePlayer in
@@ -1307,9 +1307,14 @@ let castRay (effect : Hit.effect) from dir roll state =
             | { occupant = Some Boulder; _ } as t ->
                 ( match effect with
                 | Sonic ->
-                    let t = { t with occupant = None } in
+                    let rocks = Item.rock (6 + rn 1 6) in
+                    let t = { t with occupant = None; items = rocks::t.items } in
                     let m = Matrix.set t pn m in
-                    msgAdd state (sf "The %s crumbles the boulder." msgs.msgCause);
+                    ( if playerCanSee state pn then
+                        msgAdd state (sf "The %s crumbles the boulder." msgs.msgCause)
+                    else
+                        msgAdd state "You hear rock crumbling."
+                    );
                     setCurrentMap m state, false, range - reductionRangeOnHit
                 | _ ->
                     msgAdd state (sf "The %s whizzes past the boulder." msgs.msgCause);
@@ -1475,6 +1480,7 @@ let playerQuaff si state =
         | Container _ -> msgAdd state "What a silly thing to quaff!"; state
         | Corpse _ -> msgAdd state "What a silly thing to quaff!"; state
         | Gold _ -> msgAdd state "You were unable to swallow the gold piece."; state
+        | Rock _ -> msgAdd state "You were unable to swallow the rock."; state
         | Scroll _ -> msgAdd state "This scroll is quite solid. Quite difficult to drink..."; state
         | Weapon _ -> msgAdd state "You change your mind about swallowing your weapon."; state
         | Wand _ -> msgAdd state "You change your mind about swallowing your wand."; state
@@ -1495,7 +1501,8 @@ let playerRead si state =
         | Container _ -> msgAdd state "What a silly thing to read!"; state
         | Corpse _ -> msgAdd state "What a silly thing to read!"; state
         | Gold _ -> msgAdd state "The gold is shiny!"; state
-        | Potion _ -> msgAdd state "This potion is unlabeled"; state
+        | Potion _ -> msgAdd state "This potion is unlabeled."; state
+        | Rock _ -> msgAdd state "This rock is not a tree."; state
         | Weapon _ -> msgAdd state "There's nothing to read on this weapon."; state
         | Wand _ -> msgAdd state "This is indeed a wand."; state
         | Scroll s ->
@@ -1579,27 +1586,36 @@ let playerDrop sl state =
 
     let iDropped, iRemain = partitionI (fun ix _ -> contains sI ix) sp.inventory in
 
+    let valueTrade items =
+        let pb = L.map Item.getPriceBase items |> L.fold_left (+) 0 in
+        pb / 2
+    in
     (* TODO allow dropping gold *)
-    let itemsValue = L.fold_left (fun acc i -> acc + (Item.getPriceBase i)) 0 iDropped in
-    let itemsValueTrade = itemsValue / 2 in
 
-    if playerIsInShop state && L.exists Item.isCorpse iDropped then
-        let _ = msgAdd state "Keep that filthy corpse out of my shop!" in
-        state
-    else
-
-    let gold =
-        if playerIsInShop state then
-            let _ = msgAdd state (sf "Thank you! Here's %i zorkmids for you." itemsValueTrade) in
-            sp.gold + itemsValueTrade
-        else
-            sp.gold
+    let inventory, dropped = match playerIsInShop state with
+        | true ->
+            ( match valueTrade iDropped with
+            | _ when L.exists Item.isCorpse iDropped ->
+                let _ = msgAdd state "Keep that filthy corpse out of my shop!" in
+                sp.inventory, []
+            | _ when L.exists (fun i -> 0 = Item.getPriceBase i) iDropped ->
+                let _ = msgAdd state "That item does not interest me." in
+                sp.inventory, []
+            | value when value <= 0 ->
+                msgAdd state "You can just leave that here.";
+                iRemain, iDropped
+            | value ->
+                msgAdd state (sf "Thank you! Here's %i zorkmids for you." value);
+                iRemain, iDropped
+            )
+        | false ->
+            iRemain, iDropped
     in
 
-    let inventory = iRemain in
-    let statePlayer = { sp with gold; inventory } in
+    let gold = (valueTrade dropped) + sp.gold in
+    let statePlayer = { sp with inventory; gold } in
 
-    let m' = Matrix.set { t with items = iDropped @ t.items } sp.pos m in
+    let m' = Matrix.set { t with items = dropped @ t.items } sp.pos m in
     { (setCurrentMap m' state) with statePlayer }
 
 let playerPickup sl state =

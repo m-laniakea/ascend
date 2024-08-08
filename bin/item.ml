@@ -66,6 +66,7 @@ and item =
     | Corpse of corpse
     | Gold of int
     | Potion of potion
+    | Rock of int
     | Scroll of scroll
     | Weapon of weapon
     | Wand of wand
@@ -79,6 +80,7 @@ let count = function
     | Corpse _ -> 1
     | Gold t -> t
     | Potion { stats = s; _ } -> s.count
+    | Rock t -> t
     | Scroll { stats = s; _ } -> s.count
     | Weapon _ -> 1
     | Wand _ -> 1
@@ -93,7 +95,7 @@ let name ?(mPlural="") = function
             | HealingFull -> "full healing"
             | Sickness -> "sickness"
         )
-
+    | Rock _ -> "rock" ^ mPlural
     | Scroll s -> "scroll" ^ mPlural ^ " of " ^
         ( match s.scroll_t with
             | CreateMonster -> "create monster"
@@ -134,6 +136,7 @@ let getPriceBase = function
             | Sickness -> 50
 
         )
+    | Rock _ -> 0
     | Scroll s ->
         ( match s.scroll_t with
             | CreateMonster -> 200
@@ -153,6 +156,7 @@ let isQuaffable = function
     | Corpse _ -> false
     | Gold _ -> false
     | Potion _ -> true
+    | Rock _ -> false
     | Scroll _ -> false
     | Weapon _ -> false
     | Wand _ -> false
@@ -162,6 +166,7 @@ let isReadable = function
     | Corpse _ -> false
     | Gold _ -> false
     | Potion _ -> false
+    | Rock _ -> false
     | Scroll _ -> true
     | Weapon _ -> false
     | Wand _ -> false
@@ -169,6 +174,8 @@ let isReadable = function
 let isZappable = function
     | Wand w -> true
     | _ -> false
+
+let rock n = Rock n
 
 let weapons =
     [   { name = "dagger"
