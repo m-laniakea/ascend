@@ -59,6 +59,7 @@ type room =
     ; posSE : pos
     ; doors : pos list
     ; room_t : room_t
+    ; lit : bool
     }
 
 type stateDoor = Closed | Open | Hidden
@@ -463,8 +464,19 @@ let getPathRay from target =
     in
     aux [from]
 
+let isInRoom room pos =
+    pos.row <= room.posSE.row
+    && pos.row >= room.posNW.row
+    && pos.col <= room.posSE.col
+    && pos.col >= room.posNW.col
 
-let isLit p = false (* TODO *)
+let isLit p state =
+    (getCurrentLevel state).rooms
+    |> L.exists
+        ( function
+        | { lit = false; _ } -> false
+        | room -> isInRoom (getOutliningRoom room) p
+        )
 
 let rec rayCanHitTarget m prev path =
     let t = Matrix.get m (List.hd path) in match path with
@@ -493,7 +505,7 @@ let rec rayCanHitTarget m prev path =
 
 let canSee distanceSight from toSee state =
     let d = distance from toSee in
-    if d > distanceSight && not (isLit toSee) then
+    if d > distanceSight && not (isLit toSee state) then
         false
     else
     let pathTo = getPathRay from toSee in
@@ -527,6 +539,52 @@ let playerAddMapKnowledgeEmpty state =
     let statePlayer = { state.statePlayer with knowledgeLevels } in
     { state with statePlayer }
 
+let getRoomPositions room =
+    let ri = range room.posNW.row room.posSE.row in
+    let ci = range room.posNW.col room.posSE.col in
+    List.map
+    ( fun r -> List.map
+        ( fun c ->
+            { row = r; col = c }
+        ) ci
+    ) ri
+    |> List.flatten
+
+let playerGetRoom state =
+    let sp = state.statePlayer in
+    let roomsWithPlayer =
+        (getCurrentLevel state).rooms
+        |> L.filter ( fun room -> isInRoom room sp.pos )
+    in
+    assert (L.length roomsWithPlayer <= 1);
+    L.nth_opt roomsWithPlayer 0
+
+let playerRevealRoomIfLit state =
+    let updateKnowledge room state =
+        let m  = getCurrentMap state in
+        let pk = getKnowledgeCurrentMap state in
+        let pkUpdated = L.fold_left
+            ( fun pk p ->
+                let actual = Matrix.get m p in
+                let known = Matrix.get pk p in
+                if actual <> known then
+                    Matrix.set actual p pk
+                else
+                    pk
+            )
+            pk (getOutliningRoom room |> getRoomPositions)
+        in
+        setKnowledgeCurrentMap pkUpdated state
+    in
+
+    match playerGetRoom state with
+    (* TODO blindness *)
+    | None -> state
+    | Some room -> match room with
+        | { lit = false; _ } -> state
+        | room -> updateKnowledge room state
+
+
 let playerUpdateMapKnowledge state =
     let m  = getCurrentMap state in
     let pk = getKnowledgeCurrentMap state in
@@ -540,6 +598,7 @@ let playerUpdateMapKnowledge state =
         ) pk pk
     in
     setKnowledgeCurrentMap pkUpdated state
+    |> playerRevealRoomIfLit
 
 let playerKnowledgeDeleteCreatures state =
     let pk = getKnowledgeCurrentMap state in
@@ -553,12 +612,6 @@ let playerKnowledgeDeleteCreatures state =
         ) pk
     in
     setKnowledgeCurrentMap pk' state
-
-let isInRoom room pos =
-    pos.row <= room.posSE.row
-    && pos.row >= room.posNW.row
-    && pos.col <= room.posSE.col
-    && pos.col >= room.posNW.col
 
 let playerIsInShop state =
     let sp = state.statePlayer in
@@ -575,16 +628,6 @@ let randomRoomPos room =
     ; col = rn room.posNW.col room.posSE.col
     }
 
-let getRoomPositions room =
-    let ri = range room.posNW.row room.posSE.row in
-    let ci = range room.posNW.col room.posSE.col in
-    List.map
-    ( fun r -> List.map
-        ( fun c ->
-            { row = r; col = c }
-        ) ci
-    ) ri
-    |> List.flatten
 
 let getRoomArea room = getRoomPositions room |> L.length
 
@@ -599,20 +642,26 @@ let allMapPositions =
     ; posSE = northWest mapSize
     ; doors = []
     ; room_t = Regular
+    ; lit = false
     }
     |> getRoomPositions
 
-let roomMake pu pl =
+let roomMake pu pl state =
     assert (pu.row < pl.row);
     assert (pu.col < pl.col);
-    { posNW = pu; posSE = pl; doors = []; room_t = Regular }
+    { posNW = pu
+    ; posSE = pl
+    ; doors = []
+    ; room_t = Regular
+    ; lit = getDepthNext state < 10 && not (oneIn 50)
+    }
 
-let roomMakeWh p wh =
+let roomMakeWh p wh state =
     assert (wh.w > 0);
     assert (wh.h > 0);
 
     let pl = { row = p.row + wh.h - 1; col = p.col + wh.w - 1 } in
-    roomMake p pl
+    roomMake p pl state
 
 
 let doRoomsOverlap r1 r2 =
@@ -633,13 +682,13 @@ let roomCanPlace rooms room =
         not (List.exists (doRoomsOverlap room) rooms)
 
 
-let rec roomPlace rooms wh tries =
+let rec roomPlace rooms wh tries state =
     if tries <= 0 then None else
     let row = rn 2 (mapSize.row - 2) in
     let col = rn 2 (mapSize.col - 2) in
-    let room = roomMakeWh { row = row; col = col } wh in
+    let room = roomMakeWh { row = row; col = col } wh state in
     if roomCanPlace rooms room then Some room else
-    roomPlace rooms wh (tries - 1)
+    roomPlace rooms wh (tries - 1) state
 
 let canSpawnHere ?(forbidPos=None) m p =
     if Some p = forbidPos then
@@ -777,12 +826,12 @@ let doorsGen rooms =
     let count i = if 0 = i || iLast = i then 1 else 2 in
     List.mapi (fun i r -> doorGen r (count i)) rooms
 
-let rec roomGen rooms tries =
+let rec roomGen rooms tries state =
     if tries <= 0 then None else
     let w = rn 2 13 in
     let h = rn 2 8 in
-    match roomPlace rooms { w = w; h = h } 42 with
-    | None -> roomGen rooms (tries - 1)
+    match roomPlace rooms { w = w; h = h } 42 state with
+    | None -> roomGen rooms (tries - 1) state
     | sr -> sr
 
 let isSuitableForShop m room =
@@ -821,14 +870,14 @@ let maybeMakeShop rooms state m =
 
     rooms
 
-let roomsGen () =
+let roomsGen state =
     let roomsMax = rn 4 7 in
     let rec helper sofar =
         if List.length sofar >= roomsMax
         then
             sofar
         else
-        match roomGen sofar 8 with
+        match roomGen sofar 8 state with
             | None -> sofar
             | Some r -> helper (r::sofar)
     in
@@ -1946,7 +1995,7 @@ let terrainAddObjects rooms state m =
         rooms
 
 let mapGen state =
-    let rooms = roomsGen () in
+    let rooms = roomsGen state in
     let terrain = Matrix.fill mapSize { t = Stone; occupant = None; items = [] }
         |> terrainAddRooms rooms
         |> terrainAddStairs ~dir:Up rooms

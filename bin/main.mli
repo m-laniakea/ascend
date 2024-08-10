@@ -7,7 +7,7 @@ type state
 
 type room
 
-val roomsGen : unit -> room list
+val roomsGen : state -> room list
 val terrainAddRoom : tile Matrix.t -> room -> tile Matrix.t
 val terrainAddRooms : room list -> tile Matrix.t -> tile Matrix.t
 
