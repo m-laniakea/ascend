@@ -1092,6 +1092,7 @@ let rec playerMove mf state =
             Matrix.set { tile with occupant = None } p m
             |> Matrix.set { tNew with occupant = Some Player } pn
         in
+        let _ = if isStairs tNew then msgAdd state "There are stairs here." in
         ( if not (List.is_empty tNew.items) then
             if List.length tNew.items > itemsDisplayedMax then
                 msgAdd state "You see here many items."
@@ -1370,7 +1371,9 @@ let castRay (effect : Hit.effect) from dir roll state =
                     state, false, range
                 )
             | { occupant = Some Creature c; _ } as t ->
-                msgAdd state (sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name);
+                ( if playerCanSee state pn then
+                    msgAdd state (sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name)
+                );
                 creatureAddHp (-damage) t pn c state, false, range - reductionRangeOnHit
                 (* ^TODO resistances *)
             | { occupant = Some Player; _ } ->
