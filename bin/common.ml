@@ -14,7 +14,7 @@ let listMake n v = List.init n (fun _ -> v)
 let listSet i v =
     List.mapi (fun ci ov -> if ci <> i then ov else v)
 
-let contains l v = List.find_opt ((=) v) l |> Option.is_some
+let contains l v = List.mem v l
 
 let range min max = List.init (max - min + 1) (fun i -> i + min)
 

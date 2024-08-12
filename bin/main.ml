@@ -123,6 +123,7 @@ type onSelectItemsComplete =
     | SelectDirZap
 
 type selectDir =
+    | DoClose
     | DoThrow of selectionItem
     | DoZap of selectionItem
 
@@ -960,6 +961,7 @@ let canMoveTo t = match t.t with
 type fDir = pos -> pos
 
 type actionsPlayer =
+    | Close of fDir
     | Drop of selectionItem list
     | MoveDir of fDir
     | Pickup of selectionItem list
@@ -1571,6 +1573,7 @@ let playerRead si state =
                 let spawnPositions =
                     allMapPositions
                     |> L.filter (fun p -> canSpawnHere ~forbidPos:None m p)
+                    (* TODO this would break if the map is full of creatures *)
                 in
                 let pNew = rnItem spawnPositions in
                 let mf = posDiff pp pNew |> posAdd in
@@ -1629,6 +1632,35 @@ let playerZap si fDir state =
                 (* TODO it's invisible and crumbles boulders *)
             )
         | _ -> msgAdd state "can't zap that."; state
+
+let playerClose fDir state =
+    let sp = state.statePlayer in
+    let pClose = fDir sp.pos in
+
+    if not (isInMap pClose) then
+        let _ = msgAdd state "There's nothing to close there." in
+        state
+    else
+
+    let m = getCurrentMap state in
+    match Matrix.get m pClose with
+    | { t = Door (Open, ori); _ } as tile ->
+        ( match tile.occupant, tile.items with
+        | Some _, _ | _, _::_ ->
+            let _ = msgAdd state "There's something in the way." in
+            state
+        | None, [] ->
+            if oneIn 3 then
+                let _ = msgAdd state "The door resists!" in
+                state
+            else
+                let tNew = { tile with t = Door (Closed, ori) } in
+                let m = Matrix.set tNew pClose m in
+                setCurrentMap m state
+            )
+
+    | _ -> msgAdd state "There's nothing to close there."; state
+
 
 let playerDrop sl state =
     let sI = L.map (fun s -> s.iIndex) sl in
@@ -1743,6 +1775,7 @@ let incTurns state =
 let actionPlayer a state =
     Q.clear state.messages;
     let s' = match a with
+        | Close dir -> playerClose dir state
         | Drop sl -> playerDrop sl state
         | MoveDir mf -> playerMove mf state
         | Pickup sl -> playerPickup sl state
@@ -1828,6 +1861,7 @@ let handleSelectDir k sd state =
             let mode = Playing in
             let state = { state with mode } in
             ( match sd with
+            | DoClose -> actionPlayer (Close dir) state
             | DoThrow si -> actionPlayer (Throw (si, dir)) state
             | DoZap si -> actionPlayer (Zap (si, dir)) state
             (* TODO wand charge is still used up if direction is cancelled (Escape) *)
@@ -2045,6 +2079,10 @@ let playerGoDown state =
             |> playerMoveToStairs ~dir:Up
             |> playerUpdateMapKnowledge
 
+let modeSelectDirClose state =
+    let mode = Selecting (SelectDir DoClose) in
+    Some { state with mode }
+
 let modeSelectDrop state =
     let inv = state.statePlayer.inventory in
     let items = L.mapi (fun ix i -> Some (ix, i)) inv in
@@ -2132,6 +2170,7 @@ let modePlaying event state = match event with
     | `Key (`ASCII 'b', _) -> actionPlayer (MoveDir southWest) state
     | `Key (`ASCII 'n', _) -> actionPlayer (MoveDir southEast) state
 
+    | `Key (`ASCII 'c', _) -> modeSelectDirClose state
     | `Key (`ASCII 's', _) -> actionPlayer Search state
 
     | `Key (`ASCII 'd', _) -> modeSelectDrop state
