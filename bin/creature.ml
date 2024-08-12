@@ -4,8 +4,12 @@ module A = N.A
 module C = Common
 module H = Hit
 
+type attributes =
+    | NoHands
+
 type info =
     { symbol : string
+    ; attributes : attributes list
     ; color : A.color
     ; name : string
     ; difficulty : int
@@ -26,6 +30,7 @@ type t =
 let creatures =
     [   { name = "newt"
         ; symbol = ":"
+        ; attributes = [NoHands]
         ; color = A.yellow
         ; difficulty = 1
         ; levelBase = 0
@@ -37,6 +42,7 @@ let creatures =
         }
     ;   { name = "sewer rat"
         ; symbol = "r"
+        ; attributes = [NoHands]
         ; color = C.brown
         ; difficulty = 1
         ; levelBase = 0
@@ -48,6 +54,7 @@ let creatures =
         }
     ;   { name = "bat"
         ; symbol = "B"
+        ; attributes = [NoHands]
         ; color = C.brown
         ; difficulty = 2
         ; levelBase = 0
@@ -59,6 +66,7 @@ let creatures =
         }
     ;   { name = "brown mold"
         ; symbol = "F"
+        ; attributes = [NoHands]
         ; color = C.brown
         ; difficulty = 2
         ; levelBase = 2
@@ -70,6 +78,7 @@ let creatures =
         }
     ;   { name = "red mold"
         ; symbol = "F"
+        ; attributes = [NoHands]
         ; color = A.red
         ; difficulty = 2
         ; levelBase = 2
@@ -81,6 +90,7 @@ let creatures =
         }
     ;   { name = "giant bat"
         ; symbol = "B"
+        ; attributes = [NoHands]
         ; color = A.red
         ; difficulty = 3
         ; levelBase = 2
@@ -92,6 +102,7 @@ let creatures =
         }
     ;   { name = "iguana"
         ; symbol = ":"
+        ; attributes = [NoHands]
         ; color = A.yellow
         ; difficulty = 3
         ; levelBase = 2
@@ -103,6 +114,7 @@ let creatures =
         }
     ;   { name = "hill orc"
         ; symbol = "o"
+        ; attributes = []
         ; color = A.lightyellow
         ; difficulty = 4
         ; levelBase = 2
@@ -114,6 +126,7 @@ let creatures =
         }
     ;   { name = "rothe"
         ; symbol = "q"
+        ; attributes = [NoHands]
         ; color = C.brown
         ; difficulty = 4
         ; levelBase = 2
@@ -127,6 +140,7 @@ let creatures =
         }
     ;   { name = "Uruk-hai"
         ; symbol = "o"
+        ; attributes = []
         ; color = A.black
         ; difficulty = 5
         ; levelBase = 3
@@ -138,6 +152,7 @@ let creatures =
         }
     ;   { name = "human zombie"
         ; symbol = "Z"
+        ; attributes = []
         ; color = A.lightwhite
         ; difficulty = 5
         ; levelBase = 4
@@ -149,6 +164,7 @@ let creatures =
         }
     ;   { name = "giant beetle"
         ; symbol = "a"
+        ; attributes = [NoHands]
         ; color = A.black
         ; difficulty = 6
         ; levelBase = 5
@@ -160,6 +176,7 @@ let creatures =
         }
     ;   { name = "quivering blob"
         ; symbol = "b"
+        ; attributes = [NoHands]
         ; color = A.lightwhite
         ; difficulty = 6
         ; levelBase = 5
@@ -171,6 +188,7 @@ let creatures =
         }
     ;   { name = "lizard"
         ; symbol = ":"
+        ; attributes = [NoHands]
         ; color = A.green
         ; difficulty = 6
         ; levelBase = 5
@@ -182,6 +200,7 @@ let creatures =
         }
     ;   { name = "mumak"
         ; symbol = "q"
+        ; attributes = [NoHands]
         ; color = A.lightblack
         ; difficulty = 7
         ; levelBase = 5
@@ -194,6 +213,7 @@ let creatures =
         }
     ;   { name = "yeti"
         ; symbol = "Y"
+        ; attributes = []
         ; color = A.lightwhite
         ; difficulty = 7
         ; levelBase = 5
@@ -207,6 +227,7 @@ let creatures =
         }
     ;   { name = "gargoyle"
         ; symbol = "g"
+        ; attributes = []
         ; color = C.brown
         ; difficulty = 8
         ; levelBase = 6
@@ -220,6 +241,7 @@ let creatures =
         }
     ;   { name = "warhorse"
         ; symbol = "u"
+        ; attributes = [NoHands]
         ; color = C.brown
         ; difficulty = 9
         ; levelBase = 7
@@ -232,6 +254,7 @@ let creatures =
         }
     ;   { name = "winged gargoyle"
         ; symbol = "g"
+        ; attributes = []
         ; color = A.magenta
         ; difficulty = 11
         ; levelBase = 9
@@ -245,6 +268,7 @@ let creatures =
         }
     ;   { name = "minotaur"
         ; symbol = "H"
+        ; attributes = []
         ; color = C.brown
         ; difficulty = 17
         ; levelBase = 15
@@ -258,6 +282,7 @@ let creatures =
         }
     ;   { name = "red dragon"
         ; symbol = "D"
+        ; attributes = [NoHands]
         ; color = A.lightred
         ; difficulty = 20
         ; levelBase = 15
@@ -321,3 +346,7 @@ let hasTurn c = match c.pointsSpeed with
     | ps when ps <= 0 -> false
     | ps when ps >= C.pointsSpeedPerTurn -> true
     | ps -> C.rn 1 C.pointsSpeedPerTurn <= ps
+
+let hasAttribute c a = List.mem a c.info.attributes
+
+let canOpenDoor c = not (hasAttribute c NoHands)

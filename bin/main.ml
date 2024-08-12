@@ -691,6 +691,25 @@ let rec roomPlace rooms wh tries state =
     if roomCanPlace rooms room then Some room else
     roomPlace rooms wh (tries - 1) state
 
+let canMoveHere c m p =
+    match Matrix.get m p with
+        (* TODO water, phasing, etc. *)
+        | { occupant = Some _; _ } -> false
+        | { occupant = None; t = t; _ } ->
+            ( match t with
+                | Door (Open, _) -> true
+                | Door (Closed, _) -> not (Cr.hasAttribute c Cr.NoHands)
+                | Door (Hidden, _) -> false
+                | Floor -> true
+                | Hallway HallHidden -> false
+                | Hallway HallRegular -> true
+                | StairsDown -> true
+                | StairsUp  -> false
+                | Stone -> false
+                | Unseen -> false
+                | Wall Horizontal | Wall Vertical -> false
+            )
+
 let canSpawnHere ?(forbidPos=None) m p =
     if Some p = forbidPos then
         false
@@ -717,7 +736,7 @@ let findItemMatchingInSight c f from state =
     |> Matrix.mapIFindAll
         ( fun m p t -> match L.exists f t.items with
             | false -> None
-            | true when from <> p && not (canSpawnHere m p) -> None
+            | true when from <> p && not (canMoveHere c m p) -> None
             | true -> Some p
         )
     |> L.filter (fun p -> creatureCanSee c from p state)
@@ -886,18 +905,10 @@ let roomsGen state =
     |> List.sort (fun r1 r2 -> Int.compare r1.posNW.col r2.posNW.col)
     |> doorsGen
 
-let get_next_states pGoal ?(manhattan=true) ~allowHallway ~isMapGen m p =
-    (
-    if manhattan then
-        nextManhattan p
-    else
-        posAround p
-    )
-  |> List.filter
+let getHallwayPointNext pGoal ~allowHallway m p =
+    nextManhattan p
+    |> List.filter
         ( fun p ->
-            if not isMapGen then
-                pGoal = p || canSpawnHere m p
-            else
             match (Matrix.get m p).t with
             | Door _ -> true
             | Floor -> false
@@ -908,6 +919,10 @@ let get_next_states pGoal ?(manhattan=true) ~allowHallway ~isMapGen m p =
             | Unseen -> false
             | Wall Horizontal | Wall Vertical -> false
         )
+
+let getCreatureMoveNext pGoal c m p =
+    posAround p
+    |> List.filter (fun p -> pGoal = p || canMoveHere c m p)
 
 (*
 let bfs map start goal =
@@ -937,12 +952,12 @@ let bfs map start goal =
 *)
 
 
-let solve m start goal =
+let getPathHallway m start goal =
   let open AStar in
   let open AStar in
     let cost = distanceManhattan in
-    let problemWithoutHallways = { cost; goal; get_next_states = get_next_states goal ~allowHallway:false ~isMapGen:true m; } in
-    let problem = { cost; goal; get_next_states = get_next_states goal ~allowHallway:true ~isMapGen:true m; } in
+    let problemWithoutHallways = { cost; goal; get_next_states = getHallwayPointNext goal ~allowHallway:false m; } in
+    let problem = { cost; goal; get_next_states = getHallwayPointNext goal ~allowHallway:true m; } in
     match search problemWithoutHallways start with
     | None -> search problem start |> Option.get
     | Some p -> p
@@ -1139,23 +1154,30 @@ let playerSearch state =
     setCurrentMap terrain' state
 
 let moveCreature a b state =
-    let level = getCurrentMap state in
-    let ct = Matrix.get level a in
-    let tt = Matrix.get level b in
-    if Option.is_some tt.occupant then
+    let m = getCurrentMap state in
+    let ct = Matrix.get m a in
+    let tt = Matrix.get m b in
+    match tt with
+    | { occupant = Some _; _ } ->
+        (* TODO displacing creature *)
         state
-    else
-    let level' = Matrix.set { ct with occupant = None } a level in
-    let level'' = Matrix.set { tt with occupant = ct.occupant } b level' in
-    setCurrentMap level'' state
+    | { t = Door (Closed, ori); _ } ->
+        let m = Matrix.set { ct with occupant = None } a m in
+        let m = Matrix.set { tt with t = Door (Open, ori); occupant = ct.occupant } b m in
+        msgAdd state "You hear a door open.";
+        setCurrentMap m state
+    | _ ->
+        let m = Matrix.set { ct with occupant = None } a m in
+        let m = Matrix.set { tt with occupant = ct.occupant } b m in
+        setCurrentMap m state
 
-let getCreaturePath m start goal =
+let getCreaturePath c m start goal =
   let open AStar in
   let open AStar in
     let problem =
         { cost = distanceManhattan
         ; goal
-        ; get_next_states = get_next_states goal ~manhattan:false ~allowHallway:true ~isMapGen:false m
+        ; get_next_states = getCreatureMoveNext goal c m
         }
     in
     match search problem start with
@@ -1464,14 +1486,14 @@ let rec animateCreature c cp state =
                 (* ^TODO check that attack has path to target *)
             cp, creatureAttackRanged c cp pp state
         else
-            let pathToPlayer = getCreaturePath m cp pp in
+            let pathToPlayer = getCreaturePath c m cp pp in
             let pathToWeapon =
                 if not (Cr.hasAttackWeapon c.info) then
                     None
                 else
                     match findItemMatchingInSight c Item.isWeapon cp state with
                     | [] -> None
-                    | wp::_ -> getCreaturePath m cp wp
+                    | wp::_ -> getCreaturePath c m cp wp
             in
             let moveAlongPath = function
                 | None | Some [] -> cp, state
@@ -1933,7 +1955,7 @@ let terrainAddHallways rooms m =
         | [] -> m
         | _::[] -> m
         | d1::d2::t ->
-            let path = solve m d1 d2
+            let path = getPathHallway m d1 d2
                 (* remove door positions *)
                 |> List.tl
                 |> List.rev
