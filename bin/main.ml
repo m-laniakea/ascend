@@ -104,6 +104,7 @@ type statePlayer =
     ; weaponWielded : Item.weapon option
     ; inventory : Item.t list
     ; knowledgeLevels : levels
+    ; turnHealthWarned : int
     }
 
 type selectionItem =
@@ -1375,6 +1376,9 @@ let castRay (effect : Hit.effect) from dir roll state =
         if range <= 0 then state else
         let pn = posAdd pc dir in
         if not (isInMap pn) then state else
+        (* TODO if hitting edge of map...
+            should still reflect instead of fizzing out
+        *)
 
         let state, shouldReflect, range =
             let m = getCurrentMap state in match Matrix.get m pn with
@@ -1523,12 +1527,31 @@ let maybeAddCreature state =
     else
         state
 
+let maybeWarnHealth state msg =
+    let warnHealthTimeout = 100 in
+    let sp = state.statePlayer in
+
+    if sp.turnHealthWarned + warnHealthTimeout > state.turns then Some state else
+
+    let _ = msgAdd state msg in
+    let statePlayer = { sp with turnHealthWarned = state.turns } in
+
+    Some { state with statePlayer }
+
 let playerCheckHp state =
     let sp = state.statePlayer in
-    if sp.hp <= 0 then
+    match sp.hp with
+    | hp when hp <= 0 ->
         let _ = msgAdd state "You died..." in
         Some { state with mode = Dead }
-    else
+
+    | hp when hp = 1 ->
+        maybeWarnHealth state "You are about to die."
+
+    | hp when hp * 10 < sp.hpMax ->
+        maybeWarnHealth state "You feel your life force running out..."
+
+    | _ ->
         Some state
 
 let selectionOfItems ~single oc l =
@@ -2234,6 +2257,7 @@ let stateInitial =
         ; weaponWielded = None
         ; inventory = []
         ; knowledgeLevels = []
+        ; turnHealthWarned = 0
         }
     in
 
