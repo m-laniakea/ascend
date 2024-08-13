@@ -16,7 +16,7 @@ let mapSize =
     ; col = 80
     }
 
-let distanceSight = 3.17
+let playerD2Sight = 9
 
 let itemsDisplayedMax = 5
 
@@ -291,10 +291,10 @@ let dirRevCol d = { d with col = -d.col }
 let dirRevRow d = { d with row = -d.row }
 let dirRevBoth d = dirRevCol d |> dirRevRow
 
-let distance b a =
+let distance2 b a =
     let dr = b.row - a.row in
     let dc = b.col - a.col in
-    dr * dr + dc * dc |> Float.of_int |> sqrt
+    dr * dr + dc * dc
 
 let distanceManhattan f t =
     abs (t.row - f.row) + abs (t.col - f.col)
@@ -433,7 +433,7 @@ let imageCreate ?(animationLayer=[]) state =
     )
     |> Term.image term
 
-let closestTo p p1 p2 = Int.compare (distanceManhattan p p1) (distanceManhattan p p2)
+let closestTo p p1 p2 = Int.compare (distance2 p p1) (distance2 p p2)
 
 let rec animate state ?(cumulative=true) ?(linger=true) ?(animationLayer=[]) a =
     let animationLayer' = match cumulative with
@@ -460,10 +460,11 @@ let getPathRay from target =
             List.rev path
         else
 
-        let nexts = posAround h in
-        let distances = List.map (fun p -> distance target p) nexts in
-        let minDist = listMin distances in
-        let next = List.find (fun p -> distance target p = minDist) nexts in
+        let next =
+            posAround h
+            |> L.sort (closestTo target)
+            |> L.hd
+        in
 
         aux (next::path)
     in
@@ -508,9 +509,9 @@ let rec rayCanHitTarget m prev path =
             | Unseen -> false
             | Wall _ -> false
 
-let canSee distanceSight from toSee state =
-    let d = distance from toSee in
-    if d > distanceSight && not (isLit toSee state) then
+let canSee distance2Sight from toSee state =
+    let d = distance2 from toSee in
+    if d > distance2Sight && not (isLit toSee state) then
         false
     else
     let pathTo = getPathRay from toSee in
@@ -520,11 +521,11 @@ let canSee distanceSight from toSee state =
 let playerCanSee state toSee =
     let pp = state.statePlayer.pos in
     (* TODO blindness *)
-    canSee distanceSight pp toSee state
+    canSee playerD2Sight pp toSee state
 
 let creatureCanSee c from toSee state =
     (* TODO use creature info *)
-    canSee 6.16 from toSee state
+    canSee 36 from toSee state
 
 let areLinedUp a b =
     (* x or + shaped lines only *)
@@ -1531,7 +1532,7 @@ let rec animateCreature c cp state =
     let m = getCurrentMap state in
     let canSeePlayer = creatureCanSee c cp pp state in
 
-    let cpn, state' = if distance cp pp <= 1.5 then
+    let cpn, state' = if distance2 cp pp <= 2 then
         (* ^TODO blindness/confusion/etc. *)
             cp, creatureAttackMelee c pp state
         else if areLinedUp cp pp
