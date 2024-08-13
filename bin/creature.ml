@@ -350,3 +350,5 @@ let hasTurn c = match c.pointsSpeed with
 let hasAttribute c a = List.mem a c.info.attributes
 
 let canOpenDoor c = not (hasAttribute c NoHands)
+
+let xpOnKill c = (c.level * c.level) + 1

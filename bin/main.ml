@@ -101,6 +101,8 @@ type statePlayer =
     ; gold : int
     ; hp : int
     ; hpMax : int
+    ; level : int
+    ; xp : int
     ; weaponWielded : Item.weapon option
     ; inventory : Item.t list
     ; knowledgeLevels : levels
@@ -368,8 +370,9 @@ let applyAnimatedTiles animationLayer m =
 
 let imageCreate ?(animationLayer=[]) state =
     let open Notty.Infix in
+    let sp = state.statePlayer in
     let header state =
-        Format.sprintf "HP: %i | DLvl: %i |" state.statePlayer.hp state.stateLevels.indexLevel
+        Format.sprintf "HP: %i/%i | Depth: %i | XP: %i | Level: %i" sp.hp sp.hpMax state.stateLevels.indexLevel sp.xp sp.level
         |> I.string A.empty
     in
     let footer state =
@@ -533,6 +536,50 @@ let playerAddHp n state =
     let hp = sp.hp in
     let hp' = min (hp + n) sp.hpMax |> max 0 in
     let statePlayer = { sp with hp = hp' } in
+    { state with statePlayer }
+
+let rec getLevel xp =
+    let levelMax = 17 in
+    (* Level xp thresholds are 2^(lvl - 1) * 10 *)
+    (* Add 3 just to make level 1 -> 2 slightly easier *)
+    let rec aux i =
+        if (1 lsl i) * 10 > xp + 3 then
+            i + 1 |> min levelMax
+        else
+            aux (i + 1)
+    in
+    aux 0
+
+let rec addMaxHp n sp =
+    assert (n >= 0);
+    if n = 0 then sp else
+
+    let hpBonus = (rn 1 8 + 1 |> max 3) in
+    let hpMax = sp.hpMax + hpBonus in
+    let hp = sp.hp + hpBonus in
+
+    addMaxHp (n - 1) { sp with hp; hpMax }
+
+let playerLevelTo levelNew sp =
+    let lDiff = levelNew - sp.level in
+    assert (lDiff > 0);
+    (* TODO level down *)
+    let sp = addMaxHp lDiff sp in
+    { sp with level = levelNew }
+
+let playerAddXp n state =
+    let sp = state.statePlayer in
+    let xp = sp.xp + n in
+    let levelNew = getLevel xp in
+
+    let sp = if levelNew <> sp.level then
+        let _ = msgAdd state (sf "Welcome to level %i!" levelNew) in
+        playerLevelTo levelNew sp
+    else
+        sp
+    in
+    let statePlayer = { sp with xp } in
+
     { state with statePlayer }
 
 let playerAddMapKnowledgeEmpty state =
@@ -988,9 +1035,9 @@ type actionsPlayer =
     | Wield of selectionItem
     | Zap of selectionItem * fDir
 
-let creatureAddHp n t p (c : Creature.t) state =
+let creatureAddHp ~sourceIsPlayer n t p (c : Creature.t) state =
     let cl = getCurrentMap state in
-    let t' =
+    let state, t' =
         if c.hp + n < 0 then
             (* TODO drops *)
             let _ = if playerCanSee state p then msgAdd state (sf "The %s is killed!" c.info.name) else () in
@@ -1000,10 +1047,11 @@ let creatureAddHp n t p (c : Creature.t) state =
                 let item = if oneIn 6 then [Item.random ()] else [] in
                 corpse::item @ c.inventory
             in
-            { t with occupant = None; items = deathDrops @ t.items }
+            let state = if sourceIsPlayer then playerAddXp (Cr.xpOnKill c) state else state in
+            state, { t with occupant = None; items = deathDrops @ t.items }
         else
             let c' = Creature { c with hp = c.hp + n } in
-            { t with occupant = Some c' }
+            state, { t with occupant = Some c' }
     in
     let cl' = Matrix.set t' p cl in
     setCurrentMap cl' state
@@ -1058,7 +1106,7 @@ let playerAttackMelee t p (c : Creature.t) state =
             | None -> rn 1 2 (* bare-handed *)
             | Some w -> doRoll w.damage
         in
-        creatureAddHp (-damage) t p c state
+        creatureAddHp ~sourceIsPlayer:true (-damage) t p c state
 
 let priceShop i = (Item.getPriceBase i) * 4 / 3
 
@@ -1240,6 +1288,7 @@ let creatureAttackMelee (c : Creature.t) p state =
 let throw item pFrom dir range msgThrower state =
     let m = getCurrentMap state in
     let isMiss () = oneIn 4 in
+    let sourceIsPlayer = pFrom = state.statePlayer.pos in
 
     let rec getPosStart pc posLanded = match posAdd dir pc with
         | _ when pc = posLanded -> None
@@ -1285,7 +1334,7 @@ let throw item pFrom dir range msgThrower state =
                 | false ->
                     msgAddCreatureHit c pn;
                     let damage = rollDamage () in
-                    creatureAddHp (-damage) t pn c state, pn
+                    creatureAddHp ~sourceIsPlayer (-damage) t pn c state, pn
                 )
             | { occupant = Some Player; _ } ->
                 ( match isMiss () with
@@ -1370,6 +1419,7 @@ let castRay (effect : Hit.effect) from dir roll state =
         doRoll roll
     in
     let range = 20 + rn 1 8 in
+    let sourceIsPlayer = from = state.statePlayer.pos in
 
     let msgs = Hit.getMsgsEffect effect in
     let rec doRay from pc dir state range =
@@ -1402,7 +1452,7 @@ let castRay (effect : Hit.effect) from dir roll state =
                 ( if playerCanSee state pn then
                     msgAdd state (sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name)
                 );
-                creatureAddHp (-damage) t pn c state, false, range - reductionRangeOnHit
+                creatureAddHp ~sourceIsPlayer (-damage) t pn c state, false, range - reductionRangeOnHit
                 (* ^TODO resistances *)
             | { occupant = Some Player; _ } ->
                 msgAdd state (sf "The %s %s you!" msgs.msgCause msgs.msgEffect);
@@ -1542,7 +1592,7 @@ let playerCheckHp state =
     let sp = state.statePlayer in
     match sp.hp with
     | hp when hp <= 0 ->
-        let _ = msgAdd state "You died..." in
+        let _ = msgAdd state "You die..." in
         Some { state with mode = Dead }
 
     | hp when hp = 1 ->
@@ -1789,6 +1839,7 @@ let playerThrow si fDir state =
 
     let msgThrower = sf "You throw the %s." (Item.name item) in (* TODO a vs an *)
     let state = throw item sp.pos dir rangeThrown msgThrower state in
+    let sp = state.statePlayer in
 
     let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
     let statePlayer = { sp with inventory } in
@@ -2252,8 +2303,10 @@ let stateInitial =
     let statePlayer =
         { pos = { row = 0; col = 0 }
         ; gold = 20
-        ; hp = 66
-        ; hpMax = 66
+        ; hp = 10
+        ; hpMax = 10
+        ; level = 1
+        ; xp = 0
         ; weaponWielded = None
         ; inventory = []
         ; knowledgeLevels = []
