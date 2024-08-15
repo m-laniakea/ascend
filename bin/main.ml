@@ -1790,7 +1790,7 @@ let playerClose fDir state =
             let _ = msgAdd state "There's something in the way." in
             state
         | None, [] ->
-            if oneIn 3 then
+            if oneIn 5 then
                 let _ = msgAdd state "The door resists!" in
                 state
             else
