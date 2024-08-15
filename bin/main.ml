@@ -103,6 +103,7 @@ type statePlayer =
     ; hpMax : int
     ; level : int
     ; xp : int
+    ; acBonus : int
     ; weaponWielded : Item.weapon option
     ; inventory : Item.t list
     ; knowledgeLevels : levels
@@ -368,11 +369,13 @@ let applyAnimatedTiles animationLayer m =
         )
         m
 
+let playerGetAc state = 10 - state.statePlayer.acBonus
+
 let imageCreate ?(animationLayer=[]) state =
     let open Notty.Infix in
     let sp = state.statePlayer in
     let header state =
-        Format.sprintf "HP: %i/%i | Depth: %i | XP: %i | Level: %i" sp.hp sp.hpMax state.stateLevels.indexLevel sp.xp sp.level
+        Format.sprintf "HP: %i/%i | Depth: %i | AC: %i | XP: %i | Level: %i" sp.hp sp.hpMax state.stateLevels.indexLevel (playerGetAc state) sp.xp sp.level
         |> I.string A.empty
     in
     let footer state =
@@ -561,11 +564,20 @@ let rec addMaxHp n sp =
 
     addMaxHp (n - 1) { sp with hp; hpMax }
 
+let rec addAc n sp =
+    assert (n >= 0);
+    if n = 0 then sp else
+
+    addAc (n - 1) { sp with acBonus = sp.acBonus + 1 }
+
 let playerLevelTo levelNew sp =
     let lDiff = levelNew - sp.level in
     assert (lDiff > 0);
     (* TODO level down *)
-    let sp = addMaxHp lDiff sp in
+    let sp =
+        addMaxHp lDiff sp
+        |> addAc lDiff
+    in
     { sp with level = levelNew }
 
 let playerAddXp n state =
@@ -1089,9 +1101,16 @@ let doCreaturePassive c state =
         state
         pAttacks
 
+let getHitThreshold ac attackerLevel =
+    let hitThresholdBase = 10 in
+    let ac' = if ac < 0 then rn ac (-1) else ac in
+    hitThresholdBase + ac' + attackerLevel |> max 1
+
 let playerAttackMelee t p (c : Creature.t) state =
-    (* TODO base on stats *)
-    match rollAttackLanded 15 0 with
+    let acTarget = Cr.getAc c in
+    let hitThreshold = getHitThreshold acTarget state.statePlayer.level in
+
+    match rollAttackLanded hitThreshold 0 with
     | Miss ->
         msgAdd state (sf "You miss the %s." c.info.name);
         state
@@ -1100,12 +1119,14 @@ let playerAttackMelee t p (c : Creature.t) state =
         state
     | Hit ->
         msgAdd state (sf "You hit the %s." c.info.name);
-        (* TODO creature AC *)
         let state = doCreaturePassive c state in
         let sp = state.statePlayer in
-        let damage = match sp.weaponWielded with
+        let damage =
+            ( match sp.weaponWielded with
             | None -> rn 1 2 (* bare-handed *)
             | Some w -> doRoll w.damage
+            )
+            |> reduceDamage acTarget
         in
         creatureAddHp ~sourceIsPlayer:true (-damage) t p c state
 
@@ -1240,14 +1261,9 @@ let getCreaturePath c m start goal =
         |> List.tl
         )
 
-let getHitThreshold ac attackerLevel =
-    let ac' = if ac < 0 then rn ac (-1) else ac in
-    10 + ac' + attackerLevel |> max 1
-
 let creatureAttackMelee (c : Creature.t) p state =
     if p = state.statePlayer.pos then
-        let hitThreshold = getHitThreshold 10 c.level in
-        (* ^TODO player AC *)
+        let hitThreshold = getHitThreshold (playerGetAc state) c.level in
         c.info.hits
         |> List.filter (function | Hit.Melee _ -> true | Hit.Weapon _ -> true | _ -> false)
         |> List.mapi (fun i v -> i, v)
@@ -1271,8 +1287,7 @@ let creatureAttackMelee (c : Creature.t) p state =
                             )
                         | _ -> assert false
                         )
-                        |> reduceDamage 10
-                        (* ^TODO player AC *)
+                        |> reduceDamage (playerGetAc state')
                     in
 
                     let msgsHit = Hit.getMsgs h in
@@ -1284,6 +1299,7 @@ let creatureAttackMelee (c : Creature.t) p state =
 
     else
         let _ = assert false in
+        (* TODO *)
         state
 
 let throw item pFrom dir range msgThrower state =
@@ -1712,7 +1728,7 @@ let playerZap si fDir state =
     match item with
         | Wand w ->
             if w.charges <= 0 then
-                let _ = msgAdd state "nothing happens." in
+                let _ = msgAdd state "Nothing happens." in
                 state
             else
             ( match w.wand_t with
@@ -2308,6 +2324,7 @@ let stateInitial =
         ; hpMax = 10
         ; level = 1
         ; xp = 0
+        ; acBonus = 0
         ; weaponWielded = None
         ; inventory = []
         ; knowledgeLevels = []

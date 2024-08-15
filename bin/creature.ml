@@ -15,6 +15,7 @@ type info =
     ; difficulty : int
     ; frequency : int
     ; levelBase : int
+    ; acBase : int
     ; hits : Hit.t list
     ; speed : int
     }
@@ -34,6 +35,7 @@ let creatures =
         ; color = A.yellow
         ; difficulty = 1
         ; levelBase = 0
+        ; acBase = 8
         ; frequency = 5
         ; hits =
             [ H.mkMelee Bite Physical 1 2
@@ -46,6 +48,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 1
         ; levelBase = 0
+        ; acBase = 7
         ; frequency = 1
         ; hits =
             [ H.mkMelee Bite Physical 1 3
@@ -58,6 +61,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 2
         ; levelBase = 0
+        ; acBase = 8
         ; frequency = 1
         ; hits =
             [ H.mkMelee Bite Physical 1 4
@@ -70,6 +74,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 2
         ; levelBase = 2
+        ; acBase = 9
         ; frequency = 1
         ; hits =
             [ H.mkPassive Cold 6
@@ -82,6 +87,7 @@ let creatures =
         ; color = A.red
         ; difficulty = 2
         ; levelBase = 2
+        ; acBase = 9
         ; frequency = 1
         ; hits =
             [ H.mkPassive Fire 6
@@ -94,6 +100,7 @@ let creatures =
         ; color = A.red
         ; difficulty = 3
         ; levelBase = 2
+        ; acBase = 7
         ; frequency = 2
         ; hits =
             [ H.mkMelee Bite Physical 1 6
@@ -106,6 +113,7 @@ let creatures =
         ; color = A.yellow
         ; difficulty = 3
         ; levelBase = 2
+        ; acBase = 7
         ; frequency = 5
         ; hits =
             [ H.mkMelee Bite Physical 1 4
@@ -118,6 +126,7 @@ let creatures =
         ; color = A.lightyellow
         ; difficulty = 4
         ; levelBase = 2
+        ; acBase = 10
         ; frequency = 2
         ; hits =
             [ H.mkWeapon 1 6
@@ -130,6 +139,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 4
         ; levelBase = 2
+        ; acBase = 7
         ; frequency = 4
         ; hits =
             [ H.mkMelee Claw Physical 1 3
@@ -144,6 +154,7 @@ let creatures =
         ; color = A.black
         ; difficulty = 5
         ; levelBase = 3
+        ; acBase = 10
         ; frequency = 1
         ; hits =
             [ H.mkWeapon 1 8
@@ -156,6 +167,7 @@ let creatures =
         ; color = A.lightwhite
         ; difficulty = 5
         ; levelBase = 4
+        ; acBase = 8
         ; frequency = 1
         ; hits =
             [ H.mkMelee Claw Physical 1 8
@@ -168,6 +180,7 @@ let creatures =
         ; color = A.black
         ; difficulty = 6
         ; levelBase = 5
+        ; acBase = 4
         ; frequency = 3
         ; hits =
             [ H.mkMelee Bite Physical 3 6
@@ -180,6 +193,7 @@ let creatures =
         ; color = A.lightwhite
         ; difficulty = 6
         ; levelBase = 5
+        ; acBase = 8
         ; frequency = 2
         ; hits =
             [ H.mkMelee Touch Physical 1 8
@@ -192,6 +206,7 @@ let creatures =
         ; color = A.green
         ; difficulty = 6
         ; levelBase = 5
+        ; acBase = 6
         ; frequency = 5
         ; hits =
             [ H.mkMelee Bite Physical 1 6
@@ -204,6 +219,7 @@ let creatures =
         ; color = A.lightblack
         ; difficulty = 7
         ; levelBase = 5
+        ; acBase = 0
         ; frequency = 1
         ; hits =
             [ H.mkMelee Butt Physical 4 12
@@ -217,6 +233,7 @@ let creatures =
         ; color = A.lightwhite
         ; difficulty = 7
         ; levelBase = 5
+        ; acBase = 6
         ; frequency = 2
         ; hits =
             [ H.mkMelee Claw Physical 1 6
@@ -231,6 +248,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 8
         ; levelBase = 6
+        ; acBase = -4
         ; frequency = 2
         ; hits =
             [ H.mkMelee Claw Physical 2 6
@@ -245,6 +263,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 9
         ; levelBase = 7
+        ; acBase = 4
         ; frequency = 2
         ; hits =
             [ H.mkMelee Kick Physical 1 10
@@ -258,6 +277,7 @@ let creatures =
         ; color = A.magenta
         ; difficulty = 11
         ; levelBase = 9
+        ; acBase = -2
         ; frequency = 1
         ; hits =
             [ H.mkMelee Claw Physical 3 6
@@ -272,6 +292,7 @@ let creatures =
         ; color = C.brown
         ; difficulty = 17
         ; levelBase = 15
+        ; acBase = 6
         ; frequency = 1
         ; hits =
             [ H.mkMelee Claw Physical 3 10
@@ -286,6 +307,7 @@ let creatures =
         ; color = A.lightred
         ; difficulty = 20
         ; levelBase = 15
+        ; acBase = -1
         ; frequency = 1
         ; hits =
             [ H.mkRanged Breath Fire 6 6
@@ -352,3 +374,5 @@ let hasAttribute c a = List.mem a c.info.attributes
 let canOpenDoor c = not (hasAttribute c NoHands)
 
 let xpOnKill c = (c.level * c.level) + 1
+
+let getAc c = c.info.acBase (* TODO current AC *)
