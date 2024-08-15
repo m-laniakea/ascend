@@ -1130,8 +1130,6 @@ let playerAttackMelee t p (c : Creature.t) state =
         in
         creatureAddHp ~sourceIsPlayer:true (-damage) t p c state
 
-let priceShop i = (Item.getPriceBase i) * 4 / 3
-
 let rec playerMove mf state =
     let p = state.statePlayer.pos in
     let m = getCurrentMap state in
@@ -1188,7 +1186,7 @@ let rec playerMove mf state =
                 let _ = msgAdd state "You see here:" in
                 List.iter
                     ( fun i ->
-                        let price = if playerIsInShop state' then sf "(%i zorkmids)" (priceShop i) else "" in
+                        let price = if playerIsInShop state' then sf "(%i zorkmids)" (Item.getPriceShop i) else "" in
                         msgAdd state (sf "%s %s" (Item.nameDisplay i) price)
                     )
                     tNew.items
@@ -1783,32 +1781,28 @@ let playerDrop sl state =
     let iDropped, iRemain = partitionI (fun ix _ -> contains sI ix) sp.inventory in
 
     let valueTrade items =
-        let pb = L.map Item.getPriceBase items |> L.fold_left (+) 0 in
-        pb / 2
+        L.map Item.getPriceTrade items
+        |> L.fold_left (+) 0
     in
     (* TODO allow dropping gold *)
 
-    let inventory, dropped = match playerIsInShop state with
+    let inventory, dropped, gold = match playerIsInShop state with
         | true ->
             ( match valueTrade iDropped with
             | _ when L.exists Item.isCorpse iDropped ->
                 let _ = msgAdd state "Keep that filthy corpse out of my shop!" in
-                sp.inventory, []
-            | _ when L.exists (fun i -> 0 = Item.getPriceBase i) iDropped ->
-                let _ = msgAdd state "That item does not interest me." in
-                sp.inventory, []
+                sp.inventory, [], sp.gold
             | value when value <= 0 ->
                 msgAdd state "You can just leave that here.";
-                iRemain, iDropped
+                iRemain, iDropped, sp.gold
             | value ->
                 msgAdd state (sf "Thank you! Here's %i zorkmids for you." value);
-                iRemain, iDropped
+                iRemain, iDropped, sp.gold + value
             )
         | false ->
-            iRemain, iDropped
+            iRemain, iDropped, sp.gold
     in
 
-    let gold = (valueTrade dropped) + sp.gold in
     let statePlayer = { sp with inventory; gold } in
 
     let m' = Matrix.set { t with items = dropped @ t.items } sp.pos m in
@@ -1829,7 +1823,7 @@ let playerPickup sl state =
         match totalGoldTaken, iTaken with
         | goldTaken, _ when goldTaken > 0 -> msgAdd state "Hey! That's not your gold!"; state
         | _, iTaken ->
-            let itemsValue = L.fold_left (fun t i -> t + (priceShop i)) 0 iTaken in
+            let itemsValue = L.fold_left (fun t i -> t + (Item.getPriceShop i)) 0 iTaken in
             if itemsValue > sp.gold then
                 let _ = msgAdd state "You can't afford that!" in
                 state

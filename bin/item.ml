@@ -151,6 +151,15 @@ let getPriceBase = function
             | Striking -> 150
         )
 
+let getPriceTrade i =
+    let pb = match i with
+        | Wand w -> if 0 = w.charges then 0 else getPriceBase i
+        | _ -> getPriceBase i
+    in
+    pb / 2
+
+let getPriceShop i = getPriceBase i * 4 / 3
+
 let isQuaffable = function
     | Container _ -> false
     | Corpse _ -> false
