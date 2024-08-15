@@ -92,7 +92,7 @@ let name ?(mPlural="") = function
         ( match p.potion_t with
             | Healing -> "healing"
             | HealingExtra -> "extra healing"
-            | HealingFull -> "full healing"
+            | HealingFull -> "bottled fairy"
             | Sickness -> "sickness"
         )
     | Rock _ -> "rock" ^ mPlural

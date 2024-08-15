@@ -1603,21 +1603,6 @@ let maybeWarnHealth state msg =
 
     Some { state with statePlayer }
 
-let playerCheckHp state =
-    let sp = state.statePlayer in
-    match sp.hp with
-    | hp when hp <= 0 ->
-        let _ = msgAdd state "You die..." in
-        Some { state with mode = Dead }
-
-    | hp when hp = 1 ->
-        maybeWarnHealth state "You are about to die."
-
-    | hp when hp * 10 < sp.hpMax ->
-        maybeWarnHealth state "You feel your life force running out..."
-
-    | _ ->
-        Some state
 
 let selectionOfItems ~single oc l =
     L.filter_map id l
@@ -1655,8 +1640,53 @@ let playerQuaff si state =
             match p.potion_t with
             | Healing -> msgAdd state "You feel better."; playerAddHp (8 + (doRoll {sides=4; rolls=4})) state
             | HealingExtra -> msgAdd state "You feel much better."; playerAddHp (16 + (doRoll {sides=4; rolls=8})) state
-            | HealingFull -> msgAdd state "You feel completely healed."; playerAddHp(sp.hpMax) state
+            | HealingFull ->
+                msgAdd state "Thank you kindly for freeing me!";
+                msgAdd state "You feel completely healed.";
+                playerAddHp(sp.hpMax) state
             | Sickness -> msgAdd state "This tastes like poison."; playerAddHp(rn (-100) (-10)) state
+
+let playerFindFairy state =
+    let sp = state.statePlayer in
+    let fairies = L.mapi
+        ( fun ix i -> match i with
+            | Item.Potion { potion_t = HealingFull; _ } -> Some ix
+            | _ -> None
+        )
+        sp.inventory
+        |> L.filter_map id
+    in
+    match fairies with
+    | [] -> None
+    | iIndex::_ ->
+        Some
+        { iIndex
+        ; name = ""
+        ; selected = true
+        ; letter = ' '
+        }
+
+let playerCheckHp state =
+    let sp = state.statePlayer in
+    match sp.hp with
+    | hp when hp <= 0 ->
+        ( match playerFindFairy state with
+        | None ->
+            let _ = msgAdd state "You die..." in
+            Some { state with mode = Dead }
+        | Some f ->
+            let _ = msgAdd state "You die. But you don't really die..." in
+            Some (playerQuaff f state)
+        )
+
+    | hp when hp = 1 ->
+        maybeWarnHealth state "You are about to die."
+
+    | hp when hp * 10 < sp.hpMax ->
+        maybeWarnHealth state "You feel your life force running out..."
+
+    | _ ->
+        Some state
 
 let playerRead si state =
     let sp = state.statePlayer in
