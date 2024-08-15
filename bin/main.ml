@@ -2116,11 +2116,8 @@ let rec placeRoomCreatures rooms state =
     match rooms with
         | [] -> state
         | r::ro ->
-            let s' = placeCreature ~room:(Some r) state in
-            if oneIn 3 then
-                placeRoomCreatures ro s'
-            else
-                s'
+            let s' = if oneIn 3 then placeCreature ~room:(Some r) state else state in
+            placeRoomCreatures ro s'
 
 let playerMoveToStairs ~dir state =
     let stairType = match dir with
