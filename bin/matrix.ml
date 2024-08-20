@@ -1,4 +1,5 @@
-open Common
+module C = Common
+module P = Position
 
 module Matrix  =
 struct
@@ -7,22 +8,22 @@ type 'a t = ('a list) list
 
 let raw m = m
 
-let fill p v =
-    listMake p.row (listMake p.col v)
+let fill (size : P.dim_2D) v =
+    C.listMake size.rows (C.listMake size.cols v)
 
-let set v pos = List.mapi
+let set v (pos : P.t) = List.mapi
     ( fun ri r ->
         if ri <> pos.row then
             r
         else
-            listSet pos.col v r
+            C.listSet pos.col v r
     )
 
-let get m pos =
+let get m (pos : P.t) =
     let r = List.nth m pos.row in
     List.nth r pos.col
 
-let getOpt m pos =
+let getOpt m (pos : P.t) =
     if pos.row < 0 || pos.col < 0 then None else
         match List.nth_opt m pos.row with
         | None -> None
@@ -34,7 +35,7 @@ let mapI f m = List.mapi
     ( fun ri r ->
         List.mapi
             ( fun ci cv ->
-                f m { row = ri; col = ci } cv
+                f m P.{ row = ri; col = ci } cv
             )
             r
     )

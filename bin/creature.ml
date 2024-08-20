@@ -3,6 +3,9 @@ module A = N.A
 
 module C = Common
 module H = Hit
+module M = Matrix.Matrix
+module R = Random_
+
 
 type attributes =
     | NoHands
@@ -321,8 +324,8 @@ let creatures =
 
 let rollHp ci = match ci.levelBase with
     | l when l < 0 -> assert false
-    | 0 -> C.rn 1 4
-    | l -> C.doRoll { rolls = l; sides = 8 }
+    | 0 -> R.rn 1 4
+    | l -> R.roll { rolls = l; sides = 8 }
 
 let hasAttackWeapon ci = List.exists (function | Hit.Weapon _ -> true | _ -> false) ci.hits
 
@@ -330,7 +333,7 @@ let mkCreature ci =
     { hp = rollHp ci
     ; level = ci.levelBase
     ; pointsSpeed = ci.speed
-    ; inventory = if hasAttackWeapon ci && C.oneIn 2 then [Item.rnWeapon ()] else []
+    ; inventory = if hasAttackWeapon ci && R.oneIn 2 then [Item.rnWeapon ()] else []
     ; info = ci
     }
 
@@ -342,7 +345,7 @@ let random difficultyLevel =
 
     let freq = List.map (fun c -> c, c.frequency) creaturesOk in
 
-    let creatureInfo = C.rnRelative freq in
+    let creatureInfo = R.relative freq in
     Some (mkCreature creatureInfo)
 
 let getAttacksPassive c =
@@ -367,7 +370,7 @@ let hasAttackRanged c =
 let hasTurn c = match c.pointsSpeed with
     | ps when ps <= 0 -> false
     | ps when ps >= C.pointsSpeedPerTurn -> true
-    | ps -> C.rn 1 C.pointsSpeedPerTurn <= ps
+    | ps -> R.rn 1 C.pointsSpeedPerTurn <= ps
 
 let hasAttribute c a = List.mem a c.info.attributes
 
