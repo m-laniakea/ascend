@@ -15,11 +15,11 @@ let rotCorpses state =
         ) m m
     in
 
-    let sp = state.statePlayer in
+    let sp = state.player in
     let inventory = Item.rotCorpses state.turns sp.inventory in
 
-    let statePlayer = { sp with inventory } in
-    let state = { state with statePlayer } in
+    let player = { sp with inventory } in
+    let state = { state with player } in
     SL.setMap m' state
 
 let addItem ~gold state m p =

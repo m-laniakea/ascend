@@ -18,7 +18,7 @@ let getHitThreshold ac attackerLevel =
 let throw item pFrom dir range msgThrower state =
     let m = SL.map state in
     let isMiss () = R.oneIn 4 in
-    let sourceIsPlayer = pFrom = state.statePlayer.pos in
+    let sourceIsPlayer = pFrom = state.player.pos in
     let dirOpposite = P.dirOpposite dir in
 
     let rec getPosStart pc posLanded = match P.step pc dir with
@@ -137,7 +137,7 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
         R.roll roll
     in
     let range = 20 + R.rn 1 8 in
-    let sourceIsPlayer = from = state.statePlayer.pos in
+    let sourceIsPlayer = from = state.player.pos in
 
     let msgs = Hit.getMsgsEffect effect in
     let rec doRay from pc dir state range =

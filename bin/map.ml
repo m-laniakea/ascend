@@ -176,16 +176,15 @@ let getBorder room =
     (* TODO better way? *)
     (* Not as simple as using getRoomPositions, as doorGen relies on clockwise order of getBorder *)
     let rec helper acc p = function
-        | South -> let n = P.{ p with row = p.row + 1 } in helper (n::acc) n (if n.row < pl.row then South else East)
-        | East -> let n = { p with col = p.col + 1 } in helper (n::acc) n (if n.col < pl.col then East else North)
-        | North -> let n = { p with row = p.row - 1 } in helper (n::acc) n (if n.row > pu.row then North else West)
+        | South -> let n = south p in helper (n::acc) n (if n.row < pl.row then South else East)
+        | East -> let n = east p in helper (n::acc) n (if n.col < pl.col then East else North)
+        | North -> let n = north p in helper (n::acc) n (if n.row > pu.row then North else West)
         | West when p = start -> acc
-        | West -> let n = { p with col = p.col - 1 } in helper (n::acc) n West
+        | West -> let n = west p in helper (n::acc) n West
     in
     helper [] start South
 
 let isTileTypeWalkable t = match t.t with
-    (* TODO name not correct *)
     | Floor | StairsUp | StairsDown | Hallway HallRegular -> true
     | Door (Open, _) -> true
     | Door (Closed, _) | Door (Hidden, _) -> false

@@ -66,7 +66,7 @@ let findItemMatchingInSight c f from state =
 
 let placeCreature ?(preferNearby=false) ~room state =
     let m = SL.map state in
-    let pp = state.statePlayer.pos in
+    let pp = state.player.pos in
     let spawnPositions =
         Map.allMapPositions
         |> L.filter (fun p -> canSpawnAt ~forbidPos:(Some pp) m p)
@@ -154,7 +154,7 @@ let getCreaturePath c m start goal =
         )
 
 let creatureAttackMelee (c : Creature.t) p (state : S.t) =
-    if p = state.statePlayer.pos then
+    if p = state.player.pos then
         let hitThreshold = Attack.getHitThreshold StatePlayer.(ac state) c.level in
         c.info.hits
         |> List.filter (function | Hit.Melee _ -> true | Hit.Weapon _ -> true | _ -> false)
@@ -242,7 +242,7 @@ let creaturePickupWeapons (c : Creature.t) p state =
 let rec animateCreature c cp state =
     if not (Cr.hasTurn c) then state else
     let state = UpdatePlayer.knowledgeMap state in
-    let pp = state.statePlayer.pos in
+    let pp = state.player.pos in
     (* ^TODO allow attacking other creatures *)
     let m = SL.map state in
     let canSeePlayer = Sight.creatureCanSee c cp pp state in

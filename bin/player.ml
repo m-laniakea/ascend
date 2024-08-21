@@ -26,14 +26,14 @@ type actions =
     | Zap of C.selectionItem * P.dir
 
 let isInShop (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let pp = sp.pos in
     let cl = SL.level state in
     Map.isInShop cl.rooms pp
 
 let attackMelee t p (c : Creature.t) (state : S.t) =
     let acTarget = Cr.getAc c in
-    let hitThreshold = Attack.getHitThreshold acTarget state.statePlayer.level in
+    let hitThreshold = Attack.getHitThreshold acTarget state.player.level in
 
     match R.rollAttackLanded hitThreshold 0 with
     | Miss ->
@@ -45,7 +45,7 @@ let attackMelee t p (c : Creature.t) (state : S.t) =
     | Hit ->
         S.msgAdd state (C.sf "You hit the %s." c.info.name);
         let state = Ai.doCreaturePassive c state in
-        let sp = state.statePlayer in
+        let sp = state.player in
         let damage =
             ( match sp.weaponWielded with
             | None -> R.rn 1 2 (* bare-handed *)
@@ -56,7 +56,7 @@ let attackMelee t p (c : Creature.t) (state : S.t) =
         UpdateCreature.addHp ~sourceIsPlayer:true (-damage) t p c state
 
 let rec move mf (state : S.t) =
-    let p = state.statePlayer.pos in
+    let p = state.player.pos in
     let m = SL.map state in
     let pn = mf p in
     if not (Map.isInMap pn) then state else
@@ -97,8 +97,8 @@ let rec move mf (state : S.t) =
     | tNew ->
         if not (Map.isTileTypeWalkable tNew) then state else
         let tile = Matrix.get m p in
-        let statePlayer = { state.statePlayer with pos = pn } in
-        let state' = { state with statePlayer } in
+        let player = { state.player with pos = pn } in
+        let state' = { state with player } in
         let m' =
             Matrix.set { tile with occupant = None } p m
             |> Matrix.set { tNew with occupant = Some Player } pn
@@ -119,13 +119,13 @@ let rec move mf (state : S.t) =
             ()
         );
 
-        { (SL.setMap m' state') with statePlayer }
+        { (SL.setMap m' state') with player }
 
 let search (state : S.t) =
     (* TODO base search success on stats *)
     let currentLevel = SL.map state in
     let hiddenTerrainAround =
-        Map.posAround state.statePlayer.pos
+        Map.posAround state.player.pos
         |> List.filter (fun pa -> Matrix.get currentLevel pa |> Map.isTerrainHidden)
     in
     let terrain' = List.fold_left
@@ -149,7 +149,7 @@ let search (state : S.t) =
     SL.setMap terrain' state
 
 let quaff (si : C.selectionItem) (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
     match item with
         | Container _ -> S.msgAdd state "What a silly thing to quaff!"; state
@@ -161,8 +161,8 @@ let quaff (si : C.selectionItem) (state : S.t) =
         | Wand _ -> S.msgAdd state "You change your mind about swallowing your wand."; state
         | Potion p ->
             let inventory, _ = C.partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
-            let statePlayer = { sp with inventory } in
-            let state = { state with statePlayer } in
+            let player = { sp with inventory } in
+            let state = { state with player } in
             match p.potion_t with
             | Healing -> S.msgAdd state "You feel better."; UpdatePlayer.addHp (8 + (R.roll {sides=4; rolls=4})) state
             | HealingExtra -> S.msgAdd state "You feel much better."; UpdatePlayer.addHp (16 + (R.roll {sides=4; rolls=8})) state
@@ -173,7 +173,7 @@ let quaff (si : C.selectionItem) (state : S.t) =
             | Sickness -> S.msgAdd state "This tastes like poison."; UpdatePlayer.addHp (R.rn (-100) (-10)) state
 
 let findFairy (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let fairies = L.mapi
         ( fun ix i -> match i with
             | Item.Potion { potion_t = HealingFull; _ } -> Some ix
@@ -195,17 +195,17 @@ let findFairy (state : S.t) =
 
 let maybeWarnHealth (state : S.t) msg =
     let warnHealthTimeout = 100 in
-    let sp = state.statePlayer in
+    let sp = state.player in
 
     if sp.turnHealthWarned + warnHealthTimeout > state.turns then Some state else
 
     let _ = S.msgAdd state msg in
-    let statePlayer = { sp with turnHealthWarned = state.turns } in
+    let player = { sp with turnHealthWarned = state.turns } in
 
-    Some { state with statePlayer }
+    Some { state with player }
 
 let checkHp (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     match sp.hp with
     | hp when hp <= 0 ->
         ( match findFairy state with
@@ -227,7 +227,7 @@ let checkHp (state : S.t) =
         Some state
 
 let read (si : C.selectionItem) (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
     match item with
         | Container _ -> S.msgAdd state "What a silly thing to read!"; state
@@ -239,8 +239,8 @@ let read (si : C.selectionItem) (state : S.t) =
         | Wand _ -> S.msgAdd state "This is indeed a wand."; state
         | Scroll s ->
             let inventory, _ = C.partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
-            let statePlayer = { sp with inventory } in
-            let state = { state with statePlayer } in
+            let player = { sp with inventory } in
+            let state = { state with player } in
             match s.scroll_t with
             | CreateMonster -> S.msgAdd state "The area feels more dangerous!"; Ai.placeCreatures ~preferNearby:true ~room:None (R.rn 1 5) state
             | MagicMapping -> S.msgAdd state "An image coalesces in your mind."; S.setKnowledgeCurrentMap (SL.map state) state (* TODO remove item positions *)
@@ -258,7 +258,7 @@ let read (si : C.selectionItem) (state : S.t) =
                 move mf state
 
 let wield (si : C.selectionItem) (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
     let weaponWielded = Some (Item.toWeapon item) in
     S.msgAdd state (C.sf "You wield %s." (Item.nameDisplay item));
@@ -270,24 +270,24 @@ let wield (si : C.selectionItem) (state : S.t) =
 
     let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
     let inventory = unwielded @ inventory in
-    let statePlayer =
+    let player =
         { sp with weaponWielded
         ; inventory
         }
 
     in
-    { state with statePlayer }
+    { state with player }
 
 let zap (si : C.selectionItem) dir (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
     let item = match item with
         | Item.Wand w -> Item.Wand { w with charges = max 0 (w.charges - 1) }
         | _ -> assert false
     in
     let inventory = C.listSet si.iIndex item sp.inventory in
-    let statePlayer = { sp with inventory } in
-    let state = { state with statePlayer } in
+    let player = { sp with inventory } in
+    let state = { state with player } in
 
     match item with
         | Wand w ->
@@ -310,7 +310,7 @@ let zap (si : C.selectionItem) dir (state : S.t) =
         | _ -> S.msgAdd state "can't zap that."; state
 
 let close fDir (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let pClose = fDir sp.pos in
 
     if not (Map.isInMap pClose) then
@@ -340,7 +340,7 @@ let close fDir (state : S.t) =
 
 let drop sl (state : S.t) =
     let sI = L.map C.(fun s -> s.iIndex) sl in
-    let sp = state.statePlayer in
+    let sp = state.player in
     let m = SL.map state in
     let t = Matrix.get m sp.pos in
 
@@ -369,14 +369,14 @@ let drop sl (state : S.t) =
             iRemain, iDropped, sp.gold
     in
 
-    let statePlayer = { sp with inventory; gold } in
+    let player = { sp with inventory; gold } in
 
     let m' = Matrix.set { t with items = dropped @ t.items } sp.pos m in
-    { (SL.setMap m' state) with statePlayer }
+    { (SL.setMap m' state) with player }
 
 let pickup sl (state : S.t) =
     let sI = L.map (fun (s : C.selectionItem) -> s.iIndex) sl in
-    let sp = state.statePlayer in
+    let sp = state.player in
     let m = SL.map state in
     let t = Matrix.get m sp.pos in
 
@@ -395,32 +395,32 @@ let pickup sl (state : S.t) =
                 state
             else
                 let gold = sp.gold - itemsValue in
-                let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
+                let player = { sp with inventory = iTaken @ sp.inventory; gold } in
                 let m' = Matrix.set { t with items = iRemain } sp.pos m in
-                { (SL.setMap m' state) with statePlayer }
+                { (SL.setMap m' state) with player }
 
     else
 
     let gold = sp.gold + totalGoldTaken in
-    let statePlayer = { sp with inventory = iTaken @ sp.inventory; gold } in
+    let player = { sp with inventory = iTaken @ sp.inventory; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
-    { (SL.setMap m' state) with statePlayer }
+    { (SL.setMap m' state) with player }
     (* ^TODO combine items *)
 
 let throw (si : C.selectionItem) dir (state : S.t) =
     let rangeThrown = 6 in (* TODO *)
-    let sp = state.statePlayer in
+    let sp = state.player in
 
     let item = List.nth sp.inventory si.iIndex in
 
     let msgThrower = C.sf "You throw the %s." (Item.name item) in (* TODO a vs an *)
     let state = Attack.throw item sp.pos dir rangeThrown msgThrower state in
-    let sp = state.statePlayer in
+    let sp = state.player in
 
     let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
-    let statePlayer = { sp with inventory } in
+    let player = { sp with inventory } in
 
-    { state with statePlayer }
+    { state with player }
 
 let moveToStairs ~dir (state : S.t) =
     let stairType = match dir with
@@ -431,8 +431,8 @@ let moveToStairs ~dir (state : S.t) =
     let posStairs = Map.getPosTerrain m stairType in
     let t = Matrix.get m posStairs in
     let m' = Matrix.set { t with occupant = Some Player } posStairs m in
-    let statePlayer = { state.statePlayer with pos = posStairs } in
-    { (SL.setMap m' state) with statePlayer;  }
+    let player = { state.player with pos = posStairs } in
+    { (SL.setMap m' state) with player;  }
 
 let action a (state : S.t) =
     Queue.clear state.messages;

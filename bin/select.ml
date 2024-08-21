@@ -107,7 +107,7 @@ let dirClose (state : S.t) =
     Some { state with mode }
 
 let drop (state : S.t) =
-    let inv = state.statePlayer.inventory in
+    let inv = state.player.inventory in
     let items = L.mapi (fun ix i -> Some (ix, i)) inv in
     let selection = selectionOfItems ~single:false DoDrop items in
     match items with
@@ -119,7 +119,7 @@ let drop (state : S.t) =
             Some { state with mode }
 
 let pickup (state : S.t) =
-    let pp = state.statePlayer.pos in
+    let pp = state.player.pos in
     let m = SL.map state in
     let t = Matrix.get m pp in
     let items = L.mapi (fun ix i -> Some (ix, i)) t.items in
@@ -135,7 +135,7 @@ let pickup (state : S.t) =
             Some { state with mode }
 
 let read (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let readables = L.mapi (fun ix i -> if Item.isReadable i then Some (ix, i) else None) sp.inventory in
     if not (L.exists Option.is_some readables) then Some state else
     let selection = selectionOfItems ~single:true DoRead readables in
@@ -143,7 +143,7 @@ let read (state : S.t) =
     Some { state with mode }
 
 let quaff (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let quaffables = L.mapi (fun ix i -> if Item.isQuaffable i then Some (ix, i) else None) sp.inventory in
     (* ^TODO refactor *)
     if not (L.exists Option.is_some quaffables) then Some state else
@@ -153,7 +153,7 @@ let quaff (state : S.t) =
 
 let throw (state : S.t) =
     (* ^TODO refactor *)
-    let sp = state.statePlayer in
+    let sp = state.player in
     let throwables = L.mapi (fun ix i -> if Item.isWeapon i then Some (ix, i) else None) sp.inventory in
     (* TODO allow throwing non-weapons *)
     if not (L.exists Option.is_some throwables) then Some state else
@@ -162,7 +162,7 @@ let throw (state : S.t) =
     Some { state with mode }
 
 let wield (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let wieldables = L.mapi (fun ix i -> if Item.isWeapon i then Some (ix, i) else None) sp.inventory in
     if not (L.exists Option.is_some wieldables) then Some state else
     let selection = selectionOfItems ~single:true DoWield wieldables in
@@ -171,7 +171,7 @@ let wield (state : S.t) =
 
 let zap (state : S.t) =
     (* ^TODO refactor *)
-    let sp = state.statePlayer in
+    let sp = state.player in
     let zappables = L.mapi (fun ix i -> if Item.isZappable i then Some (ix, i) else None) sp.inventory in
     if not (L.exists Option.is_some zappables ) then Some state else
     let selection = selectionOfItems ~single:true SelectDirZap zappables in

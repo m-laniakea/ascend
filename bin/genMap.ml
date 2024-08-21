@@ -7,7 +7,7 @@ module P = Position
 module R = Random_
 module SL = StateLevels
 
-let getHallwayPointNext pGoal ~allowHallway (m : Map.t) p =
+let getHallwayPointNext ~allowHallway (m : Map.t) p =
     Map.nextManhattan p
     |> List.filter
         ( fun p ->
@@ -26,8 +26,8 @@ let getPathHallway m start goal =
   let open AStar in
   let open AStar in
     let cost = P.distanceManhattan in
-    let problemWithoutHallways = { cost; goal; get_next_states = getHallwayPointNext goal ~allowHallway:false m; } in
-    let problem = { cost; goal; get_next_states = getHallwayPointNext goal ~allowHallway:true m; } in
+    let problemWithoutHallways = { cost; goal; get_next_states = getHallwayPointNext ~allowHallway:false m; } in
+    let problem = { cost; goal; get_next_states = getHallwayPointNext ~allowHallway:true m; } in
     match search problemWithoutHallways start with
     | None -> search problem start |> Option.get
     | Some p -> p
@@ -74,7 +74,6 @@ let rec roomPlace rooms size tries state =
     let room = roomMakeFromSize { row = row; col = col } size state in
     if roomCanPlace rooms room then Some room else
     roomPlace rooms size (tries - 1) state
-
 
 let removeCorners (room : Map.room) border =
     let pu = room.posNW in
@@ -297,10 +296,11 @@ let terrainAddObjects rooms state m =
                 |> maybeAddItem ~gold:false r state
                 |> maybeAddItem ~gold:true r state
 
-            | Shop shop ->
-                Map.getRoomPositions r
-                |> L.filter (fun p -> p <> shop.posEntry)
-                |> L.fold_left (fun m p -> UpdateMap.addItem ~gold:false state m p) m'
+            | Shop shop -> match shop.shop_t with
+                | General ->
+                    Map.getRoomPositions r
+                    |> L.filter (fun p -> p <> shop.posEntry)
+                    |> L.fold_left (fun m p -> UpdateMap.addItem ~gold:false state m p) m'
         )
         m
         rooms
@@ -316,7 +316,6 @@ let gen state =
     let rooms = maybeMakeShop rooms state terrain in
     let map = terrainAddObjects rooms state terrain in
     SL.levelAdd { rooms; map } state
-    |> Player.moveToStairs ~dir:Up
     |> placeRoomCreatures rooms
 
 

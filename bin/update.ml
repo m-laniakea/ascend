@@ -7,11 +7,11 @@ module SL = StateLevels
 
 let playerGoUp (state : S.t) =
     (* ^ TODO move to actionPlayer *)
-    let p = state.statePlayer.pos in
+    let p = state.player.pos in
     if Matrix.get (SL.map state) p |> Map.isTerrainOf StairsUp |> not then
         state
     else
-        let sl = state.stateLevels in
+        let sl = state.levels in
         if sl.indexLevel = 0 then
             state
         else
@@ -22,11 +22,11 @@ let playerGoUp (state : S.t) =
 
 let playerGoDown (state : S.t) =
     (* ^ TODO move to actionPlayer *)
-    let p = state.statePlayer.pos in
+    let p = state.player.pos in
     if Matrix.get (SL.map state) p |> Map.isTerrainOf StairsDown |> not then
         state
     else
-        let sl = state.stateLevels in
+        let sl = state.levels in
         if sl.indexLevel = List.length sl.levels - 1 then
             GenMap.gen state
             |> Player.moveToStairs ~dir:Up
@@ -37,7 +37,6 @@ let playerGoDown (state : S.t) =
             |> UpdateMap.rotCorpses
             |> Player.moveToStairs ~dir:Up
             |> UpdatePlayer.knowledgeMap
-
 
 let modeDead event state = match event with
     | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> None
@@ -76,3 +75,7 @@ let modeSelecting event state s = match event with
     | `Key (`ASCII k, _)  -> Select.handle k s state
     | _ -> Some state
 
+let exec event (state : State.t) = match (state.mode : State.mode) with
+    | Dead -> modeDead event state
+    | Playing -> modePlaying event state
+    | Selecting s -> modeSelecting event state s

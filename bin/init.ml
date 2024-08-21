@@ -2,17 +2,17 @@ module P = Position
 module S = State
 module SL = StateLevels
 
-let stateInitial =
+let state =
     Random.init 53;
 
-    let stateLevels =
+    let levels =
         S.
         { indexLevel = -1
         ; levels = []
         }
     in
 
-    let statePlayer =
+    let player =
         S.
         { pos = { row = 0; col = 0 }
         ; gold = 20
@@ -30,8 +30,8 @@ let stateInitial =
 
     let stateI =
         S.
-        { stateLevels
-        ; statePlayer
+        { levels
+        ; player
         ; messages = Queue.create ()
         ; mode = Playing
         ; turns = 0

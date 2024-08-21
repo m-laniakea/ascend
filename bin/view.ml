@@ -61,20 +61,20 @@ let applyAnimatedTiles animationLayer m =
 
 let imageCreate ?(animationLayer=[]) (state : S.t) =
     let open Notty.Infix in
-    let sp = state.statePlayer in
+    let sp = state.player in
     let header (state : S.t) =
-        Format.sprintf "HP: %i/%i | Depth: %i | AC: %i | XP: %i | Level: %i" sp.hp sp.hpMax state.stateLevels.indexLevel (StatePlayer.ac state) sp.xp sp.level
+        Format.sprintf "HP: %i/%i | Depth: %i | AC: %i | XP: %i | Level: %i" sp.hp sp.hpMax state.levels.indexLevel (StatePlayer.ac state) sp.xp sp.level
         |> I.string A.empty
     in
     let footer (state : S.t) =
-        I.string A.empty (C.sf "$ %i" state.statePlayer.gold)
+        I.string A.empty (C.sf "$ %i" state.player.gold)
     in
     let messageDeath (state : S.t) =
-        let gold = state.statePlayer.gold in
-        let valItems = L.map Item.getPriceBase state.statePlayer.inventory |> L.fold_left (+) 0 in
+        let gold = state.player.gold in
+        let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
         [ ""
         ; "You are dead."
-        ; C.sf "You died on level %i." state.stateLevels.indexLevel
+        ; C.sf "You died on level %i." state.levels.indexLevel
         ; C.sf "You were carrying %i gold and %i zorkmids worth of items." gold valItems
         ; "Farewell."
         ]
@@ -148,4 +148,3 @@ let rec animate state ?(cumulative=true) ?(linger=true) ?(animationLayer=[]) a =
     let a' = { a with posCurrent } in
 
     animate state ~cumulative ~linger ~animationLayer:animationLayer' a'
-

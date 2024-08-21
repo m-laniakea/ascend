@@ -11,24 +11,24 @@ type attributes =
     | NoHands
 
 type info =
-    { symbol : string
+    { acBase : int
     ; attributes : attributes list
     ; color : A.color
-    ; name : string
     ; difficulty : int
     ; frequency : int
-    ; levelBase : int
-    ; acBase : int
     ; hits : Hit.t list
+    ; levelBase : int
+    ; name : string
     ; speed : int
+    ; symbol : string
     }
 
 type t =
     { hp : int
+    ; info : info
+    ; inventory : Item.t list
     ; level : int
     ; pointsSpeed : int
-    ; inventory : Item.t list
-    ; info : info
     }
 
 let creatures =
@@ -352,7 +352,6 @@ let getAttacksPassive c =
     c.info.hits
     |> List.filter (Hit.isPassive)
     |> List.map (Hit.toPassive)
-
 
 let getWeaponForThrow c = match Item.getWeaponsByDamage c.inventory with
     | [] | _::[] -> None

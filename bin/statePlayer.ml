@@ -3,10 +3,10 @@ module L = List
 module S = State
 module SL = StateLevels
 
-let ac (state : S.t) = 10 - state.statePlayer.acBonus
+let ac (state : S.t) = 10 - state.player.acBonus
 
 let room (state : S.t) =
-    let sp = state.statePlayer in
+    let sp = state.player in
     let roomsWithPlayer =
         (SL.level state).rooms
         |> L.filter ( fun room -> Map.isInRoom room sp.pos )

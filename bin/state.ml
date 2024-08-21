@@ -1,5 +1,3 @@
-open Matrix
-
 module C = Common
 
 type level =
@@ -56,8 +54,8 @@ type mode =
     | Selecting of selection
 
 type t =
-    { stateLevels : levels
-    ; statePlayer : player
+    { levels : levels
+    ; player : player
     ; messages : string Queue.t
     ; mode : mode
     ; turns : int
@@ -66,19 +64,19 @@ type t =
 let msgAdd state s = Queue.push s state.messages
 
 let getKnowledgeCurrentLevel state =
-    let sl = state.stateLevels in
-    List.nth state.statePlayer.knowledgeLevels sl.indexLevel
+    let sl = state.levels in
+    List.nth state.player.knowledgeLevels sl.indexLevel
 
 let getKnowledgeCurrentMap state =
     (getKnowledgeCurrentLevel state).map
 
 let setKnowledgeCurrentMap m state =
-    let sp = state.statePlayer in
-    let i = state.stateLevels.indexLevel in
+    let sp = state.player in
+    let i = state.levels.indexLevel in
     let ckl = getKnowledgeCurrentLevel state in
     let knowledgeLevels = C.listSet i { ckl with map = m } sp.knowledgeLevels in
-    let statePlayer = { state.statePlayer with knowledgeLevels} in
-    { state with statePlayer }
+    let player = { state.player with knowledgeLevels} in
+    { state with player }
 
 let incTurns state =
     { state with turns = state.turns + 1 }

@@ -6,9 +6,9 @@ let brown = Notty.A.yellow
 
 let sf = Format.sprintf
 
-let listMake n v = List.init n (fun _ -> v)
-
 let id a = a
+
+let listMake n v = List.init n (fun _ -> v)
 
 let partitionI f l =
     L.mapi (fun i v -> i, v) l

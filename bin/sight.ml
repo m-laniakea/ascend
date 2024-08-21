@@ -37,7 +37,7 @@ let rec rayCanHitTarget m (prev : Map.tile) path =
     | _::tl -> match t.occupant with
         | Some Boulder -> false
         | Some Player -> rayCanHitTarget m t tl
-        | Some (Creature c) ->
+        | Some (Creature _) ->
             rayCanHitTarget m t tl
             (* TODO large occupants *)
         | None -> match t.t with
@@ -60,11 +60,11 @@ let canSee distance2Sight from toSee state =
     rayCanHitTarget m (Matrix.get m from) pathTo
 
 let playerCanSee (state : S.t) toSee =
-    let pp = state.statePlayer.pos in
+    let pp = state.player.pos in
     (* TODO blindness *)
     canSee playerD2Sight pp toSee state
 
-let creatureCanSee c from toSee state =
+let creatureCanSee _ from toSee state =
     (* TODO use creature info *)
     canSee 36 from toSee state
 

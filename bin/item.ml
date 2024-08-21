@@ -182,7 +182,7 @@ let isReadable = function
     | Wand _ -> false
 
 let isZappable = function
-    | Wand w -> true
+    | Wand _ -> true
     | _ -> false
 
 let rock n = Rock n

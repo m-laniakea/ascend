@@ -17,7 +17,7 @@ let addHp ~sourceIsPlayer n t p (c : Creature.t) state =
                 let item = if Random_.oneIn 6 then [Item.random ()] else [] in
                 corpse::item @ c.inventory
             in
-            let state = if sourceIsPlayer then UpdateXp.add (Cr.xpOnKill c) state else state in
+            let state = if sourceIsPlayer then UpdatePlayer.xpAdd (Cr.xpOnKill c) state else state in
             state, Map.{ t with occupant = None; items = deathDrops @ t.items }
         else
             let c' = Map.Creature { c with hp = c.hp + n } in
