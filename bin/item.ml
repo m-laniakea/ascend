@@ -2,11 +2,12 @@ module N = Notty
 module A = N.A
 
 module C = Common
+module R = Random_
 
 type weapon =
     { name : string
     ; color : A.color
-    ; damage : C.roll
+    ; damage : R.roll
     ; price : int
     ; freqRel : int
     }
@@ -181,7 +182,7 @@ let isReadable = function
     | Wand _ -> false
 
 let isZappable = function
-    | Wand w -> true
+    | Wand _ -> true
     | _ -> false
 
 let rock n = Rock n
@@ -203,12 +204,12 @@ let weapons =
 
 let rnWeapon () =
     let freq = List.map (fun w -> w, w.freqRel) weapons in
-    Weapon (C.rnRelative freq)
+    Weapon (R.relative freq)
 
 let rnGold d =
     let den = max (12 - d) 2 in
-    let mul = C.rn 1 (30 / den) in
-    let base = C.rn 1 (d + 2) in
+    let mul = R.rn 1 (30 / den) in
+    let base = R.rn 1 (d + 2) in
     Gold (base * mul)
 
 let rnPotion () =
@@ -219,7 +220,7 @@ let rnPotion () =
         ; Sickness, 40
         ]
     in
-    let t = C.rnRelative freq in
+    let t = R.relative freq in
     Potion { potion_t = t; stats = {count = 1} }
 
 let rnScroll () =
@@ -229,7 +230,7 @@ let rnScroll () =
         ; Teleport, 55
         ]
     in
-    let t = C.rnRelative freq in
+    let t = R.relative freq in
     Scroll { scroll_t = t; stats = {count = 1} }
 
 let rnWand () =
@@ -239,8 +240,8 @@ let rnWand () =
         ; Striking, 15
         ]
     in
-    let t = C.rnRelative freq in
-    Wand { wand_t = t; charges = C.rn 4 8 }
+    let t = R.relative freq in
+    Wand { wand_t = t; charges = R.rn 4 8 }
 
 let random () =
     let freq =
@@ -250,7 +251,7 @@ let random () =
         ; rnWand,    4
         ]
     in
-    let t = C.rnRelative freq in
+    let t = R.relative freq in
     t ()
 
 let isWeapon = function
@@ -264,7 +265,7 @@ let toWeapon = function
 let getWeaponsByDamage l =
     List.filter isWeapon l
     |> List.map toWeapon
-    |> List.sort (fun w1 w2 -> C.rollCompare w2.damage w1.damage)
+    |> List.sort (fun w1 w2 -> R.rollCompare w2.damage w1.damage)
 
 let getWeaponMostDamaging l =
     let bd = getWeaponsByDamage l in

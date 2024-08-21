@@ -1,7 +1,7 @@
 module N = Notty
 module A = N.A
 
-module C = Common
+module R = Random_
 
 type effect =
     | Cold
@@ -25,7 +25,7 @@ type ranged_t =
     | Breath
 
 type stats =
-    { roll : C.roll
+    { roll : R.roll
     ; effect : effect
     }
 
@@ -43,7 +43,7 @@ type t =
     | Passive of passive
     | Ranged of ranged
     | Melee of melee
-    | Weapon of C.roll
+    | Weapon of R.roll
 
 type msgs =
     { msgHit : string
@@ -119,7 +119,7 @@ let getMsgs a =
     let msgBase = getMsgsEffect (getEffect a) in
     { msgBase with msgHit }
 
-let getImageForAnimation t dir =
+let getImageForAnimation t (dir : Position.dir) =
     let color = match t with
     | Cold -> A.(fg cyan)
     | Fire -> A.(fg lightred)
@@ -127,12 +127,11 @@ let getImageForAnimation t dir =
     | Sonic -> A.empty
     in
 
-    let open Common in
     let c = match dir with
-    | _ when dir.row = 0 -> "-"
-    | _ when dir.col = 0 -> "|"
-    | _ when dir.row = dir.col -> "\\"
-    | _ when dir.row <> dir.col -> "/"
+    | _ when dir.dr = 0 -> "-"
+    | _ when dir.dc = 0 -> "|"
+    | _ when dir.dr = dir.dc -> "\\"
+    | _ when dir.dr <> dir.dc -> "/"
     | _ -> assert false
     in
 
