@@ -80,4 +80,3 @@ let setKnowledgeCurrentMap m state =
 
 let incTurns state =
     { state with turns = state.turns + 1 }
-

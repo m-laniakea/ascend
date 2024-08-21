@@ -8,6 +8,7 @@ module P = Position
 module R = Random_
 module S = State
 module SL = StateLevels
+module SP = StatePlayer
 
 let itemsDisplayedMax = 5
 
@@ -24,12 +25,6 @@ type actions =
     | Throw of C.selectionItem * P.dir
     | Wield of C.selectionItem
     | Zap of C.selectionItem * P.dir
-
-let isInShop (state : S.t) =
-    let sp = state.player in
-    let pp = sp.pos in
-    let cl = SL.level state in
-    Map.isInShop cl.rooms pp
 
 let attackMelee t p (c : Creature.t) (state : S.t) =
     let acTarget = Cr.getAc c in
@@ -111,7 +106,7 @@ let rec move mf (state : S.t) =
                 let _ = S.msgAdd state "You see here:" in
                 List.iter
                     ( fun i ->
-                        let price = if isInShop state' then C.sf "(%i zorkmids)" (Item.getPriceShop i) else "" in
+                        let price = if SP.isInShop state' then C.sf "(%i zorkmids)" (Item.getPriceShop i) else "" in
                         S.msgAdd state (C.sf "%s %s" (Item.nameDisplay i) price)
                     )
                     tNew.items
@@ -352,7 +347,7 @@ let drop sl (state : S.t) =
     in
     (* TODO allow dropping gold *)
 
-    let inventory, dropped, gold = match isInShop state with
+    let inventory, dropped, gold = match SP.isInShop state with
         | true ->
             ( match valueTrade iDropped with
             | _ when L.exists Item.isCorpse iDropped ->
@@ -385,7 +380,7 @@ let pickup sl (state : S.t) =
     let goldTaken, iTaken = L.partition_map (function | Item.Gold n -> Left n | i -> Right i) iTaken in
     let totalGoldTaken = List.fold_left (+) 0 goldTaken in
 
-    if isInShop state then
+    if SP.isInShop state then
         match totalGoldTaken, iTaken with
         | goldTaken, _ when goldTaken > 0 -> S.msgAdd state "Hey! That's not your gold!"; state
         | _, iTaken ->
@@ -458,5 +453,3 @@ let action a (state : S.t) =
     |> UpdatePlayer.knowledgeMap
     |> UpdatePlayer.addHp (if R.oneIn 3 then 1 else 0) (* TODO player hp can go to 0 then back up *)
     |> checkHp
-
-
