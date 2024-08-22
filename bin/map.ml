@@ -31,7 +31,7 @@ type room =
 
 type stairDirection = Up | Down
 
-type stateDoor = Closed | Open | Hidden
+type stateDoor = Broken | Closed | Open | Hidden
 type hallway = HallHidden | HallRegular
 type orientation = Vertical | Horizontal
 
@@ -186,7 +186,7 @@ let getBorder room =
 
 let isTileTypeWalkable t = match t.t with
     | Floor | StairsUp | StairsDown | Hallway HallRegular -> true
-    | Door (Open, _) -> true
+    | Door (Broken, _) | Door (Open, _) -> true
     | Door (Closed, _) | Door (Hidden, _) -> false
     | Hallway HallHidden -> false
     | Stone -> false

@@ -185,20 +185,20 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
         in
 
         if shouldReflect || range <= 1 then
-            let animation =
-                View.
-                { dir
-                ; posStart = from
-                ; posCurrent = from
-                ; posEnd = if shouldReflect then pc else pn
-                ; image = Hit.getImageForAnimation effect dir
-                }
+            let _ = match Hit.getImageForAnimation effect dir with
+            | None -> ()
+            | Some image ->
+                let animation =
+                    View.
+                    { dir
+                    ; posStart = from
+                    ; posCurrent = from
+                    ; posEnd = if shouldReflect then pc else pn
+                    ; image
+                    }
+                in
+                View.animate ~linger:(range <= 1) state animation
             in
-            ( match effect with
-            | Sonic -> ()
-            | _ -> View.animate ~linger:(range <= 1) state animation
-            (* TODO neater way? *)
-            );
 
             if shouldReflect then
                 doRay pn pn (getReflectedDir pn dir state) state (range - 1)

@@ -5,6 +5,7 @@ module R = Random_
 
 type effect =
     | Cold
+    | Dig
     | Fire
     | Physical
     | Sonic
@@ -83,6 +84,7 @@ let getEffect = function
 let getMsgsEffect e =
     let msgCause, msgEffect = match e with
         | Cold -> "cold", "freezes"
+        | Dig -> "digging spell", "passes through"
         | Fire -> "fire", "burns"
         | Physical -> "attack", "hits"
         | Sonic -> "sound blast", "rattles"
@@ -120,11 +122,12 @@ let getMsgs a =
     { msgBase with msgHit }
 
 let getImageForAnimation t (dir : Position.dir) =
-    let color = match t with
-    | Cold -> A.(fg cyan)
-    | Fire -> A.(fg lightred)
-    | Physical -> A.(fg white)
-    | Sonic -> A.empty
+    let mColor = match t with
+    | Cold -> Some A.(fg cyan)
+    | Dig ->  None
+    | Fire -> Some A.(fg lightred)
+    | Physical -> Some A.(fg white)
+    | Sonic -> None
     in
 
     let c = match dir with
@@ -135,4 +138,4 @@ let getImageForAnimation t (dir : Position.dir) =
     | _ -> assert false
     in
 
-    N.I.string A.(st bold ++ color) c
+    Option.map (fun color -> N.I.string A.(st bold ++ color) c) mColor

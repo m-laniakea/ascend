@@ -19,6 +19,7 @@ let canMoveHere c m p =
         | { occupant = Some _; _ } -> false
         | { occupant = None; t = t; _ } ->
             ( match t with
+                | Door (Broken, _) -> true
                 | Door (Open, _) -> true
                 | Door (Closed, _) -> not (Cr.hasAttribute c Cr.NoHands)
                 | Door (Hidden, _) -> false
@@ -41,6 +42,7 @@ let canSpawnAt ?(forbidPos=None) (m : Map.t) p =
         | { occupant = Some _; _ } -> false
         | { occupant = None; t = t; _ } ->
             ( match t with
+                | Door (Broken, _) -> true
                 | Door (Open, _) -> true
                 | Door (Closed, _) | Door (Hidden, _) -> false
                 | Floor -> true

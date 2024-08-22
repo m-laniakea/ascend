@@ -38,11 +38,13 @@ let rec rayCanHitTarget m (prev : Map.tile) path =
         | Some Boulder -> false
         | Some Player -> rayCanHitTarget m t tl
         | Some (Creature _) ->
+            (* ^TODO assumes occupants can't be in solid tiles *)
             rayCanHitTarget m t tl
             (* TODO large occupants *)
         | None -> match t.t with
             | Floor | Hallway HallRegular
             | StairsDown | StairsUp
+            | Door (Broken, _)
             | Door (Open, _) -> rayCanHitTarget m t tl
             | Door (Closed, _) | Door (Hidden, _) -> false
             | Hallway HallHidden -> false

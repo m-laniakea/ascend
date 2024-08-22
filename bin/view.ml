@@ -41,6 +41,7 @@ let imageOfTile _ _ = function
         | Hallway HallHidden -> " "
         | Hallway HallRegular -> "#"
         | Floor -> "."
+        | Door (Broken, _) -> "."
         | Door (Closed, _) -> "+"
         | Door (Open, Horizontal) | Door (Hidden, Vertical) -> "|"
         | Door (Open, Vertical) | Door (Hidden, Horizontal) -> "-"

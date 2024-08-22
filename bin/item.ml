@@ -38,6 +38,7 @@ type potion =
     }
 
 type wand_t =
+    | Dig
     | Fire
     | MagicMissile
     | Striking
@@ -111,6 +112,7 @@ let name ?(mPlural="") = function
     | Weapon w -> w.name
     | Wand w -> "wand"^ mPlural ^ " of " ^
         ( match w.wand_t with
+            | Dig -> "digging"
             | Fire -> "fire"
             | MagicMissile -> "magic missile"
             | Striking -> "striking"
@@ -147,6 +149,7 @@ let getPriceBase = function
     | Weapon w -> w.price
     | Wand w ->
         ( match w.wand_t with
+            | Dig -> 150
             | Fire -> 175
             | MagicMissile -> 150
             | Striking -> 150
@@ -235,7 +238,8 @@ let rnScroll () =
 
 let rnWand () =
     let freq =
-        [ Fire, 8
+        [ Dig, 11
+        ; Fire, 8
         ; MagicMissile, 10
         ; Striking, 15
         ]
@@ -280,6 +284,7 @@ let corpseAgeZombie = 50
 
 let mkCorpse name color t =
     let addAge = if String.ends_with ~suffix:"zombie" name then corpseAgeZombie else 0 in
+    (* TODO There's no "human zombie" corpse *)
     Corpse
         { name
         ; color

@@ -291,6 +291,9 @@ let zap (si : C.selectionItem) dir (state : S.t) =
                 state
             else
             ( match w.wand_t with
+            | Dig ->
+                S.msgAdd state "The dungeon seems less solid for a moment.";
+                UpdateMap.dig sp.pos dir (12 + R.rn 1 8) state
             | Fire ->
                 S.msgAdd state "A column of fire erupts from your wand.";
                 Attack.castRay Hit.Fire sp.pos dir { rolls = 6; sides = 6 } state
