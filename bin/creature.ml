@@ -1,3 +1,5 @@
+module L = List
+
 module N = Notty
 module A = N.A
 
@@ -6,9 +8,13 @@ module H = Hit
 module M = Matrix.Matrix
 module R = Random_
 
+type sizeGroupSpawn =
+    | GroupSmall
+    | GroupLarge
 
 type attributes =
     | NoHands
+    | SpawnGroup of sizeGroupSpawn
 
 type info =
     { acBase : int
@@ -47,7 +53,10 @@ let creatures =
         }
     ;   { name = "sewer rat"
         ; symbol = "r"
-        ; attributes = [NoHands]
+        ; attributes =
+            [ SpawnGroup GroupSmall
+            ; NoHands
+            ]
         ; color = C.brown
         ; difficulty = 1
         ; levelBase = 0
@@ -60,7 +69,10 @@ let creatures =
         }
     ;   { name = "bat"
         ; symbol = "B"
-        ; attributes = [NoHands]
+        ; attributes =
+            [ SpawnGroup GroupSmall
+            ; NoHands
+            ]
         ; color = C.brown
         ; difficulty = 2
         ; levelBase = 0
@@ -125,7 +137,9 @@ let creatures =
         }
     ;   { name = "hill orc"
         ; symbol = "o"
-        ; attributes = []
+        ; attributes =
+            [ SpawnGroup GroupLarge
+            ]
         ; color = A.lightyellow
         ; difficulty = 4
         ; levelBase = 2
@@ -138,7 +152,10 @@ let creatures =
         }
     ;   { name = "rothe"
         ; symbol = "q"
-        ; attributes = [NoHands]
+        ; attributes =
+            [ SpawnGroup GroupSmall
+            ; NoHands
+            ]
         ; color = C.brown
         ; difficulty = 4
         ; levelBase = 2
@@ -153,7 +170,9 @@ let creatures =
         }
     ;   { name = "Uruk-hai"
         ; symbol = "o"
-        ; attributes = []
+        ; attributes =
+            [ SpawnGroup GroupLarge
+            ]
         ; color = A.black
         ; difficulty = 5
         ; levelBase = 3
@@ -166,7 +185,9 @@ let creatures =
         }
     ;   { name = "human zombie"
         ; symbol = "Z"
-        ; attributes = []
+        ; attributes =
+            [ SpawnGroup GroupSmall
+            ]
         ; color = A.lightwhite
         ; difficulty = 5
         ; levelBase = 4
@@ -337,16 +358,23 @@ let mkCreature ci =
     ; info = ci
     }
 
+let mkCreatures ci n =
+    L.init n (fun _ -> mkCreature ci)
+
 let random difficultyLevel =
     let difficultyMin = difficultyLevel / 6 + 1 in
 
     let creaturesOk = List.filter (fun c -> c.difficulty >= difficultyMin && c.difficulty <= difficultyLevel) creatures in
-    if List.is_empty creaturesOk then None else
+    if List.is_empty creaturesOk then [] else
 
     let freq = List.map (fun c -> c, c.frequency) creaturesOk in
+    let ci = R.relative freq in
 
-    let creatureInfo = R.relative freq in
-    Some (mkCreature creatureInfo)
+    let attrSpawn = L.filter_map (function | SpawnGroup s -> Some s | _ -> None) ci.attributes in
+    match attrSpawn with
+    | [] -> mkCreatures ci 1
+    | GroupSmall::_ -> if R.oneIn 2 then mkCreatures ci (R.rn 2 4) else mkCreatures ci 1
+    | GroupLarge::_ -> mkCreatures ci (R.rn 2 4 + R.rn 0 4)
 
 let getAttacksPassive c =
     c.info.hits

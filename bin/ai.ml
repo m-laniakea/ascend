@@ -66,7 +66,7 @@ let findItemMatchingInSight c f from state =
     |> L.filter (fun p -> Sight.creatureCanSee c from p state)
     |> L.sort (P.closestTo from)
 
-let placeCreature ?(preferNearby=false) ~room state =
+let getSpawnPosition ?(preferNear=None) ~room state =
     let m = SL.map state in
     let pp = state.player.pos in
     let spawnPositions =
@@ -84,35 +84,49 @@ let placeCreature ?(preferNearby=false) ~room state =
               L.filter (Map.isInRoom r) pInView
             , L.filter (Map.isInRoom r) pOutOfView
     in
-    let closestFirst = L.sort (P.closestTo pp) in
-    let creaturePos =
-        if preferNearby then
-            L.nth_opt
-            ((closestFirst pInView) @ (closestFirst pOutOfView))
-            0
-        else
-            match pOutOfView, pInView with
+    match preferNear with
+        | None ->
+            ( match pOutOfView, pInView with
             | [], [] -> None
             | (_::_ as oov), _ -> Some (R.item oov)
             | _, pOk -> Some (R.item pOk)
-    in
-    match creaturePos with
-        | None -> state
+            )
         | Some p ->
-            let d = SL.depth state in (* TODO difficulty ob1 on level gen *)
-            match Cr.random d with
-                | None -> state
-                | Some creature ->
-                    let map = SL.map state in
-                    let t = Matrix.get map p in
-                    let t' = { t with occupant = Some (Creature creature) } in
-                    let map' = Matrix.set t' p map in
-                    SL.setMap map' state
+            let sortClosest = L.sort (P.closestTo p) in
+            let closestInView = sortClosest pInView in
+            let closestOutOfView = sortClosest pOutOfView in
 
-let rec placeCreatures ?(preferNearby=false) ~room count state =
-    if count <= 0 then state else
-    let state = placeCreature ~preferNearby ~room state in
-    placeCreatures ~preferNearby ~room (count - 1) state
+            let closest = if p = state.player.pos then
+                    closestInView @ closestOutOfView
+                else
+                    closestOutOfView @ closestInView
+            in
+            L.nth_opt closest 0
+
+let placeCreatures creatures ?(preferNear=None) ~room state =
+    let rec aux creatures ~preferNear state = match creatures with
+        | [] -> state
+        | creature::tl ->
+            ( match getSpawnPosition ~preferNear ~room state with
+            | None -> state
+            | Some p ->
+                let map = SL.map state in
+                let t = Matrix.get map p in
+                let t' = { t with occupant = Some (Creature creature) } in
+                let map' = Matrix.set t' p map in
+                let state = SL.setMap map' state in
+                let preferNear = Some (Option.fold ~none:p ~some:C.id preferNear) in
+
+                aux tl ~preferNear state
+            )
+    in
+    aux creatures ~preferNear state
+
+let spawnCreatures ?(preferNear=None) ~room state =
+    let d = SL.depth state in (* TODO difficulty ob1 on level gen *)
+    let creatures = Cr.random d in
+
+    placeCreatures creatures ~preferNear ~room state
 
 let getCreatureMoveNext pGoal c m p =
     Map.posAround p
@@ -289,9 +303,9 @@ let animateCreatures state = Matrix.foldI
         | _ -> state'
     ) state (SL.map state)
 
-let maybeAddCreature state =
+let maybeSpawnCreatures state =
     if R.oneIn 50 then
-        placeCreature ~room:None state
+        spawnCreatures ~room:None state
     else
         state
 

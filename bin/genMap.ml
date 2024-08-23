@@ -280,7 +280,7 @@ let rec placeRoomCreatures rooms state =
     match rooms with
         | [] -> state
         | r::ro ->
-            let s' = if R.oneIn 3 then Ai.placeCreature ~room:(Some r) state else state in
+            let s' = if R.oneIn 3 then Ai.spawnCreatures ~room:(Some r) state else state in
             placeRoomCreatures ro s'
 
 let maybeAddItem ~gold room state m =
