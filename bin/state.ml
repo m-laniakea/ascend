@@ -20,6 +20,7 @@ type player =
     ; acBonus : int
     ; weaponWielded : Item.weapon option
     ; inventory : Item.t list
+    ; inventoryWeightMax : int
     ; knowledgeLevels : level list
     ; turnHealthWarned : int
     }

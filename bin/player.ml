@@ -372,6 +372,10 @@ let drop sl (state : S.t) =
     let m' = Matrix.set { t with items = dropped @ t.items } sp.pos m in
     { (SL.setMap m' state) with player }
 
+let weightItems items =
+    L.map Item.weight items
+    |> L.fold_left (+) 0
+
 let pickup sl (state : S.t) =
     let sI = L.map (fun (s : C.selectionItem) -> s.iIndex) sl in
     let sp = state.player in
@@ -379,6 +383,12 @@ let pickup sl (state : S.t) =
     let t = Matrix.get m sp.pos in
 
     let iTaken, iRemain = C.partitionI (fun ix _ -> C.contains sI ix) t.items in
+
+    let weightTotal = weightItems iTaken + weightItems sp.inventory in
+    if weightTotal > sp.inventoryWeightMax then
+        let _ = S.msgAdd state "That would be more than you can carry." in
+        state
+    else
 
     let goldTaken, iTaken = L.partition_map (function | Item.Gold n -> Left n | i -> Right i) iTaken in
     let totalGoldTaken = List.fold_left (+) 0 goldTaken in

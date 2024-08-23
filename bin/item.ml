@@ -10,6 +10,7 @@ type weapon =
     ; damage : R.roll
     ; price : int
     ; freqRel : int
+    ; weight : int
     }
 
 type stats =
@@ -56,6 +57,7 @@ type corpse =
     { name : string
     ; color : A.color
     ; turnDeceased : int
+    ; weight : int
     }
 
 type container =
@@ -86,6 +88,16 @@ let count = function
     | Scroll { stats = s; _ } -> s.count
     | Weapon _ -> 1
     | Wand _ -> 1
+
+let weight = function
+    | Container _ -> assert false
+    | Corpse c -> c.weight
+    | Gold _ -> 0
+    | Potion { stats = s; _ } -> 20 * s.count
+    | Rock t -> 10 * t
+    | Scroll { stats = s; _ } -> 5 * s.count
+    | Weapon w -> w.weight
+    | Wand _ -> 7
 
 let name ?(mPlural="") = function
     | Corpse c -> c.name ^ " corpse"
@@ -196,12 +208,21 @@ let weapons =
         ; damage = { rolls = 1; sides = 4 }
         ; price = 4
         ; freqRel = 30
+        ; weight = 10
         }
     ;   { name = "club"
         ; color = C.brown
         ; damage = { rolls = 1; sides = 6 }
         ; price = 3
         ; freqRel = 12
+        ; weight = 30
+        }
+    ;   { name = "elven broadsword"
+        ; color = A.white
+        ; damage = { rolls = 2; sides = 6 }
+        ; price = 10
+        ; freqRel = 4
+        ; weight = 70
         }
     ]
 
@@ -282,13 +303,18 @@ let isCorpse = function
 let turnsCorpseRot = 100
 let corpseAgeZombie = 50
 
-let mkCorpse name color t =
-    let addAge = if String.ends_with ~suffix:"zombie" name then corpseAgeZombie else 0 in
-    (* TODO There's no "human zombie" corpse *)
+let mkCorpse name color weight t =
+    let lenNoZombie = String.length name - String.length "zombie" - 1 in
+
+    let addAge, name = match String.ends_with ~suffix:"zombie" name with
+        | true -> corpseAgeZombie, String.sub name 0 lenNoZombie
+        | false -> 0, name
+    in
     Corpse
         { name
         ; color
         ; turnDeceased = t - addAge
+        ; weight
         }
 
 let rotCorpses turns l =

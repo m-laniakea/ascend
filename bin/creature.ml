@@ -27,6 +27,7 @@ type info =
     ; name : string
     ; speed : int
     ; symbol : string
+    ; weight : int
     }
 
 type t =
@@ -50,6 +51,7 @@ let creatures =
             [ H.mkMelee Bite Physical 1 2
             ]
         ; speed = 6
+        ; weight = 10
         }
     ;   { name = "sewer rat"
         ; symbol = "r"
@@ -66,6 +68,7 @@ let creatures =
             [ H.mkMelee Bite Physical 1 3
             ]
         ; speed = 12
+        ; weight = 20
         }
     ;   { name = "bat"
         ; symbol = "B"
@@ -82,6 +85,7 @@ let creatures =
             [ H.mkMelee Bite Physical 1 4
             ]
         ; speed = 22
+        ; weight = 20
         }
     ;   { name = "brown mold"
         ; symbol = "F"
@@ -95,6 +99,7 @@ let creatures =
             [ H.mkPassive Cold 6
             ]
         ; speed = 0
+        ; weight = 50
         }
     ;   { name = "red mold"
         ; symbol = "F"
@@ -108,6 +113,7 @@ let creatures =
             [ H.mkPassive Fire 6
             ]
         ; speed = 0
+        ; weight = 50
         }
     ;   { name = "giant bat"
         ; symbol = "B"
@@ -121,6 +127,7 @@ let creatures =
             [ H.mkMelee Bite Physical 1 6
             ]
         ; speed = 22
+        ; weight = 30
         }
     ;   { name = "iguana"
         ; symbol = ":"
@@ -134,6 +141,7 @@ let creatures =
             [ H.mkMelee Bite Physical 1 4
             ]
         ; speed = 6
+        ; weight = 30
         }
     ;   { name = "hill orc"
         ; symbol = "o"
@@ -149,6 +157,7 @@ let creatures =
             [ H.mkWeapon 1 6
             ]
         ; speed = 9
+        ; weight = 1000
         }
     ;   { name = "rothe"
         ; symbol = "q"
@@ -167,6 +176,7 @@ let creatures =
             ; H.mkMelee Bite Physical 1 8
             ]
         ; speed = 9
+        ; weight = 400
         }
     ;   { name = "Uruk-hai"
         ; symbol = "o"
@@ -182,6 +192,7 @@ let creatures =
             [ H.mkWeapon 1 8
             ]
         ; speed = 7
+        ; weight = 1300
         }
     ;   { name = "human zombie"
         ; symbol = "Z"
@@ -197,6 +208,7 @@ let creatures =
             [ H.mkMelee Claw Physical 1 8
             ]
         ; speed = 6
+        ; weight = 1450
         }
     ;   { name = "giant beetle"
         ; symbol = "a"
@@ -210,6 +222,7 @@ let creatures =
             [ H.mkMelee Bite Physical 3 6
             ]
         ; speed = 6
+        ; weight = 200
         }
     ;   { name = "quivering blob"
         ; symbol = "b"
@@ -223,6 +236,7 @@ let creatures =
             [ H.mkMelee Touch Physical 1 8
             ]
         ; speed = 1
+        ; weight = 200
         }
     ;   { name = "lizard"
         ; symbol = ":"
@@ -236,6 +250,7 @@ let creatures =
             [ H.mkMelee Bite Physical 1 6
             ]
         ; speed = 6
+        ; weight = 10
         }
     ;   { name = "mumak"
         ; symbol = "q"
@@ -250,6 +265,7 @@ let creatures =
             ; H.mkMelee Bite Physical 2 6
             ]
         ; speed = 9
+        ; weight = 2500
         }
     ;   { name = "yeti"
         ; symbol = "Y"
@@ -265,6 +281,7 @@ let creatures =
             ; H.mkMelee Bite Physical 1 4
             ]
         ; speed = 15
+        ; weight = 1600
         }
     ;   { name = "gargoyle"
         ; symbol = "g"
@@ -280,6 +297,7 @@ let creatures =
             ; H.mkMelee Bite Physical 2 4
             ]
         ; speed = 10
+        ; weight = 1000
         }
     ;   { name = "warhorse"
         ; symbol = "u"
@@ -288,12 +306,13 @@ let creatures =
         ; difficulty = 9
         ; levelBase = 7
         ; acBase = 4
-        ; frequency = 2
+        ; frequency = 1
         ; hits =
             [ H.mkMelee Kick Physical 1 10
             ; H.mkMelee Bite Physical 1 4
             ]
         ; speed = 24
+        ; weight = 1800
         }
     ;   { name = "winged gargoyle"
         ; symbol = "g"
@@ -309,6 +328,7 @@ let creatures =
             ; H.mkMelee Bite Physical 3 4
             ]
         ; speed = 15
+        ; weight = 1200
         }
     ;   { name = "minotaur"
         ; symbol = "H"
@@ -324,6 +344,7 @@ let creatures =
             ; H.mkMelee Butt Physical 2 8
             ]
         ; speed = 15
+        ; weight = 1500
         }
     ;   { name = "red dragon"
         ; symbol = "D"
@@ -340,6 +361,7 @@ let creatures =
             ; H.mkMelee Claw Physical 1 4
             ]
         ; speed = 9
+        ; weight = 4500
         }
     ]
 

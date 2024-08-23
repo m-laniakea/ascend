@@ -12,7 +12,7 @@ let addHp ~sourceIsPlayer n t p (c : Creature.t) state =
             (* TODO drops *)
             let _ = if Sight.playerCanSee state p then S.msgAdd state (C.sf "The %s is killed!" c.info.name) else () in
             let deathDrops =
-                let corpse = Item.mkCorpse c.info.name c.info.color state.turns in
+                let corpse = Item.mkCorpse c.info.name c.info.color c.info.weight state.turns in
                 (* TODO Not every creature can leave a corpse *)
                 let item = if Random_.oneIn 6 then [Item.random ()] else [] in
                 corpse::item @ c.inventory

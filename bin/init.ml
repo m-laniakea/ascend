@@ -23,6 +23,7 @@ let state =
         ; acBonus = 0
         ; weaponWielded = None
         ; inventory = []
+        ; inventoryWeightMax = 500
         ; knowledgeLevels = []
         ; turnHealthWarned = 0
         }
