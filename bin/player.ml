@@ -147,6 +147,7 @@ let quaff (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
     match item with
+        | Comestible _ -> S.msgAdd state "Slow down! Chew your food!"; state
         | Container _ -> S.msgAdd state "What a silly thing to quaff!"; state
         | Corpse _ -> S.msgAdd state "What a silly thing to quaff!"; state
         | Gold _ -> S.msgAdd state "You were unable to swallow the gold piece."; state
@@ -225,6 +226,7 @@ let read (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
     match item with
+        | Comestible _ -> S.msgAdd state "What a silly thing to read!"; state
         | Container _ -> S.msgAdd state "What a silly thing to read!"; state
         | Corpse _ -> S.msgAdd state "What a silly thing to read!"; state
         | Gold _ -> S.msgAdd state "The gold is shiny!"; state

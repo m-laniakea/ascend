@@ -154,7 +154,7 @@ let quaff (state : S.t) =
 let throw (state : S.t) =
     (* ^TODO refactor *)
     let sp = state.player in
-    let throwables = L.mapi (fun ix i -> if Item.isWeapon i then Some (ix, i) else None) sp.inventory in
+    let throwables = L.mapi (fun ix i -> if Item.isThrowable i then Some (ix, i) else None) sp.inventory in
     (* TODO allow throwing non-weapons *)
     if not (L.exists Option.is_some throwables) then Some state else
     let selection = selectionOfItems ~single:true SelectDirThrow throwables in

@@ -14,6 +14,7 @@ module S = State
 let term = Term.create () (* TODO shouldn't be created a second time here *)
 
 let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
+    | Comestible c -> I.string A.(styles ++ fg c.color) "%"
     | Container _ -> I.string A.(styles ++ fg C.brown) "("
     | Corpse c -> I.string A.(styles ++ fg c.color) "%"
     | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"

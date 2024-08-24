@@ -17,6 +17,14 @@ type stats =
     { count : int
     }
 
+type comestible =
+    { name : string
+    ; color : A.color
+    ; freqRel : int
+    ; price : int
+    ; weight : int
+    }
+
 type scroll_t =
     | CreateMonster
     | MagicMapping
@@ -66,6 +74,7 @@ type container =
     }
 
 and item =
+    | Comestible of comestible
     | Container of container
     | Corpse of corpse
     | Gold of int
@@ -80,6 +89,7 @@ type itemList = item list
 type t = item
 
 let count = function
+    | Comestible _ -> 1
     | Container _ -> 1
     | Corpse _ -> 1
     | Gold t -> t
@@ -90,6 +100,7 @@ let count = function
     | Wand _ -> 1
 
 let weight = function
+    | Comestible c -> c.weight
     | Container _ -> assert false
     | Corpse c -> c.weight
     | Gold _ -> 0
@@ -100,6 +111,7 @@ let weight = function
     | Wand _ -> 7
 
 let name ?(mPlural="") = function
+    | Comestible c -> c.name ^ mPlural
     | Corpse c -> c.name ^ " corpse"
     | Gold _ -> "gold piece" ^ mPlural
     | Potion p -> "potion" ^ mPlural ^ " of " ^
@@ -136,6 +148,7 @@ let nameDisplay i =
     C.sf "%i %s" count (name ~mPlural i)
 
 let getPriceBase = function
+    | Comestible c -> c.price
     | Container c ->
         ( match c.container_t with
             | Chest -> 16
@@ -177,6 +190,7 @@ let getPriceTrade i =
 let getPriceShop i = getPriceBase i * 4 / 3
 
 let isQuaffable = function
+    | Comestible _ -> false
     | Container _ -> false
     | Corpse _ -> false
     | Gold _ -> false
@@ -187,6 +201,7 @@ let isQuaffable = function
     | Wand _ -> false
 
 let isReadable = function
+    | Comestible _ -> false
     | Container _ -> false
     | Corpse _ -> false
     | Gold _ -> false
@@ -201,6 +216,21 @@ let isZappable = function
     | _ -> false
 
 let rock n = Rock n
+
+let comestibles =
+    [   { name = "apple"
+        ; color = A.red
+        ; price = 7
+        ; freqRel = 15
+        ; weight = 2
+        }
+    ;   { name = "carrot"
+        ; color = A.yellow
+        ; price = 7
+        ; freqRel = 15
+        ; weight = 2
+        }
+    ]
 
 let weapons =
     [   { name = "dagger"
@@ -226,8 +256,12 @@ let weapons =
         }
     ]
 
+let rnComestible () =
+    let freq = List.map (fun c -> c, c.freqRel) comestibles in
+    Comestible (R.relative freq)
+
 let rnWeapon () =
-    let freq = List.map (fun w -> w, w.freqRel) weapons in
+    let freq = List.map (fun (w : weapon) -> w, w.freqRel) weapons in
     Weapon (R.relative freq)
 
 let rnGold d =
@@ -270,14 +304,32 @@ let rnWand () =
 
 let random () =
     let freq =
-        [ rnPotion, 16
-        ; rnScroll, 16
-        ; rnWeapon, 10
-        ; rnWand,    4
+        [ rnComestible, 20
+        ; rnPotion,     16
+        ; rnScroll,     16
+        ; rnWeapon,     10
+        ; rnWand,        4
         ]
     in
     let t = R.relative freq in
     t ()
+
+let isComestible = function
+    | Comestible _ -> true
+    | _ -> false
+
+let isThrowable = function
+    | Comestible _
+    | Weapon _
+    -> true
+    | Container _
+    | Corpse _
+    | Gold _
+    | Potion _
+    | Rock _
+    | Scroll _
+    | Wand _
+    -> false
 
 let isWeapon = function
     | Weapon _ -> true
