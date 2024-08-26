@@ -193,3 +193,25 @@ let isTileTypeWalkable t = match t.t with
     | Unseen -> false
     | Wall Horizontal | Wall Vertical -> false
 
+let getCreatureAtOpt m p = match Matrix.get m p with
+    | { occupant = Some (Creature c); _ } -> Some c
+    | _ -> None
+
+let getCreatureAt m p = getCreatureAtOpt m p |> Option.get
+
+let getPositionsCreatureHostility h =
+    Matrix.mapIFindAll
+    ( fun _ p -> function
+    | { occupant = Some (Creature c); _ } when c.hostility = h -> Some p
+    | _ -> None
+    )
+
+let getPositionsCreatureHostile = getPositionsCreatureHostility Hostile
+let getPositionsCreaturePet = getPositionsCreatureHostility Tame
+
+let getPositionsCreature =
+    Matrix.mapIFindAll
+    ( fun _ p -> function
+    | { occupant = Some (Creature _); _ } -> Some p
+    | _ -> None
+    )

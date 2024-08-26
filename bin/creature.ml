@@ -8,11 +8,16 @@ module H = Hit
 module M = Matrix.Matrix
 module R = Random_
 
+type hostility =
+    | Hostile
+    | Tame
+
 type sizeGroupSpawn =
     | GroupSmall
     | GroupLarge
 
 type attributes =
+    | Domestic
     | NoHands
     | SpawnGroup of sizeGroupSpawn
 
@@ -32,6 +37,8 @@ type info =
 
 type t =
     { hp : int
+    ; hpMax : int
+    ; hostility : hostility
     ; info : info
     ; inventory : Item.t list
     ; level : int
@@ -56,7 +63,8 @@ let creatures =
     ;   { name = "sewer rat"
         ; symbol = "r"
         ; attributes =
-            [ SpawnGroup GroupSmall
+            [ Domestic
+            ; SpawnGroup GroupSmall
             ; NoHands
             ]
         ; color = C.brown
@@ -301,7 +309,10 @@ let creatures =
         }
     ;   { name = "warhorse"
         ; symbol = "u"
-        ; attributes = [NoHands]
+        ; attributes =
+            [ Domestic
+            ; NoHands
+            ]
         ; color = C.brown
         ; difficulty = 9
         ; levelBase = 7
@@ -373,7 +384,10 @@ let rollHp ci = match ci.levelBase with
 let hasAttackWeapon ci = List.exists (function | Hit.Weapon _ -> true | _ -> false) ci.hits
 
 let mkCreature ci =
-    { hp = rollHp ci
+    let hpMax = rollHp ci in
+    { hp = hpMax
+    ; hpMax
+    ; hostility = Hostile
     ; level = ci.levelBase
     ; pointsSpeed = ci.speed
     ; inventory = if hasAttackWeapon ci && R.oneIn 2 then [Item.rnWeapon ()] else []
@@ -422,6 +436,11 @@ let hasTurn c = match c.pointsSpeed with
     | ps -> R.rn 1 C.pointsSpeedPerTurn <= ps
 
 let hasAttribute c a = List.mem a c.info.attributes
+
+let isHostile c = c.hostility = Hostile
+let isPet c = c.hostility = Tame
+
+let isTameable c = hasAttribute c Domestic
 
 let canOpenDoor c = not (hasAttribute c NoHands)
 

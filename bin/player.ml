@@ -67,7 +67,7 @@ let rec move mf (state : S.t) =
             let tn = Matrix.set { tile with t = Door (Open, ori) } pn m in
             SL.setMap tn state
 
-    | { occupant = Some (Creature c); _ } as t ->
+    | { occupant = Some (Creature c); _ } as t when Creature.isHostile c ->
         attackMelee t pn c state
 
     | { occupant = Some Boulder; _ } as t ->
@@ -95,7 +95,7 @@ let rec move mf (state : S.t) =
         let player = { state.player with pos = pn } in
         let state' = { state with player } in
         let m' =
-            Matrix.set { tile with occupant = None } p m
+            Matrix.set { tile with occupant = tNew.occupant } p m
             |> Matrix.set { tNew with occupant = Some Player } pn
         in
         let _ = if Map.isStairs tNew then S.msgAdd state "There are stairs here." in

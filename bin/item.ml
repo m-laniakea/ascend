@@ -247,7 +247,7 @@ let weapons =
         ; freqRel = 12
         ; weight = 30
         }
-    ;   { name = "elven broadsword"
+    ;   { name = "runed broadsword"
         ; color = A.white
         ; damage = { rolls = 2; sides = 6 }
         ; price = 10
@@ -304,7 +304,7 @@ let rnWand () =
 
 let random () =
     let freq =
-        [ rnComestible, 20
+        [ rnComestible,  8
         ; rnPotion,     16
         ; rnScroll,     16
         ; rnWeapon,     10

@@ -19,6 +19,8 @@ let listTake n = L.filteri (fun i _ -> i < n)
 let listSet i v =
     List.mapi (fun ci ov -> if ci <> i then ov else v)
 
+let hdOpt l = List.nth_opt l 0
+
 let contains l v = List.mem v l
 
 let range min max = List.init (max - min + 1) (fun i -> i + min)

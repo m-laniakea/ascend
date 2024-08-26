@@ -15,6 +15,25 @@ let getHitThreshold ac attackerLevel =
     let ac' = if ac < 0 then R.rn ac (-1) else ac in
     hitThresholdBase + ac' + attackerLevel |> max 1
 
+let canThrownDomesticate item c = Item.isComestible item && Creature.isTameable c
+
+let domesticateWithThrown item c pn state =
+    let m = SL.map state in
+    let ci = Creature.{ c.info with color = A.white } in
+    let c =
+        { c with Creature.hostility = Tame
+        ; hp = c.hpMax
+        ; info = ci
+        }
+    in
+    let t = Matrix.get m pn in
+    let t = { t with occupant = Some (Map.Creature c) } in
+    let m = Matrix.set t pn m in
+
+    S.msgAdd state (C.sf "The %s greedily devours the %s." c.info.name (Item.name item));
+
+    SL.setMap m state
+
 let throw item pFrom dir range msgThrower state =
     let m = SL.map state in
     let isMiss () = R.oneIn 4 in
@@ -48,12 +67,12 @@ let throw item pFrom dir range msgThrower state =
             S.msgAdd state msgThrower
         else
             S.msgAdd state (C.sf "You see a %s fly." (Item.name item))
-            (* Todo blindness *)
+            (* ^TODO blindness/not correct when you are not target *)
     );
 
     let rec doThrow item dir pc range state = match P.step pc dir with
-        | _ when range <= 0 -> state, pc
-        | pn when not (Map.isInMap pn) -> state, pc
+        | _ when range <= 0 -> state, pc, true
+        | pn when not (Map.isInMap pn) -> state, pc, true
         | pn ->
             ( match Matrix.get m pn with
             | { occupant = Some Boulder; _ } -> doThrow item dir pn (range - 1) state
@@ -63,9 +82,12 @@ let throw item pFrom dir range msgThrower state =
                     msgAddCreatureMissed c pn;
                     doThrow item dir pn (range - 1) state
                 | false ->
-                    msgAddCreatureHit c pn;
-                    let damage = rollDamage () in
-                    UpdateCreature.addHp ~sourceIsPlayer (-damage) t pn c state, pn
+                    if canThrownDomesticate item c then
+                        domesticateWithThrown item c pn state, pn, false
+                    else
+                        let _ = msgAddCreatureHit c pn in
+                        let damage = rollDamage () in
+                        UpdateCreature.addHp ~sourceIsPlayer (-damage) t pn c state, pn, true
                 )
             | { occupant = Some Player; _ } ->
                 ( match isMiss () with
@@ -75,18 +97,18 @@ let throw item pFrom dir range msgThrower state =
                 | false ->
                     S.msgAdd state (C.sf "The %s hits you." (Item.name item));
                     let damage = rollDamage () in
-                    (UpdatePlayer.addHp (-damage) state), pn
+                    (UpdatePlayer.addHp (-damage) state), pn, true
                 )
             | t ->
                 if Map.isTileTypeWalkable t then
                     doThrow item dir pn (range - 1) state
                 else
-                    state, pc
+                    state, pc, true
             )
     in
 
-    let state, posLanded = doThrow item dir pFrom range state in
-    let posStart = getPosStart pFrom posLanded in
+    let state, posLast, doesItemRemain = doThrow item dir pFrom range state in
+    let posStart = getPosStart pFrom posLast in
 
     ( match posStart with
         | None -> () (* At no point did player see the item *)
@@ -97,19 +119,22 @@ let throw item pFrom dir range msgThrower state =
                 { dir
                 ; posStart = ps
                 ; posCurrent = ps
-                ; posEnd = getPosEnd ps posLanded
+                ; posEnd = getPosEnd ps posLast
                 ; image = imageOfItem item
                 }
             in
             View.animate state ~cumulative:false ~linger:false animation;
     );
 
-    let m = SL.map state in
-    let tLanded = Matrix.get m posLanded in
-    let tLanded = { tLanded with items = item::tLanded.items } in
-    let m' = Matrix.set tLanded posLanded m in
+    match doesItemRemain with
+    | false -> state
+    | true ->
+        let m = SL.map state in
+        let tLanded = Matrix.get m posLast in
+        let tLanded = { tLanded with items = item::tLanded.items } in
+        let m' = Matrix.set tLanded posLast m in
 
-    SL.setMap m' state
+        SL.setMap m' state
 
 let getReflectedDir p (dir : P.dir) state =
     assert (Map.isInMap p);
