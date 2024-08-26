@@ -8,7 +8,7 @@ module SL = StateLevels
 
 let reduceDamage ac damage =
     if ac >= 0 then damage else
-    (R.rn ac (-1)) + damage |> min 1
+    (R.rn ac (-1)) + damage |> max 1
 
 let getHitThreshold ac attackerLevel =
     let hitThresholdBase = 10 in
