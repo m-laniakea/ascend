@@ -260,6 +260,23 @@ let creatures =
         ; speed = 6
         ; weight = 10
         }
+    ;   { name = "call duck"
+        ; symbol = "p"
+        ; attributes =
+            [ Domestic
+            ; NoHands
+            ]
+        ; color = A.gray 13
+        ; difficulty = 7
+        ; levelBase = 6
+        ; acBase = 4
+        ; frequency = 1
+        ; hits =
+            [ H.mkMelee Bite Physical 2 4
+            ]
+        ; speed = 15
+        ; weight = 250
+        }
     ;   { name = "mumak"
         ; symbol = "q"
         ; attributes = [NoHands]
