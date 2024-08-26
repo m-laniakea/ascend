@@ -206,7 +206,13 @@ let getPositionsCreatureHostility h =
     | _ -> None
     )
 
-let getPositionsCreatureHostile = getPositionsCreatureHostility Hostile
+let getPositionsCreatureHostileNonSessile =
+    Matrix.mapIFindAll
+    ( fun _ p -> function
+    | { occupant = Some (Creature c); _ } when c.hostility = Hostile && c.info.speed <> 0 -> Some p
+    | _ -> None
+    )
+
 let getPositionsCreaturePet = getPositionsCreatureHostility Tame
 
 let getPositionsCreature =
