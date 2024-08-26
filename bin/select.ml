@@ -52,9 +52,18 @@ let handleItems k (s : S.selectItems) state = match k with
 
         )
     | ',' ->
-        let hasUnselected = L.exists (fun (si : C.selectionItem) -> not si.selected) s.sItems in
-        let selected = hasUnselected in
-        let sItems = List.map (fun (si : C.selectionItem) -> { si with selected }) s.sItems in
+        (* 1st press: select all non-corpse *)
+        (* 2nd press: select all (if not already all) *)
+        (* 3rd press: select none *)
+        let notCorpse (si : C.selectionItem) = String.ends_with ~suffix:"corpse" si.name |> not in
+        let isUnselected (si : C.selectionItem) = not si.selected in
+
+        let hasUnselected = L.exists isUnselected s.sItems in
+        let noUnselectedNonCorpse = L.exists (fun si -> isUnselected si && notCorpse si) s.sItems |> not in
+
+        let selected si = hasUnselected && (noUnselectedNonCorpse || notCorpse si) in
+
+        let sItems = List.map (fun (si : C.selectionItem) -> { si with selected = selected si }) s.sItems in
         let mode = S.Selecting (SelectItems { s with sItems }) in
 
         Some { state with mode }
