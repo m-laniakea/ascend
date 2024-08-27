@@ -495,10 +495,15 @@ let doCreaturePassive c state =
         ( fun state (pa : Hit.passive) ->
             let msgs = Hit.getMsgs (Hit.Passive pa) in
             S.msgAdd state (C.sf "It %s. The %s %s you." msgs.msgHit msgs.msgCause msgs.msgEffect);
-            let damage = R.roll { rolls = c.info.levelBase + 1; sides = pa.maxRoll } in
+            let effectSize = R.roll { rolls = c.info.levelBase + 1; sides = pa.maxRoll } in
             (* ^TODO based on current level *)
-            UpdatePlayer.addHp (-damage) state
-            (* ^TODO resistances *)
+
+            match pa.effect with
+            (* ^TODO centralize *)
+            | Paralyze -> UpdatePlayer.paralyze effectSize state
+            | _ ->
+                UpdatePlayer.addHp (-effectSize) state
+                (* ^TODO resistances *)
         )
         state
         pAttacks

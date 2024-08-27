@@ -7,6 +7,7 @@ type effect =
     | Cold
     | Dig
     | Fire
+    | Paralyze
     | Physical
     | Sonic
 
@@ -86,6 +87,7 @@ let getMsgsEffect e =
         | Cold -> "cold", "freezes"
         | Dig -> "digging spell", "passes through"
         | Fire -> "fire", "burns"
+        | Paralyze -> "paralysis", "stiffens"
         | Physical -> "attack", "hits"
         | Sonic -> "sound blast", "rattles"
     in
@@ -126,6 +128,7 @@ let getImageForAnimation t (dir : Position.dir) =
     | Cold -> Some A.(fg cyan)
     | Dig ->  None
     | Fire -> Some A.(fg lightred)
+    | Paralyze -> None
     | Physical -> Some A.(fg white)
     | Sonic -> None
     in

@@ -20,6 +20,7 @@ let state =
         ; hpMax = 10
         ; level = 1
         ; xp = 0
+        ; status = []
         ; acBonus = 0
         ; weaponWielded = None
         ; inventory = []

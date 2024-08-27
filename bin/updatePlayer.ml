@@ -115,3 +115,20 @@ let xpAdd n (state : S.t) =
     let player = { sp with xp } in
 
     { state with player }
+
+let setStatus status (state : S.t) =
+    let sp = state.player in
+    let player = { sp with status } in
+    { state with player }
+
+let paralyze n (state : S.t) =
+    let sp = state.player in
+    let status = sp.status in
+
+    let paralysis = L.map (function | C.Paralyzed i -> i) status in
+    let status = match paralysis with
+        | [] -> (C.Paralyzed n)::status
+        | i::_ -> C.listRemove (C.Paralyzed i) status |> L.cons (C.Paralyzed (max i n))
+    in
+
+    setStatus status state

@@ -193,12 +193,12 @@ let maybeWarnHealth (state : S.t) msg =
     let warnHealthTimeout = 100 in
     let sp = state.player in
 
-    if sp.turnHealthWarned + warnHealthTimeout > state.turns then Some state else
+    if sp.turnHealthWarned + warnHealthTimeout > state.turns then state else
 
     let _ = S.msgAdd state msg in
     let player = { sp with turnHealthWarned = state.turns } in
 
-    Some { state with player }
+    { state with player }
 
 let checkHp (state : S.t) =
     let sp = state.player in
@@ -207,10 +207,10 @@ let checkHp (state : S.t) =
         ( match findFairy state with
         | None ->
             let _ = S.msgAdd state "You die..." in
-            Some { state with mode = Dead }
+            { state with mode = Dead }
         | Some f ->
             let _ = S.msgAdd state "You die. But you don't really die..." in
-            Some (quaff f state)
+            (quaff f state)
         )
 
     | hp when hp = 1 ->
@@ -220,7 +220,7 @@ let checkHp (state : S.t) =
         maybeWarnHealth state "You feel your life force running out..."
 
     | _ ->
-        Some state
+        state
 
 let read (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
@@ -444,6 +444,45 @@ let moveToStairs ~dir (state : S.t) =
     let player = { state.player with pos = posStairs } in
     { (SL.setMap m' state) with player;  }
 
+let maybeAddHp (state : S.t) = match state with
+    | state when state.mode <> Playing -> state
+    | state -> UpdatePlayer.addHp (if R.oneIn 3 then 1 else 0) state
+
+
+let rec handleParalysis (state : S.t) = match state with
+    | _ when state.mode <> Playing -> Some state
+    | _ ->
+        let sp = state.player in
+        let paralysis = L.map (function | C.Paralyzed i -> i) sp.status in
+
+        let status, stillParalyzed = match paralysis with
+            | [] -> [], false
+            | i::_ when i <= 0 -> C.listRemove (C.Paralyzed i) sp.status, false
+            | i::_ ->
+                C.listRemove (C.Paralyzed i) sp.status
+                |> L.cons (C.Paralyzed (i - 1))
+                , true
+        in
+
+        let state = UpdatePlayer.setStatus status state in
+
+        if stillParalyzed then afterAction state else
+        Some state
+
+and afterAction state =
+    state
+    |> UpdateMap.rotCorpses
+    |> Ai.maybeSpawnCreatures
+    |> UpdatePlayer.knowledgeMap
+    |> Ai.animateCreatures
+    (* TODO update playerMap after each creature move *)
+    |> S.incTurns
+    |> UpdatePlayer.knowledgeCreaturesDelete
+    |> UpdatePlayer.knowledgeMap
+    |> checkHp
+    |> maybeAddHp
+    |> handleParalysis
+
 let action a (state : S.t) =
     Queue.clear state.messages;
     ( match a with
@@ -458,13 +497,4 @@ let action a (state : S.t) =
     | Wield si -> wield si state
     | Zap (si, dir) -> zap si dir state
     )
-    |> UpdateMap.rotCorpses
-    |> Ai.maybeSpawnCreatures
-    |> UpdatePlayer.knowledgeMap
-    |> Ai.animateCreatures
-    (* TODO update playerMap after each creature move *)
-    |> S.incTurns
-    |> UpdatePlayer.knowledgeCreaturesDelete
-    |> UpdatePlayer.knowledgeMap
-    |> UpdatePlayer.addHp (if R.oneIn 3 then 1 else 0) (* TODO player hp can go to 0 then back up *)
-    |> checkHp
+    |> afterAction

@@ -123,6 +123,20 @@ let creatures =
         ; speed = 0
         ; weight = 50
         }
+    ;   { name = "floating eye"
+        ; symbol = "e"
+        ; attributes = [NoHands]
+        ; color = A.lightblue
+        ; difficulty = 3
+        ; levelBase = 2
+        ; acBase = 9
+        ; frequency = 2
+        ; hits =
+            [ H.mkPassive Paralyze 25
+            ]
+        ; speed = 1
+        ; weight = 10
+        }
     ;   { name = "giant bat"
         ; symbol = "B"
         ; attributes = [NoHands]

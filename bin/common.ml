@@ -35,3 +35,6 @@ type selectionItem =
     ; selected : bool
     ; letter : char
     }
+
+type status =
+    | Paralyzed of int
