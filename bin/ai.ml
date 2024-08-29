@@ -368,7 +368,7 @@ let getTargetPet c cp state =
     | None ->
         let m = SL.map state in
         let targets =
-            Map.getPositionsCreatureHostileNonSessile m
+            Map.getPositionsCreatureHostileNoPassive m
             |> L.filter (fun p -> Sight.creatureCanSee c cp p state)
             |> L.sort (P.closestTo cp)
         in

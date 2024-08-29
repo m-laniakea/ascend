@@ -206,10 +206,12 @@ let getPositionsCreatureHostility h =
     | _ -> None
     )
 
-let getPositionsCreatureHostileNonSessile =
+let getPositionsCreatureHostileNoPassive =
     Matrix.mapIFindAll
     ( fun _ p -> function
-    | { occupant = Some (Creature c); _ } when c.hostility = Hostile && c.info.speed <> 0 -> Some p
+    | { occupant = Some (Creature c); _ }
+        when c.hostility = Hostile && Creature.getAttacksPassive c |> L.is_empty
+        -> Some p
     | _ -> None
     )
 
@@ -228,6 +230,7 @@ let getCreature id =
     | { occupant = Some (Creature c); _ } when c.id = id -> Some (c, p)
     | _ -> None
     )
+
 let getCreaturesBySpeed =
     Matrix.foldI
     ( fun _ _ acc -> function
