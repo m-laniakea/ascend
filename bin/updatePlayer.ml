@@ -22,7 +22,22 @@ let knowledgeMapAddEmpty (state : S.t) =
     let player = { state.player with knowledgeLevels } in
     { state with player }
 
-let revealRoomIfLit state =
+let knowledgeMapTileType tt p (state : S.t) =
+    let pk = S.getKnowledgeCurrentMap state in
+    let t = Matrix.get pk p in
+    let t = { t with t = tt } in
+    let pk = Matrix.set t p pk in
+    S.setKnowledgeCurrentMap pk state
+
+let knowledgeMapTileOccupant o p (state : S.t) =
+    let pk = S.getKnowledgeCurrentMap state in
+    let t = Matrix.get pk p in
+    let t = { t with occupant = o } in
+    let pk = Matrix.set t p pk in
+    S.setKnowledgeCurrentMap pk state
+
+let revealRoomIfLit (state : S.t) =
+    if Creature.isBlind state.player.attributes then state else
     let updateKnowledge room state =
         let m  = SL.map state in
         let pk = S.getKnowledgeCurrentMap state in

@@ -17,6 +17,7 @@ type sizeGroupSpawn =
     | GroupLarge
 
 type attributes =
+    | Blind
     | Domestic
     | NoHands
     | SpawnGroup of sizeGroupSpawn
@@ -470,6 +471,7 @@ let hasTurn = function
 
 let hasAttribute c a = List.mem a c.info.attributes
 
+let isBlind = List.exists (function | Blind -> true | _ -> false)
 let isHostile c = c.hostility = Hostile
 let isPet c = c.hostility = Tame
 

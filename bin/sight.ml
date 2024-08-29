@@ -1,6 +1,8 @@
 open Matrix
 
 module L = List
+
+module Cr = Creature
 module P = Position
 module S = State
 module SL = StateLevels
@@ -52,9 +54,9 @@ let rec rayCanHitTarget m (prev : Map.tile) path =
             | Unseen -> false
             | Wall _ -> false
 
-let canSee distance2Sight from toSee state =
+let canSee distance2Sight ~isBlind from toSee state =
     let d = P.distance2 from toSee in
-    if d > distance2Sight && not (SL.isLit toSee state) then
+    if isBlind || d > distance2Sight && not (SL.isLit toSee state) then
         false
     else
     let pathTo = getPathRay from toSee in
@@ -63,10 +65,14 @@ let canSee distance2Sight from toSee state =
 
 let playerCanSee (state : S.t) toSee =
     let pp = state.player.pos in
+    if pp = toSee then true else
+    let attr = state.player.attributes in
+    let isBlind = Cr.isBlind attr in
     (* TODO blindness *)
-    canSee playerD2Sight pp toSee state
+    canSee playerD2Sight ~isBlind pp toSee state
 
-let creatureCanSee _ from toSee state =
-    (* TODO use creature info *)
-    canSee 36 from toSee state
+let creatureCanSee (c : Creature.t) from toSee state =
+    let isBlind = Cr.isBlind c.info.attributes in
+
+    canSee 36 ~isBlind from toSee state
 

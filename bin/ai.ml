@@ -174,12 +174,17 @@ let getCreaturePath c m start goal =
         |> List.tl
         )
 
-let creatureAttackMelee (c : Creature.t) p (state : S.t) =
+let creatureAttackMelee (c : Creature.t) pFrom p (state : S.t) =
     let isTargetPlayer = p = state.player.pos in
     let m = SL.map state in
     let targetExists m = isTargetPlayer || Map.getCreatureAtOpt m p |> Option.is_none |> not in
 
     assert (targetExists m);
+
+    let attacker = match Sight.playerCanSee state pFrom with
+        | false -> "It"
+        | true -> C.sf "The %s" c.info.name
+    in
 
     let nameTarget =
         if isTargetPlayer then
@@ -199,12 +204,12 @@ let creatureAttackMelee (c : Creature.t) p (state : S.t) =
         | (addSides, h)::htl -> match R.rollAttackLanded hitThreshold addSides with
             | Miss ->
                 let _ = if Sight.playerCanSee state p then
-                    S.msgAdd state (C.sf "The %s misses %s." c.info.name nameTarget)
+                    S.msgAdd state (C.sf "%s misses %s." attacker nameTarget)
                 in
                 state
             | MissBarely ->
                 let _ = if Sight.playerCanSee state p then
-                    S.msgAdd state (C.sf "The %s just misses %s." c.info.name nameTarget)
+                    S.msgAdd state (C.sf "%s just misses %s." attacker nameTarget)
                 in
                 state
             | Hit ->
@@ -223,7 +228,7 @@ let creatureAttackMelee (c : Creature.t) p (state : S.t) =
 
                 let msgsHit = Hit.getMsgs h in
                 let _ = if Sight.playerCanSee state p then
-                        S.msgAdd state (C.sf "The %s %s %s." c.info.name msgsHit.msgHit nameTarget)
+                        S.msgAdd state (C.sf "%s %s %s." attacker msgsHit.msgHit nameTarget)
                     else if Cr.isPet c then
                         S.msgAdd state "You hear some noises."
                 in
@@ -334,7 +339,7 @@ type target =
 let handleTarget c pc target state =
     match target with
     | TargetAttack pt when canAttackMelee pc pt ->
-        pc, creatureAttackMelee c pt state
+        pc, creatureAttackMelee c pc pt state
     | TargetAttack pt ->
         pc, creatureAttackRanged c pc pt state
     | TargetApproach path ->

@@ -11,7 +11,8 @@ type levels =
     }
 
 type player =
-    { pos : Position.t
+    { attributes : Creature.attributes list
+    ; pos : Position.t
     ; gold : int
     ; hp : int
     ; hpMax : int

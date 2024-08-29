@@ -30,15 +30,20 @@ let attackMelee p (c : Creature.t) (state : S.t) =
     let acTarget = Cr.getAc c in
     let hitThreshold = Attack.getHitThreshold acTarget state.player.level in
 
+    let nameTarget = match Sight.playerCanSee state p with
+        | true -> C.sf "the %s" c.info.name
+        | false -> "it"
+    in
+
     match R.rollAttackLanded hitThreshold 0 with
     | Miss ->
-        S.msgAdd state (C.sf "You miss the %s." c.info.name);
+        S.msgAdd state (C.sf "You miss %s." nameTarget);
         state
     | MissBarely ->
-        S.msgAdd state (C.sf "You just miss the %s." c.info.name);
+        S.msgAdd state (C.sf "You just miss %s." nameTarget);
         state
     | Hit ->
-        S.msgAdd state (C.sf "You hit the %s." c.info.name);
+        S.msgAdd state (C.sf "You hit %s." nameTarget);
         let state = Ai.doCreaturePassive c state in
         let sp = state.player in
         let damage =
@@ -64,22 +69,30 @@ let rec move mf (state : S.t) =
             state
         else
             let _  = S.msgAdd state "You open the door." in
-            let tn = Matrix.set { tile with t = Door (Open, ori) } pn m in
+            let t = Map.Door (Open, ori) in
+            let tn = Matrix.set { tile with t } pn m in
+            let state = UpdatePlayer.knowledgeMapTileType t pn state in
             SL.setMap tn state
+
+    | { occupant = Some (Creature c); _ } when not (Sight.playerCanSee state pn) ->
+        attackMelee pn c state
 
     | { occupant = Some (Creature c); _ } when Creature.isHostile c ->
         attackMelee pn c state
 
     | { occupant = Some Boulder; _ } as t ->
         let pbNew = mf pn in
+        let state = UpdatePlayer.knowledgeMapTileOccupant t.occupant pn state in
         if not (Map.isInMap pbNew) then (S.msgAdd state "The boulder won't budge!"; state) else
         let behindBoulder = Matrix.get m pbNew in
         if Map.isTileTypeWalkable behindBoulder |> not then (S.msgAdd state "The boulder won't budge."; state) else
         ( match behindBoulder with
             | { occupant = Some Boulder; _ } -> S.msgAdd state "There's something blocking the boulder!"; state
             | { occupant = Some _; _ } -> S.msgAdd state "There's something alive behind the boulder!"; state
+                (* ^TODO icon for the above *)
             | _ ->
                 let behind' = { behindBoulder with occupant = Some Boulder } in
+                let state = UpdatePlayer.knowledgeMapTileOccupant behind'.occupant pbNew state in
                 let t' = { t with occupant = None } in
                 let m' =
                     Matrix.set behind' pbNew m
@@ -90,7 +103,12 @@ let rec move mf (state : S.t) =
         )
 
     | tNew ->
-        if not (Map.isTileTypeWalkable tNew) then state else
+        if not (Map.isTileTypeWalkable tNew) then
+            (* Bumping into walls *)
+            match Cr.isBlind state.player.attributes with
+            | true -> UpdatePlayer.knowledgeMapTileType tNew.t pn state
+            | false -> state
+        else
         let tile = Matrix.get m p in
         let player = { state.player with pos = pn } in
         let state' = { state with player } in
@@ -101,9 +119,9 @@ let rec move mf (state : S.t) =
         let _ = if Map.isStairs tNew then S.msgAdd state "There are stairs here." in
         ( if not (List.is_empty tNew.items) then
             if List.length tNew.items > itemsDisplayedMax then
-                S.msgAdd state "You see here many items."
+                S.msgAdd state "Here are many items."
             else
-                let _ = S.msgAdd state "You see here:" in
+                let _ = S.msgAdd state "Items here:" in
                 List.iter
                     ( fun i ->
                         let price = if SP.isInShop state' then C.sf "(%i zorkmids)" (Item.getPriceShop i) else "" in
@@ -123,11 +141,11 @@ let search (state : S.t) =
         Map.posAround state.player.pos
         |> List.filter (fun pa -> Matrix.get currentLevel pa |> Map.isTerrainHidden)
     in
-    let terrain' = List.fold_left
-        ( fun m p ->
+    let terrain', state = List.fold_left
+        ( fun (m, state) p ->
             if R.nToOne 2 then
                 (* ^TODO base on stats *)
-                m
+                m, state
             else
                 let (current : Map.tile) = Matrix.get m p in
                 let tt' = match current.t with
@@ -135,10 +153,10 @@ let search (state : S.t) =
                     | Hallway HallHidden -> S.msgAdd state "You find a hidden hallway!"; Hallway HallRegular
                     | _ -> assert false
                 in
-                Matrix.set
-                    { current with t = tt' }
-                    p m
-        ) currentLevel hiddenTerrainAround
+                let m = Matrix.set { current with t = tt' } p m in
+                let state = UpdatePlayer.knowledgeMapTileType tt' p state in
+                m, state
+        ) (currentLevel, state) hiddenTerrainAround
     in
 
     SL.setMap terrain' state
@@ -330,8 +348,11 @@ let close fDir (state : S.t) =
                 let _ = S.msgAdd state "The door resists!" in
                 state
             else
-                let tNew = { tile with t = Door (Closed, ori) } in
+                let t = Map.Door (Closed, ori) in
+                let tNew = { tile with t } in
+                let _ = S.msgAdd state "You close the door." in
                 let m = Matrix.set tNew pClose m in
+                let state = UpdatePlayer.knowledgeMapTileType t pClose state in
                 SL.setMap m state
             )
 
