@@ -5,8 +5,9 @@ module Cr = Creature
 module S = State
 module SL = StateLevels
 
-let addHp ~sourceIsPlayer n t p (c : Creature.t) state =
-    let cl = SL.map state in
+let addHp ~sourceIsPlayer n p (c : Creature.t) state =
+    let m = SL.map state in
+    let t = Matrix.get m p in
     let state, t' =
         if c.hp + n < 0 then
             let isPet = Creature.isPet c in
@@ -28,5 +29,5 @@ let addHp ~sourceIsPlayer n t p (c : Creature.t) state =
             let c' = Map.Creature { c with hp = c.hp + n } in
             state, { t with occupant = Some c' }
     in
-    let cl' = Matrix.set t' p cl in
-    SL.setMap cl' state
+    let m' = Matrix.set t' p m in
+    SL.setMap m' state

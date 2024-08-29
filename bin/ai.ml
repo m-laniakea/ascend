@@ -235,8 +235,7 @@ let creatureAttackMelee (c : Creature.t) p (state : S.t) =
                 | false ->
                     (* TODO creature passives *)
                     let c = Map.getCreatureAt m p in
-                    let tile = Matrix.get m p in
-                    let state = UpdateCreature.addHp ~sourceIsPlayer:false (-damage) tile p c state in
+                    let state = UpdateCreature.addHp ~sourceIsPlayer:false (-damage) p c state in
                     aux htl state
     in
     let hits =

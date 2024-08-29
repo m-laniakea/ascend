@@ -77,7 +77,7 @@ let throw item pFrom dir range msgThrower state =
         | pn ->
             ( match Matrix.get m pn with
             | { occupant = Some Boulder; _ } -> doThrow item dir pn (range - 1) state
-            | { occupant = Some (Creature c); _ } as t ->
+            | { occupant = Some (Creature c); _ } ->
                 ( match isMiss () with
                 | true ->
                     msgAddCreatureMissed c pn;
@@ -88,7 +88,7 @@ let throw item pFrom dir range msgThrower state =
                     else
                         let _ = msgAddCreatureHit c pn in
                         let damage = rollDamage () in
-                        UpdateCreature.addHp ~sourceIsPlayer (-damage) t pn c state, pn, true
+                        UpdateCreature.addHp ~sourceIsPlayer (-damage) pn c state, pn, true
                 )
             | { occupant = Some Player; _ } ->
                 ( match isMiss () with
@@ -192,11 +192,11 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
                     S.msgAdd state (C.sf "The %s whizzes past the boulder." msgs.msgCause);
                     state, false, range
                 )
-            | { occupant = Some Creature c; _ } as t ->
+            | { occupant = Some Creature c; _ } ->
                 ( if Sight.playerCanSee state pn then
                     S.msgAdd state (C.sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name)
                 );
-                UpdateCreature.addHp ~sourceIsPlayer (-damage) t pn c state, false, range - reductionRangeOnHit
+                UpdateCreature.addHp ~sourceIsPlayer (-damage) pn c state, false, range - reductionRangeOnHit
                 (* ^TODO resistances *)
             | { occupant = Some Player; _ } ->
                 S.msgAdd state (C.sf "The %s %s you!" msgs.msgCause msgs.msgEffect);

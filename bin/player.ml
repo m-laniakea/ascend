@@ -26,7 +26,7 @@ type actions =
     | Wield of C.selectionItem
     | Zap of C.selectionItem * P.dir
 
-let attackMelee t p (c : Creature.t) (state : S.t) =
+let attackMelee p (c : Creature.t) (state : S.t) =
     let acTarget = Cr.getAc c in
     let hitThreshold = Attack.getHitThreshold acTarget state.player.level in
 
@@ -48,7 +48,7 @@ let attackMelee t p (c : Creature.t) (state : S.t) =
             )
             |> Attack.reduceDamage acTarget
         in
-        UpdateCreature.addHp ~sourceIsPlayer:true (-damage) t p c state
+        UpdateCreature.addHp ~sourceIsPlayer:true (-damage) p c state
 
 let rec move mf (state : S.t) =
     let p = state.player.pos in
@@ -67,8 +67,8 @@ let rec move mf (state : S.t) =
             let tn = Matrix.set { tile with t = Door (Open, ori) } pn m in
             SL.setMap tn state
 
-    | { occupant = Some (Creature c); _ } as t when Creature.isHostile c ->
-        attackMelee t pn c state
+    | { occupant = Some (Creature c); _ } when Creature.isHostile c ->
+        attackMelee pn c state
 
     | { occupant = Some Boulder; _ } as t ->
         let pbNew = mf pn in
