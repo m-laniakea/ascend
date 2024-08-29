@@ -59,6 +59,7 @@ let modePlaying event state =
     | `Key (`ASCII 'n', _) -> Player.action (MoveDir southEast) state
 
     | `Key (`ASCII 'c', _) -> Select.dirClose state
+    | `Key (`ASCII 'g', _) -> Player.action BlindUnblind state
     | `Key (`ASCII 's', _) -> Player.action Search state
 
     | `Key (`ASCII 'd', _) -> Select.drop state

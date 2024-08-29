@@ -54,10 +54,18 @@ let rec rayCanHitTarget m (prev : Map.tile) path =
             | Unseen -> false
             | Wall _ -> false
 
-let canSee distance2Sight ~isBlind from toSee state =
+let canSeeViaTelepathy ~isTelepath pAt state =
+    if not isTelepath then false else
+    let m = SL.map state in
+
+    match Map.getCreatureAtOpt m pAt with
+    | None -> false
+    | Some c -> not (Cr.isMindless c.info.attributes)
+
+let canSee distance2Sight ~isBlind ~isTelepath from toSee state =
     let d = P.distance2 from toSee in
     if isBlind || d > distance2Sight && not (SL.isLit toSee state) then
-        false
+        canSeeViaTelepathy ~isTelepath toSee state
     else
     let pathTo = getPathRay from toSee in
     let m = SL.map state in
@@ -68,11 +76,13 @@ let playerCanSee (state : S.t) toSee =
     if pp = toSee then true else
     let attr = state.player.attributes in
     let isBlind = Cr.isBlind attr in
+    let isTelepath = isBlind && Cr.isTelepath attr in
     (* TODO blindness *)
-    canSee playerD2Sight ~isBlind pp toSee state
+    canSee playerD2Sight ~isBlind ~isTelepath pp toSee state
 
 let creatureCanSee (c : Creature.t) from toSee state =
     let isBlind = Cr.isBlind c.info.attributes in
+    let isTelepath = Cr.isTelepath c.info.attributes in
 
-    canSee 36 ~isBlind from toSee state
+    canSee 36 ~isBlind ~isTelepath from toSee state
 

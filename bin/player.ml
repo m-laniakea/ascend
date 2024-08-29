@@ -15,6 +15,7 @@ let itemsDisplayedMax = 5
 type fDir = P.t -> P.t
 
 type actions =
+    | BlindUnblind
     | Close of fDir
     | Drop of C.selectionItem list
     | MoveDir of fDir
@@ -25,6 +26,21 @@ type actions =
     | Throw of C.selectionItem * P.dir
     | Wield of C.selectionItem
     | Zap of C.selectionItem * P.dir
+
+let blindUnblind (state : S.t) =
+    let player = state.player in
+    let attributes = player.attributes in
+
+    let attributes = match C.contains attributes Blind with
+        | true ->
+            S.msgAdd state "You remove the rag from your eyes.";
+            C.listRemove Cr.Blind attributes
+        | false ->
+            S.msgAdd state "You wear a rag to cover your eyes.";
+            Blind::attributes
+    in
+    let player = { player with attributes } in
+    { state with player }
 
 let attackMelee p (c : Creature.t) (state : S.t) =
     let acTarget = Cr.getAc c in
@@ -507,6 +523,7 @@ and afterAction state =
 let action a (state : S.t) =
     Queue.clear state.messages;
     ( match a with
+    | BlindUnblind -> blindUnblind state
     | Close dir -> close dir state
     | Drop sl -> drop sl state
     | MoveDir mf -> move mf state

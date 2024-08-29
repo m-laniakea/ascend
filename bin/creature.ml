@@ -20,7 +20,9 @@ type attributes =
     | Blind
     | Domestic
     | NoHands
+    | Mindless
     | SpawnGroup of sizeGroupSpawn
+    | Telepathic
 
 type info =
     { acBase : int
@@ -99,7 +101,10 @@ let creatures =
         }
     ;   { name = "brown mold"
         ; symbol = "F"
-        ; attributes = [NoHands]
+        ; attributes =
+            [ NoHands
+            ; Mindless
+            ]
         ; color = C.brown
         ; difficulty = 2
         ; levelBase = 2
@@ -113,7 +118,10 @@ let creatures =
         }
     ;   { name = "red mold"
         ; symbol = "F"
-        ; attributes = [NoHands]
+        ; attributes =
+            [ NoHands
+            ; Mindless
+            ]
         ; color = A.red
         ; difficulty = 2
         ; levelBase = 2
@@ -221,7 +229,8 @@ let creatures =
     ;   { name = "human zombie"
         ; symbol = "Z"
         ; attributes =
-            [ SpawnGroup GroupSmall
+            [ Mindless
+            ; SpawnGroup GroupSmall
             ]
         ; color = A.lightwhite
         ; difficulty = 5
@@ -250,7 +259,10 @@ let creatures =
         }
     ;   { name = "quivering blob"
         ; symbol = "b"
-        ; attributes = [NoHands]
+        ; attributes =
+            [ Mindless
+            ; NoHands
+            ]
         ; color = A.lightwhite
         ; difficulty = 6
         ; levelBase = 5
@@ -473,7 +485,9 @@ let hasAttribute c a = List.mem a c.info.attributes
 
 let isBlind = List.exists (function | Blind -> true | _ -> false)
 let isHostile c = c.hostility = Hostile
+let isMindless = List.exists (function | Mindless -> true | _ -> false)
 let isPet c = c.hostility = Tame
+let isTelepath = List.exists (function | Telepathic -> true | _ -> false)
 
 let isTameable c = hasAttribute c Domestic
 
