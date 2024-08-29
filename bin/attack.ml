@@ -31,6 +31,7 @@ let domesticateWithThrown item c pn state =
     let m = Matrix.set t pn m in
 
     S.msgAdd state (C.sf "The %s greedily devours the %s." c.info.name (Item.name item));
+    (* ^TODO only if seen *)
 
     SL.setMap m state
 

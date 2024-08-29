@@ -36,7 +36,8 @@ type info =
     }
 
 type t =
-    { hp : int
+    { id : R.uid
+    ; hp : int
     ; hpMax : int
     ; hostility : hostility
     ; info : info
@@ -416,7 +417,8 @@ let hasAttackWeapon ci = List.exists (function | Hit.Weapon _ -> true | _ -> fal
 
 let mkCreature ci =
     let hpMax = rollHp ci in
-    { hp = hpMax
+    { id = R.uid ()
+    ; hp = hpMax
     ; hpMax
     ; hostility = Hostile
     ; level = ci.levelBase
@@ -461,7 +463,7 @@ let hasAttackRanged c =
             | _ -> false
         )
 
-let hasTurn c = match c.pointsSpeed with
+let hasTurn = function
     | ps when ps <= 0 -> false
     | ps when ps >= C.pointsSpeedPerTurn -> true
     | ps -> R.rn 1 C.pointsSpeedPerTurn <= ps

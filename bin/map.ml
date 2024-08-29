@@ -221,3 +221,18 @@ let getPositionsCreature =
     | { occupant = Some (Creature _); _ } -> Some p
     | _ -> None
     )
+
+let getCreature id =
+    Matrix.mapIFindAll
+    ( fun _ p -> function
+    | { occupant = Some (Creature c); _ } when c.id = id -> Some (c, p)
+    | _ -> None
+    )
+let getCreaturesBySpeed =
+    Matrix.foldI
+    ( fun _ _ acc -> function
+        | { occupant = Some (Creature c); _ } ->
+            (c.info.speed, c)::acc
+        | _ -> acc
+    )
+    []

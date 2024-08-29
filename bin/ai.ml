@@ -458,28 +458,46 @@ let getTarget (c : Creature.t) pc (state : S.t) = match c.hostility with
     | Tame -> getTargetPet c pc state
     | Hostile -> getTargetWhenHostile c pc state
 
-let rec animateCreature c cp (state : S.t) =
-    if not (Cr.hasTurn c) then state else
-
+let animateCreature c cp (state : S.t) =
     match getTarget c cp state with
     | None -> state
     | Some target ->
-        let cpn, state' = handleTarget c cp target state in
-        let c = { c with pointsSpeed = c.pointsSpeed - C.pointsSpeedPerTurn } in
-        animateCreature c cpn state'
+        let _, state = handleTarget c cp target state in
+        state
 
-let animateCreatures state = Matrix.foldI
-    ( fun _ p state' -> function
-        | Map.{ occupant = Some (Creature c); _ } ->
-            let m = SL.map state' in
-            ( match Map.getCreatureAtOpt m p with
-            | None -> state'
-            | Some cc -> if c != cc then state' else
-                (* ^TODO guarantee not strong enough; creatures probably need UID *)
-                animateCreature cc p state'
+let animateCreatures state =
+    let m = SL.map state in
+    let creaturesBySpeed = Map.getCreaturesBySpeed m in
+
+    let rec aux toAnimate state =
+        if L.is_empty toAnimate then state else
+
+        let withTurnsLeft =
+            L.filter (fun (ps, _) -> Cr.hasTurn ps) toAnimate
+            |> R.shuffle
+        in
+
+        let state, withTurnsLeft = L.fold_left
+            ( fun (state, withTurnsLeft) (pointsSpeed, (c : Cr.t)) ->
+                let m = SL.map state in
+
+                match Map.getCreature c.id m with
+                | [] -> state, withTurnsLeft
+                | (c, p)::_ ->
+                    let state = animateCreature c p state in
+                    if pointsSpeed > C.pointsSpeedPerTurn then
+                        state, (pointsSpeed - C.pointsSpeedPerTurn, c)::withTurnsLeft
+                    else
+                        state, withTurnsLeft
             )
-        | _ -> state'
-    ) state (SL.map state)
+            (state, [])
+            withTurnsLeft
+        in
+
+        aux withTurnsLeft state
+    in
+    aux creaturesBySpeed state
+
 
 let maybeSpawnCreatures state =
     if R.oneIn 50 then

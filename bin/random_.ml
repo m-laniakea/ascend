@@ -1,5 +1,7 @@
 module C = Common
 
+type uid = Int64.t * Int64.t
+
 type roll =
     { rolls : int
     ; sides : int
@@ -56,3 +58,12 @@ let rollAttackLanded threshold addSides =
     | _ when roll < threshold -> Hit
     | _ when roll = threshold -> MissBarely
     | _ -> Miss
+
+let int64 () = Random.int64_in_range ~min:Int64.min_int ~max:Int64.max_int
+
+let uid () = int64 (), int64 ()
+
+let shuffle l =
+    List.map (fun i -> int64 (), i) l
+    |> List.sort compare
+    |> List.map snd
