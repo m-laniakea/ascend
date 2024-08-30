@@ -7,7 +7,7 @@ module P = Position
 module S = State
 module SL = StateLevels
 
-let playerD2Sight = 9
+let playerD2Sight = 6
 
 let getPathRay from target =
     let rec aux path =

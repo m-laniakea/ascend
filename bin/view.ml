@@ -10,6 +10,7 @@ module I = N.I
 module C = Common
 module P = Position
 module S = State
+module SL = StateLevels
 
 let term = Term.create () (* TODO shouldn't be created a second time here *)
 
@@ -24,7 +25,7 @@ let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
     | Weapon w -> I.string A.(styles ++ fg w.color) ")"
     | Wand _ -> I.string A.(styles ++ fg A.cyan) "/"
 
-let imageOfTile _ _ = function
+let imageOfTile state _ p = function
     | Map.{ occupant = Some occ; _ } ->
         ( match occ with
             | Creature c ->
@@ -51,7 +52,12 @@ let imageOfTile _ _ = function
         | Wall Horizontal -> "-"
         | Wall Vertical -> "|"
         in
-        I.string A.(fg white) c
+        let color = if SL.isLit p state || Sight.playerCanSee state p then
+                A.white
+            else
+                A.gray 10
+        in
+        I.string A.(fg color) c
 
 let applyAnimatedTiles animationLayer m =
     animationLayer
@@ -97,7 +103,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
             (
                 let mView =
                     S.getKnowledgeCurrentMap state
-                    |> Matrix.mapI imageOfTile
+                    |> Matrix.mapI (imageOfTile state)
                     |> applyAnimatedTiles animationLayer
                 in
                 I.tabulate Map.size.cols Map.size.rows (fun c r -> Matrix.get mView { row = r; col = c })
