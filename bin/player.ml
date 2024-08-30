@@ -15,6 +15,7 @@ let itemsDisplayedMax = 5
 type fDir = P.t -> P.t
 
 type actions =
+    | Absorb
     | BlindUnblind
     | Close of fDir
     | Drop of C.selectionItem list
@@ -26,6 +27,51 @@ type actions =
     | Throw of C.selectionItem * P.dir
     | Wield of C.selectionItem
     | Zap of C.selectionItem * P.dir
+
+let absorb (state : S.t) =
+    let player = state.player in
+    let p = player.pos in
+
+    let m = SL.map state in
+    let t = Matrix.get m p in
+
+    let corpses = t.items |> L.filter_map (function | Item.Corpse c -> Some c | _ -> None) in
+
+    match corpses with
+    | [] -> S.msgAdd state "There's nothing to absorb here."; state
+    | c::_ ->
+        let state = match Item.corpseFreshness c state.turns with
+        | Item.Fresh ->
+            ( match Item.name (Corpse c) with
+                | "floating eye corpse" when not (Cr.isTelepath player.attributes) ->
+                    S.msgAdd state "You feel a strange mental acuity.";
+                    UpdatePlayer.addAttribute Telepathic state
+                    (* TODO Better for corpses to have attributes *)
+                | _ ->
+                    let bonus = R.rn 1 (c.weight / 100 |> max 1) in
+                    S.msgAdd state "That felt good.";
+                    UpdatePlayer.addHp bonus state
+            )
+        | Unfresh ->
+            S.msgAdd state "That corpse didn't feel fresh.";
+            state
+        | Unhealthy ->
+            S.msgAdd state "That felt unhealthy.";
+            let bonus = R.rn 1 (c.weight / 50 |> max 5) in
+            UpdatePlayer.addHp (-bonus) state
+
+        | Tainted -> match R.rn 0 2 with
+            | 0 ->
+                S.msgAdd state "That corpse has acquired a deadly taint...";
+                UpdatePlayer.addHp (-player.hpMax) state
+            | _ ->
+                S.msgAdd state "That corpse was far too old!";
+                let bonus = R.rn 0 (c.weight / 25 |> max 10) in
+                UpdatePlayer.addHp (-bonus) state
+        in
+        let t = { t with items = C.listRemove (Item.Corpse c) t.items } in
+        let m = Matrix.set t p m in
+        SL.setMap m state
 
 let blindUnblind (state : S.t) =
     let player = state.player in
@@ -523,6 +569,7 @@ and afterAction state =
 let action a (state : S.t) =
     Queue.clear state.messages;
     ( match a with
+    | Absorb -> absorb state
     | BlindUnblind -> blindUnblind state
     | Close dir -> close dir state
     | Drop sl -> drop sl state

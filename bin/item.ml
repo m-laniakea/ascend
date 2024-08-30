@@ -352,8 +352,26 @@ let isCorpse = function
     | Corpse _ -> true
     | _ -> false
 
+let turnsCorpseUnfresh = 6
+let turnsCorpseUnhealthy = 25
+let turnsCorpseTainted = 50
 let turnsCorpseRot = 100
-let corpseAgeZombie = 50
+let corpseAgeZombie = turnsCorpseTainted
+
+type corpseFreshness =
+    | Fresh
+    | Unfresh
+    | Unhealthy
+    | Tainted
+
+let corpseFreshness c turns =
+    let age = turns - c.turnDeceased in
+
+    match c with
+    | _ when age < turnsCorpseUnfresh -> Fresh
+    | _ when age < turnsCorpseUnhealthy -> Unfresh
+    | _ when age < turnsCorpseTainted -> Unhealthy
+    | _ -> Tainted
 
 let mkCorpse name color weight t =
     let lenNoZombie = String.length name - String.length "zombie" - 1 in

@@ -14,7 +14,8 @@ let state =
 
     let player =
         S.
-        { pos = { row = 0; col = 0 }
+        { attributes = []
+        ; pos = { row = 0; col = 0 }
         ; gold = 20
         ; hp = 10
         ; hpMax = 10

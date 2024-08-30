@@ -147,3 +147,13 @@ let paralyze n (state : S.t) =
     in
 
     setStatus status state
+
+let addAttribute a (state : S.t) =
+    let player = state.player in
+    let attributes = player.attributes in
+
+    if C.contains attributes a then state else
+    let attributes = a::attributes in
+
+    let player = { player with attributes } in
+    { state with player }
