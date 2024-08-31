@@ -455,7 +455,7 @@ let random difficultyLevel =
     let attrSpawn = L.filter_map (function | SpawnGroup s -> Some s | _ -> None) ci.attributes in
     match attrSpawn with
     | [] -> mkCreatures ci 1
-    | GroupSmall::_ -> if R.oneIn 2 then mkCreatures ci (R.rn 2 4) else mkCreatures ci 1
+    | GroupSmall::_ -> if R.oneIn 2 then mkCreatures ci (R.rn 2 4 |> min difficultyLevel) else mkCreatures ci 1
     | GroupLarge::_ -> mkCreatures ci (R.rn 2 4 + R.rn 0 4)
 
 let getAttacksPassive c =
