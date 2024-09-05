@@ -535,10 +535,11 @@ let moveToStairs ~dir (state : S.t) =
     let player = { state.player with pos = posStairs } in
     { (SL.setMap m' state) with player;  }
 
-let maybeAddHp (state : S.t) = match state with
+let maybeAddHp (state : S.t) =
+    let interval = 15 / state.player.level |> max 3 in
+    match state with
     | state when state.mode <> Playing -> state
-    | state -> UpdatePlayer.addHp (if R.oneIn 3 then 1 else 0) state
-
+    | state -> UpdatePlayer.addHp (if R.oneIn interval then 1 else 0) state
 
 let rec handleParalysis (state : S.t) = match state with
     | _ when state.mode <> Playing -> Some state
