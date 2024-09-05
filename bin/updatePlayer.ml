@@ -36,23 +36,17 @@ let knowledgeMapTileOccupant o p (state : S.t) =
     let pk = Matrix.set t p pk in
     S.setKnowledgeCurrentMap pk state
 
-let revealRoomIfLit (state : S.t) =
+let revealRoomTilesIfLit (state : S.t) =
     if Creature.isBlind state.player.attributes then state else
     let updateKnowledge room state =
         let m  = SL.map state in
-        let pk = S.getKnowledgeCurrentMap state in
-        let pkUpdated = L.fold_left
-            ( fun pk p ->
-                let actual = Matrix.get m p in
-                let known = Matrix.get pk p in
-                if actual <> known then
-                    Matrix.set actual p pk
-                else
-                    pk
-            )
-            pk (Map.getOutliningRoom room |> Map.getRoomPositions)
-        in
-        S.setKnowledgeCurrentMap pkUpdated state
+
+        L.fold_left
+        ( fun state p ->
+            let actual = Matrix.get m p in
+            knowledgeMapTileType actual.t p state
+        )
+        state (Map.getOutliningRoom room |> Map.getRoomPositions)
     in
 
     match StatePlayer.room state with
@@ -75,7 +69,7 @@ let knowledgeMap state =
         ) pk pk
     in
     S.setKnowledgeCurrentMap pkUpdated state
-    |> revealRoomIfLit
+    |> revealRoomTilesIfLit
 
 let knowledgeCreaturesDelete state =
     let pk = S.getKnowledgeCurrentMap state in
