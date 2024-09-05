@@ -251,7 +251,7 @@ let weapons =
         ; color = A.white
         ; damage = { rolls = 2; sides = 6 }
         ; price = 10
-        ; freqRel = 4
+        ; freqRel = 1
         ; weight = 70
         }
     ]
