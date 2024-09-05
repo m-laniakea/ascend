@@ -546,6 +546,7 @@ let rec handleParalysis (state : S.t) = match state with
     | _ ->
         let sp = state.player in
         let paralysis = L.map (function | C.Paralyzed i -> i) sp.status in
+        let wasParalyzed = L.is_empty paralysis |> not in
 
         let status, stillParalyzed = match paralysis with
             | [] -> [], false
@@ -558,8 +559,12 @@ let rec handleParalysis (state : S.t) = match state with
 
         let state = UpdatePlayer.setStatus status state in
 
-        if stillParalyzed then afterAction state else
-        Some state
+        if stillParalyzed then
+            let _ = View.imageCreate  state in
+            afterAction state
+        else
+            let _ = if wasParalyzed then S.msgAdd state "You can move again." in
+            Some state
 
 and afterAction state =
     state
