@@ -110,7 +110,15 @@ let attackMelee p (c : Creature.t) (state : S.t) =
         let sp = state.player in
         let damage =
             ( match sp.weaponWielded with
-            | None -> R.rn 1 2 (* bare-handed *)
+            | None ->
+                let showMessage = R.oneIn 26 in
+                ( if showMessage then
+                    S.msgAdd state "Your bare fists don't seem to do much..."
+                );
+                ( if showMessage && L.exists Item.isWeapon sp.inventory then
+                    S.msgAdd state "It would be wise to (w)ield a weapon.";
+                );
+                R.rn 1 2 (* bare-handed *)
             | Some w -> R.roll w.damage
             )
             |> Attack.reduceDamage acTarget
