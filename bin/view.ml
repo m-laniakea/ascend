@@ -55,7 +55,7 @@ let imageOfTile state _ p = function
         let color = if SL.isLit p state || Sight.playerCanSee state p then
                 A.white
             else
-                A.gray 10
+                A.lightblack
         in
         I.string A.(fg color) c
 
