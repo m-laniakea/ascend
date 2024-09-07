@@ -71,7 +71,12 @@ let findPosItemMatchingInSight c f from state =
     |> L.sort (P.closestTo from)
     |> C.hdOpt
 
-let getSpawnPosition ?(preferNear=None) ~room state =
+type preferencePlacement =
+    | RandomFirstOnly
+    | Near of P.t
+    | RandomAll
+
+let getSpawnPosition ~preferNear ~room state =
     let m = SL.map state in
     let pp = state.player.pos in
     let spawnPositions =
@@ -90,13 +95,14 @@ let getSpawnPosition ?(preferNear=None) ~room state =
             , L.filter (Map.isInRoom r) pOutOfView
     in
     match preferNear with
-        | None ->
+        | RandomAll
+        | RandomFirstOnly ->
             ( match pOutOfView, pInView with
             | [], [] -> None
             | (_::_ as oov), _ -> Some (R.item oov)
             | _, pOk -> Some (R.item pOk)
             )
-        | Some p ->
+        | Near p ->
             let sortClosest = L.sort (P.closestTo p) in
             let closestInView = sortClosest pInView in
             let closestOutOfView = sortClosest pOutOfView in
@@ -108,7 +114,7 @@ let getSpawnPosition ?(preferNear=None) ~room state =
             in
             L.nth_opt closest 0
 
-let placeCreatures creatures ?(preferNear=None) ~room state =
+let placeCreatures creatures ~preferNear ~room state =
     let rec aux creatures ~preferNear state = match creatures with
         | [] -> state
         | creature::tl ->
@@ -120,14 +126,17 @@ let placeCreatures creatures ?(preferNear=None) ~room state =
                 let t' = { t with occupant = Some (Creature creature) } in
                 let map' = Matrix.set t' p map in
                 let state = SL.setMap map' state in
-                let preferNear = Some (Option.fold ~none:p ~some:C.id preferNear) in
-
+                let preferNear = match preferNear with
+                    | RandomFirstOnly -> Near p
+                    | RandomAll -> RandomAll
+                    | Near _ as np -> np
+                in
                 aux tl ~preferNear state
             )
     in
     aux creatures ~preferNear state
 
-let spawnCreatures ?(preferNear=None) ~room state =
+let spawnCreatures ~preferNear ~room state =
     let d = SL.depth state in (* TODO difficulty ob1 on level gen *)
     let creatures = Cr.random d in
 
@@ -502,10 +511,9 @@ let animateCreatures state =
     in
     aux creaturesBySpeed state
 
-
 let maybeSpawnCreatures state =
     if R.oneIn 50 then
-        spawnCreatures ~room:None state
+        spawnCreatures ~preferNear:RandomFirstOnly ~room:None state
     else
         state
 
@@ -551,4 +559,4 @@ let movePetsFromLevel (stateOld : S.t) (state : S.t) =
     let state' = SL.setIndexLevel stateOld.levels.indexLevel state in
     let state' = SL.setMap m state' in
     SL.setIndexLevel state.levels.indexLevel state'
-    |> placeCreatures pets ~preferNear:(Some state.player.pos) ~room:None
+    |> placeCreatures pets ~preferNear:(Near state.player.pos) ~room:None

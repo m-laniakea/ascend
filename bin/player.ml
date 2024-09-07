@@ -327,7 +327,7 @@ let read (si : C.selectionItem) (state : S.t) =
             let player = { sp with inventory } in
             let state = { state with player } in
             match s.scroll_t with
-            | CreateMonster -> S.msgAdd state "The area feels more dangerous!"; Ai.spawnCreatures ~preferNear:(Some sp.pos) ~room:None state
+            | CreateMonster -> S.msgAdd state "The area feels more dangerous!"; Ai.spawnCreatures ~preferNear:(Near sp.pos) ~room:None state
             | MagicMapping -> S.msgAdd state "An image coalesces in your mind."; S.setKnowledgeCurrentMap (SL.map state) state (* TODO remove item positions *)
             | Teleport ->
                 S.msgAdd state "Your position feels more uncertain.";
