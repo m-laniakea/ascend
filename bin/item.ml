@@ -232,6 +232,17 @@ let comestibles =
         }
     ]
 
+let runedBroadswordInfo =
+    { name = "runed broadsword"
+    ; color = A.white
+    ; damage = { rolls = 2; sides = 6 }
+    ; price = 10
+    ; freqRel = 1
+    ; weight = 70
+    }
+
+let runedBroadsword = Weapon runedBroadswordInfo
+
 let weapons =
     [   { name = "dagger"
         ; color = A.cyan
@@ -247,13 +258,7 @@ let weapons =
         ; freqRel = 12
         ; weight = 30
         }
-    ;   { name = "runed broadsword"
-        ; color = A.white
-        ; damage = { rolls = 2; sides = 6 }
-        ; price = 10
-        ; freqRel = 1
-        ; weight = 70
-        }
+    ; runedBroadswordInfo
     ]
 
 let rnComestible () =

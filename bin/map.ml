@@ -6,7 +6,8 @@ module M = Matrix
 module P = Position
 module R = Random_
 
-let size = P.{ rows = 21; cols = 80 }
+let size = P.{ rows = 21; cols = 79 }
+let center = P.{ row = size.rows / 2; col = size.cols / 2 }
 
 type shop_t =
     | General
@@ -157,13 +158,21 @@ let getRoomTiles room m =
 
 let roomHasStairs room state = L.exists isStairs (getRoomTiles room state)
 
-let allMapPositions =
+let roomAll =
     { posNW = {row = 0; col = 0}
     ; posSE = northWest { row = size.rows; col = size.cols }
     ; doors = []
     ; room_t = Regular
-    ; lit = false
+    ; lit = true
     }
+
+let roomMax =
+    { roomAll with posSE = northWest roomAll.posSE
+    ; posNW = southEast roomAll.posNW
+    }
+
+let allMapPositions =
+    roomAll
     |> getRoomPositions
 
 type dirs = North | South | West | East
@@ -269,3 +278,13 @@ let getCreaturesBySpeed =
         | _ -> acc
     )
     []
+
+let setItems items p m =
+    let t = Matrix.get m p in
+    let t = { t with items } in
+    Matrix.set t p m
+
+let setOccupant occupant p m =
+    let t = Matrix.get m p in
+    let t = { t with occupant } in
+    Matrix.set t p m
