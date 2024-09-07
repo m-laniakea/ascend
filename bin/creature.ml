@@ -9,7 +9,9 @@ module M = Matrix.Matrix
 module R = Random_
 
 type hostility =
+    | Docile
     | Hostile
+    | Peaceful
     | Tame
 
 type sizeGroupSpawn =
@@ -484,7 +486,9 @@ let hasTurn = function
 let hasAttribute c a = List.mem a c.info.attributes
 
 let isBlind = List.exists (function | Blind -> true | _ -> false)
+let isDocile c = c.hostility = Docile
 let isHostile c = c.hostility = Hostile
+let isPeaceful c = c.hostility = Peaceful
 let isMindless = List.exists (function | Mindless -> true | _ -> false)
 let isPet c = c.hostility = Tame
 let isTelepath = List.exists (function | Telepathic -> true | _ -> false)

@@ -368,6 +368,8 @@ let handleTarget c pc target state =
         | pt::_ -> moveCreature pc pt state
         )
 
+let randomAround c p m = Map.posAround p |> L.filter (canMoveHere c m)
+
 let getTargetPet c cp state =
     let m = SL.map state in
     let posPlayer = state.player.pos in
@@ -395,7 +397,7 @@ let getTargetPet c cp state =
         | Some _ as tAttack, _ -> tAttack
         | _, Some p -> Some (TargetApproach p)
         | _, None ->
-            let randomAround = Map.posAround cp |> L.filter (canMoveHere c m) in
+            let randomAround = randomAround c cp m in
             match randomAround with
             | [] -> followPlayer ()
             | _ ->
@@ -467,9 +469,39 @@ let getTargetWhenHostile c pc state =
     | Some _ as sp when canSeePlayer -> sp
     | _ -> pathToPetItemPlayer ()
 
+let getTargetDocile c p state =
+    if R.nToOne 5 then None else
+    let m = SL.map state in
+
+    let posPlayer = state.player.pos in
+    let followPlayer = if R.oneIn 6 then
+            getCreaturePath c m p posPlayer |> Option.map (fun p -> TargetApproach p)
+        else
+            None
+    in
+    match followPlayer with
+    | Some _ -> followPlayer
+    | None ->
+        let randomAround = randomAround c p m in
+        ( match getCreaturePath c m p (R.item randomAround) with
+        | None -> None
+        | Some p -> Some (TargetGoTo p)
+        )
+
+let getTargetPeaceful c p state =
+    if R.nToOne 5 then None else
+    let m = SL.map state in
+    let randomAround = randomAround c p m in
+    ( match getCreaturePath c m p (R.item randomAround) with
+    | None -> None
+    | Some p -> Some (TargetGoTo p)
+    )
+
 let getTarget (c : Creature.t) pc (state : S.t) = match c.hostility with
-    | Tame -> getTargetPet c pc state
+    | Docile -> getTargetDocile c pc state
     | Hostile -> getTargetWhenHostile c pc state
+    | Peaceful -> getTargetPeaceful c pc state
+    | Tame -> getTargetPet c pc state
 
 let animateCreature c cp (state : S.t) =
     match getTarget c cp state with

@@ -150,6 +150,14 @@ let rec move mf (state : S.t) =
     | { occupant = Some (Creature c); _ } when Creature.isHostile c ->
         attackMelee pn c state
 
+    | { occupant = Some (Creature c); _ } when Creature.isDocile c ->
+        S.msgAdd state (C.sf "The %s is there." c.info.name);
+        state
+
+    | { occupant = Some (Creature c); _ } when Creature.isPeaceful c ->
+        S.msgAdd state (C.sf "The %s is there." c.info.name);
+        state
+
     | { occupant = Some Boulder; _ } as t ->
         let pbNew = mf pn in
         let state = UpdatePlayer.knowledgeMapTileOccupant t.occupant pn state in
@@ -183,6 +191,7 @@ let rec move mf (state : S.t) =
         let player = { state.player with pos = pn } in
         let state' = { state with player } in
         let m' =
+            (* displace pet, if present *)
             Matrix.set { tile with occupant = tNew.occupant } p m
             |> Matrix.set { tNew with occupant = Some Player } pn
         in
@@ -306,6 +315,7 @@ let checkHp (state : S.t) =
 
     | hp when hp * 10 < sp.hpMax ->
         maybeWarnHealth state "You feel your life force running out..."
+        (* ^TODO This message can be seen upon health increase *)
 
     | _ ->
         state
