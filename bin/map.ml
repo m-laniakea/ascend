@@ -193,6 +193,27 @@ let isTileTypeWalkable t = match t.t with
     | Unseen -> false
     | Wall Horizontal | Wall Vertical -> false
 
+let tileOfT t = { t; items = []; occupant = None }
+
+let ofPicture p =
+    p
+    |> List.map String.to_seq
+    |> List.map
+        ( Seq.map (function
+        | '+' -> Door (Closed, Horizontal)
+        | 'D' -> Door (Closed, Vertical)
+        | '.' -> Floor
+        | '#' -> Hallway HallRegular
+        | '>' -> StairsDown
+        | '<' -> StairsUp
+        | '-' -> Wall Horizontal
+        | '|' -> Wall Vertical
+        | _ -> failwith "Unknown tile"
+        ))
+    |> List.map (Seq.map tileOfT)
+    |> List.map List.of_seq
+    |> Matrix.ofRaw
+
 let getCreatureAtOpt m p = match Matrix.get m p with
     | { occupant = Some (Creature c); _ } -> Some c
     | _ -> None
