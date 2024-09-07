@@ -445,6 +445,69 @@ let mkCreature ci =
 let mkCreatures ci n =
     L.init n (fun _ -> mkCreature ci)
 
+let mkAurochs () =
+    let info =
+        { acBase = 0
+        ; attributes = [NoHands]
+        ; color = A.lightwhite
+        ; difficulty = 7
+        ; frequency = 0
+        ; hits =
+            [ H.mkMelee Butt Physical 4 12
+            ]
+        ; levelBase = 5
+        ; name = "aurochs"
+        ; speed = 9
+        ; symbol = "C"
+        ; weight = 2500
+        }
+    in
+    { (mkCreature info) with hostility = Peaceful
+    }
+
+let mkButterfly () =
+    let info =
+        { acBase = 0
+        ; attributes = [NoHands]
+        ; color = R.item A.[ (gray 8); blue; lightblue; lightblue; lightcyan; lightyellow; lightred ]
+        ; difficulty = 0
+        ; frequency = 0
+        ; hits =
+            [ H.mkMelee Touch Physical 0 1
+            ]
+        ; levelBase = 0
+        ; name = "butterfly"
+        ; speed = 18
+        ; symbol = "B"
+        ; weight = 1
+        }
+    in
+    { (mkCreature info) with hostility = Docile
+    }
+
+let infoMitras =
+    { acBase = -10
+    ; attributes = [Telepathic]
+    ; color = A.white
+    ; difficulty = 26
+    ; frequency = 0
+    ; hits =
+        [ H.mkWeapon 2 6
+        ; H.mkWeapon 2 6
+        ; H.mkMelee Touch Fire 5 62
+        ]
+    ; levelBase = 26
+    ; name = "Mitras"
+    ; speed = 26
+    ; symbol = "A"
+    ; weight = 1450
+    }
+
+let mkMitras () =
+    { (mkCreature infoMitras) with hostility = Peaceful
+    ; inventory = []
+    }
+
 let random difficultyLevel =
     let difficultyMin = difficultyLevel / 6 + 1 in
 
