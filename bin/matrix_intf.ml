@@ -6,6 +6,7 @@ sig
 type 'a t
 
 val raw : 'a t -> 'a list list
+val ofRaw : 'a list list -> 'a t
 
 val fill : P.dim_2D -> 'a -> 'a t
 val set : 'a -> P.t -> 'a t -> 'a t

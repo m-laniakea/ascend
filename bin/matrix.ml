@@ -8,7 +8,19 @@ type 'a t = ('a list) list
 
 let raw m = m
 
+let ofRaw = function
+    | [] -> failwith "Matrix may not be empty"
+    | [[]; _] -> failwith "Row may not be empty"
+    | m ->
+        let cols = List.hd m |> List.length in
+        let rowsSameLength = List.for_all (fun r -> List.length r = cols) m in
+        match rowsSameLength with
+        | true -> m
+        | false -> failwith "Matrix rows must be same length"
+
 let fill (size : P.dim_2D) v =
+    assert (size.rows > 0);
+    assert (size.cols > 0);
     C.listMake size.rows (C.listMake size.cols v)
 
 let set v (pos : P.t) = List.mapi
