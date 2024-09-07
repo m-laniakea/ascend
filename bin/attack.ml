@@ -7,6 +7,8 @@ module S = State
 module SL = StateLevels
 
 let reduceDamage ac damage =
+    assert (damage >= 0);
+    if damage = 0 then damage else
     if ac >= 0 then damage else
     (R.rn ac (-1)) + damage |> max 1
 
