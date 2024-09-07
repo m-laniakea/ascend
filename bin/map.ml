@@ -224,12 +224,21 @@ let getPositionsCreature =
     | _ -> None
     )
 
-let getCreature id =
+let getCreature id m =
     Matrix.mapIFindAll
     ( fun _ p -> function
     | { occupant = Some (Creature c); _ } when c.id = id -> Some (c, p)
     | _ -> None
     )
+    m
+    |>
+    ( function
+        | [] -> None
+        | (c, p)::[] -> Some (c, p)
+        | _ -> failwith "Multiple creatures with same id found."
+    )
+    (* ^TODO Matrix.findFirst *)
+
 
 let getCreaturesBySpeed =
     Matrix.foldI

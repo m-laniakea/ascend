@@ -495,8 +495,8 @@ let animateCreatures state =
                 let m = SL.map state in
 
                 match Map.getCreature c.id m with
-                | [] -> state, withTurnsLeft
-                | (c, p)::_ ->
+                | None -> state, withTurnsLeft
+                | Some (c, p) ->
                     let state = animateCreature c p state in
                     if pointsSpeed > C.pointsSpeedPerTurn then
                         state, (pointsSpeed - C.pointsSpeedPerTurn, c)::withTurnsLeft
