@@ -5,6 +5,7 @@ module L = List
 module C = Common
 module P = Position
 module R = Random_
+module S = State
 module SL = StateLevels
 
 let getHallwayPointNext ~allowHallway (m : Map.t) p =
@@ -305,7 +306,7 @@ let terrainAddObjects rooms state m =
         m
         rooms
 
-let gen state =
+let genDungeon state =
     let rooms = roomsGen state in
     let terrain = Matrix.fill Map.size Map.{ t = Stone; occupant = None; items = [] }
         |> terrainAddRooms rooms
@@ -315,7 +316,36 @@ let gen state =
     in
     let rooms = maybeMakeShop rooms state terrain in
     let map = terrainAddObjects rooms state terrain in
-    SL.levelAdd { rooms; map } state
+    SL.levelAdd { rooms; map; level_t = Dungeon } state
     |> placeRoomCreatures rooms
 
+let genGarden state =
+    let aurochs = List.init 3 (fun _ -> Creature.mkAurochs ()) in
+    let butterflies = List.init 26 (fun _ -> Creature.mkButterfly ()) in
+    let levels = S.{ state.levels with hasGarden = true } in
+    let state = { state with levels } in
+    SL.levelAdd (Levels.levelGarden state) state
+    |> Ai.placeCreatures aurochs ~preferNear:RandomAll ~room:None
+    |> Ai.placeCreatures butterflies ~preferNear:RandomAll ~room:None
 
+let shouldGenGarden (state : S.t) =
+    let sl = state.levels in
+    let stairsToGardenMin = 5 in (* references stairs because depth is not incremented yet *)
+    let stairsToGardenMax = 7 in
+    let spread = stairsToGardenMax - stairsToGardenMin + 1 in
+
+    if sl.hasGarden then false else
+    let il = sl.indexLevel in
+    assert (il <= stairsToGardenMax);
+
+    let index = il - stairsToGardenMin in
+    let isRangeCorrect = il >= stairsToGardenMin && il <= stairsToGardenMax in
+
+    isRangeCorrect
+    && R.oneIn (spread - index)
+    (* ^Gives equal chances to gen after levels min->max *)
+
+let gen state =
+    match shouldGenGarden state with
+    | true -> genGarden state
+    | false -> genDungeon state
