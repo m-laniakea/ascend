@@ -6,6 +6,8 @@ let level state =
     let sl = state.levels in
     List.nth sl.levels sl.indexLevel
 
+let levelType state = (level state).level_t
+
 let map state =
     (level state).map
 
@@ -35,7 +37,7 @@ let setIndexLevel i state =
 let levelAdd m state =
     let sl = state.levels in
     let sln =
-        { levels = sl.levels @ [m]
+        { sl with levels = sl.levels @ [m]
         ; indexLevel = sl.indexLevel + 1
         }
     in

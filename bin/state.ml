@@ -1,13 +1,19 @@
 module C = Common
 
+type level_t =
+    | Dungeon
+    | Garden of Random_.uid (* mitras id *)
+
 type level =
     { map : Map.t
     ; rooms : Map.room list
+    ; level_t : level_t
     }
 
 type levels =
     { indexLevel : int
     ; levels : level list
+    ; hasGarden : bool
     }
 
 type player =

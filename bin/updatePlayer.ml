@@ -16,7 +16,8 @@ let addHp n (state : S.t) =
     { state with player }
 
 let knowledgeMapAddEmpty (state : S.t) =
-    let knowledgeEmpty = S.{ rooms = []; map = Matrix.fill Map.size Map.unseenEmpty } in
+    let level_t = SL.levelType state in
+    let knowledgeEmpty = S.{ rooms = []; map = Matrix.fill Map.size Map.unseenEmpty; level_t } in
 
     let knowledgeLevels = state.player.knowledgeLevels @ [knowledgeEmpty] in
     let player = { state.player with knowledgeLevels } in

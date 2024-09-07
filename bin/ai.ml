@@ -543,11 +543,13 @@ let animateCreatures state =
     in
     aux creaturesBySpeed state
 
-let maybeSpawnCreatures state =
-    if R.oneIn 50 then
-        spawnCreatures ~preferNear:RandomFirstOnly ~room:None state
-    else
-        state
+let maybeSpawnCreatures state = match SL.levelType state with
+    | Garden _ -> state
+    | Dungeon ->
+        if R.oneIn 50 then
+            spawnCreatures ~preferNear:RandomFirstOnly ~room:None state
+        else
+            state
 
 let doCreaturePassive c state =
     let pAttacks = Cr.getAttacksPassive c in

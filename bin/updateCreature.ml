@@ -5,7 +5,23 @@ module Cr = Creature
 module S = State
 module SL = StateLevels
 
-let onPeaceBroken state = state (* TODO *)
+let onPeaceBroken state =
+    let level = SL.level state in
+    let m = SL.map state in
+
+    match level.level_t with
+    | Dungeon -> state (* TODO Attacking peaceful in dungeon *)
+    | Garden idMitras -> match Map.getCreature idMitras m with
+        | None -> state (* Mitras gone somehow... *)
+        | Some (mitras, p) ->
+            if mitras.hostility <> Peaceful then state else
+            let info = { mitras.info with speed = Cr.infoMitras.speed } in
+            let mitras = { mitras with hostility = Hostile; info } in
+            let occupant = Some (Map.Creature mitras) in
+            let m = Map.setOccupant occupant p m in
+            let _ = S.msgAdd state "Oh Dasyu, what hast thou done?" in
+            let _ = S.msgAdd state "You sense a massive statue beginning to move..." in
+            SL.setMap m state
 
 let addHp ~sourceIsPlayer n p (c : Creature.t) state =
     let state, t' =

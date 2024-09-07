@@ -9,6 +9,7 @@ let state =
         S.
         { indexLevel = -1
         ; levels = []
+        ; hasGarden = false
         }
     in
 
