@@ -59,6 +59,7 @@ type selection =
 
 type mode =
     | Dead
+    | DisplayText of string list
     | Playing
     | Selecting of selection
 

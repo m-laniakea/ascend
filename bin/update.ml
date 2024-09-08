@@ -45,6 +45,14 @@ let modeDead event state = match event with
     | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> None
     | _ -> Some state
 
+let modeDisplayText event (state : S.t) = match event with
+    | `Key (`ASCII 'q', _)
+    | `Key (`Escape, _)
+    | `Key (`ASCII ' ', _) ->
+        Some { state with mode = Playing }
+
+    | _ -> Some state
+
 let modePlaying event state =
     let open Map in
     match event with
@@ -82,5 +90,6 @@ let modeSelecting event state s = match event with
 
 let exec event (state : State.t) = match (state.mode : State.mode) with
     | Dead -> modeDead event state
+    | DisplayText _ -> modeDisplayText event state
     | Playing -> modePlaying event state
     | Selecting s -> modeSelecting event state s

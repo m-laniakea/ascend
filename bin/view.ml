@@ -97,6 +97,11 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
             header state
             <-> messages state
             <-> messageDeath state
+        | DisplayText s ->
+            s
+            |> L.map (I.string A.empty)
+            |> I.vcat
+
         | Playing ->
             header state
             <->
