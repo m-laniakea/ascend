@@ -3,7 +3,7 @@ open Matrix
 module P = Position
 module S = State
 
-let levelGarden state =
+let levelGarden () =
     let mitras = Creature.mkMitras () in
     let info = { mitras.info with speed = 0 } in
     let mitras = { mitras with info } in
@@ -49,8 +49,4 @@ let levelGarden state =
         |> Map.setOccupant occupant center
     in
     let rooms = [ Map.roomMax ] in
-    let _ = S.msgAdd state "A voice speaks to you from high and low:" in
-    let _ = S.msgAdd state "\"Welcome to the Garden of Mitras." in
-    let _ = S.msgAdd state "Enjoy peace among" in
-    let _ = S.msgAdd state "those whos hands shed no blood\"." in
     S.{ rooms; map; level_t = Garden mitras.id }
