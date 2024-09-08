@@ -2,6 +2,23 @@ module P = Position
 module S = State
 module SL = StateLevels
 
+let intro =
+    [ "Welcome to the Dungeons."
+    ; ""
+    ; "In the beginning of the words, there was Rievax the Revelator."
+    ; "A long time ago, Gnilsog the Corruptor deceived the world and stole from the Revelator an artifact of immense power:"
+    ; "The Scepter of Yorel."
+    ; ""
+    ; "Far below, in the furthest depths of the dungeon, Gnilsog now takes joy in watching the continuing stream of"
+    ; "prisoners perish in infinite ways. All the while, the Corrupter continues to abuse the might of the Scepter"
+    ; "to maintain immortality, to rule unjustly, and to benight the inhabitants of the overworld..."
+    ; ""
+    ; "Having been captured and imprisoned by the forces of Gnilsog,"
+    ; "You, secret and loyal follower of Rievax the Revelator,"
+    ; "know that you must retrieve the Scepter of Yorel from the depths..."
+    ; "or die in the attempt."
+    ]
+
 let state =
     Random.init 53;
 
@@ -37,7 +54,7 @@ let state =
         { levels
         ; player
         ; messages = Queue.create ()
-        ; mode = Playing
+        ; mode = DisplayText intro
         ; turns = 0
         }
     in
