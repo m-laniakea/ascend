@@ -85,29 +85,23 @@ let knowledgeCreaturesDelete state =
     in
     S.setKnowledgeCurrentMap pk' state
 
-let rec addHpMax n (sp : S.player) =
-    assert (n >= 0);
-    if n = 0 then sp else
-
+let addHpMax (sp : S.player) =
     let hpBonus = (R.rn 1 8 + 1 |> max 3) in
     let hpMax = sp.hpMax + hpBonus in
     let hp = sp.hp + hpBonus in
 
-    addHpMax (n - 1) { sp with hp; hpMax }
+    { sp with hp; hpMax }
 
-let rec addAc n (sp : S.player) =
-    assert (n >= 0);
-    if n = 0 then sp else
-
-    addAc (n - 1) { sp with acBonus = sp.acBonus + 1 }
+let addAc (sp : S.player) =
+    { sp with acBonus = sp.acBonus + 1 }
 
 let levelTo levelNew (sp : S.player) =
     let lDiff = levelNew - sp.level in
     assert (lDiff > 0);
     (* TODO level down *)
     let sp =
-        addHpMax lDiff sp
-        |> addAc lDiff
+        C.repeat lDiff addHpMax sp
+        |> C.repeat lDiff addAc
     in
     { sp with level = levelNew }
 

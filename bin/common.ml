@@ -29,6 +29,15 @@ let listRemove v l = match L.find_index ((=) v) l with
     | None -> l
     | Some i -> partitionI (fun ix _ -> ix <> i) l |> fst
 
+let repeat n fWithArgs toModify =
+    assert (n >= 0);
+    let rec aux n toModify =
+        if n <= 0 then toModify else
+
+        aux (n - 1) (fWithArgs toModify)
+    in
+    aux n toModify
+
 type selectionItem =
     { iIndex : int
     ; name : string
