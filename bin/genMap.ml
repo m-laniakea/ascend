@@ -173,6 +173,21 @@ let roomsGen state =
     |> List.sort (fun (r1 : Map.room) r2 -> Int.compare r1.posNW.col r2.posNW.col)
     |> doorsGen
 
+let roomAddWalls room m =
+    let olR = Map.getOutliningRoom room in
+    let outline = Map.getBorder olR in
+    List.fold_left
+    ( fun m p ->
+        let alignment = match (p : P.t) with
+            | _ when p.row = olR.posNW.row -> Map.Horizontal
+            | _ when p.row = olR.posSE.row -> Map.Horizontal
+            | _ -> Vertical
+        in
+        Matrix.set Map.{ t = Wall alignment; occupant = None; items = [] } p m
+    )
+    m
+    outline
+
 let terrainAddRoom m room =
     let rp = Map.getRoomPositions room in
     let withFloor = List.fold_left
@@ -186,20 +201,7 @@ let terrainAddRoom m room =
                 p m
         ) m rp
     in
-    let olR = Map.getOutliningRoom room in
-    let outline = Map.getBorder olR in
-    let withWalls = List.fold_left
-        ( fun m p ->
-            let alignment = match (p : P.t) with
-                | _ when p.row = olR.posNW.row -> Map.Horizontal
-                | _ when p.row = olR.posSE.row -> Map.Horizontal
-                | _ -> Vertical
-            in
-            Matrix.set Map.{ t = Wall alignment; occupant = None; items = [] } p m
-        )
-        withFloor
-        outline
-    in
+    let withWalls = roomAddWalls room withFloor in
     List.fold_left
         ( fun m d ->
             let stateDoor = match R.rn 0 5 with
@@ -306,6 +308,9 @@ let terrainAddObjects rooms state m =
         m
         rooms
 
+let placeRoomCreaturesMultiple n rooms state =
+    C.repeat n (placeRoomCreatures rooms) state
+
 let genDungeon state =
     let rooms = roomsGen state in
     let terrain = Matrix.fill Map.size Map.{ t = Stone; occupant = None; items = [] }
@@ -335,24 +340,40 @@ let genGarden state =
     |> Ai.placeCreatures aurochs ~preferNear:RandomAll ~room:None
     |> Ai.placeCreatures butterflies ~preferNear:RandomAll ~room:None
 
-let shouldGenGarden (state : S.t) =
+let genBigroom state =
+    let rooms = Levels.bigroomRooms in
+    let map =
+        Levels.bigroom
+        |> C.repeat 4 (terrainAddObjects rooms state)
+        |> roomAddWalls Map.roomMax
+    in
+    let levels = S.{ state.levels with hasBigroom = true } in
+    let state = { state with levels; } in
+    SL.levelAdd { rooms; map; level_t = Dungeon } state
+    |> placeRoomCreaturesMultiple 26 rooms
+
+let shouldGenSpecial alreadyGenerated stairsToMin stairsToMax (state : S.t) =
+    (* references stairs because depth is not incremented yet *)
+    assert (stairsToMin <= stairsToMax);
+    if alreadyGenerated then false else
+
     let sl = state.levels in
-    let stairsToGardenMin = 5 in (* references stairs because depth is not incremented yet *)
-    let stairsToGardenMax = 7 in
-    let spread = stairsToGardenMax - stairsToGardenMin + 1 in
+    let spread = stairsToMax - stairsToMin + 1 in
 
-    if sl.hasGarden then false else
     let il = sl.indexLevel in
-    assert (il <= stairsToGardenMax);
+    assert (il <= stairsToMax);
 
-    let index = il - stairsToGardenMin in
-    let isRangeCorrect = il >= stairsToGardenMin && il <= stairsToGardenMax in
+    let index = il - stairsToMin in
 
-    isRangeCorrect
+    il >= stairsToMin
+    && il <= stairsToMax
     && R.oneIn (spread - index)
-    (* ^Gives equal chances to gen after levels min->max *)
+    (* ^Gives equal chances to gen at levels min->max *)
 
-let gen state =
-    match shouldGenGarden state with
-    | true -> genGarden state
-    | false -> genDungeon state
+let gen (state : S.t) =
+    let sl = state.levels in
+
+    match true with
+    | _ when shouldGenSpecial sl.hasGarden 5 7 state -> genGarden state
+    | _ when shouldGenSpecial sl.hasBigroom 10 13 state -> genBigroom state
+    | _ -> genDungeon state

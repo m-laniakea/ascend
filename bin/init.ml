@@ -26,6 +26,7 @@ let state =
         S.
         { indexLevel = -1
         ; levels = []
+        ; hasBigroom = false
         ; hasGarden = false
         }
     in

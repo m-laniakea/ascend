@@ -13,6 +13,7 @@ type level =
 type levels =
     { indexLevel : int
     ; levels : level list
+    ; hasBigroom : bool
     ; hasGarden : bool
     }
 

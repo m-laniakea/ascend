@@ -388,22 +388,6 @@ let creatures =
         ; speed = 15
         ; weight = 1200
         }
-    ;   { name = "minotaur"
-        ; symbol = "H"
-        ; attributes = []
-        ; color = C.brown
-        ; difficulty = 17
-        ; levelBase = 15
-        ; acBase = 6
-        ; frequency = 1
-        ; hits =
-            [ H.mkMelee Claw Physical 3 10
-            ; H.mkMelee Claw Physical 3 10
-            ; H.mkMelee Butt Physical 2 8
-            ]
-        ; speed = 15
-        ; weight = 1500
-        }
     ;   { name = "red dragon"
         ; symbol = "D"
         ; attributes = [NoHands]
@@ -506,6 +490,30 @@ let infoMitras =
 let mkMitras () =
     { (mkCreature infoMitras) with hostility = Peaceful
     ; inventory = []
+    }
+
+let mkMinotaur () =
+    let info =
+        { name = "minotaur"
+        ; symbol = "H"
+        ; attributes = []
+        ; color = C.brown
+        ; difficulty = 17
+        ; levelBase = 15
+        ; acBase = 6
+        ; frequency = 0
+        ; hits =
+            [ H.mkMelee Claw Physical 3 10
+            ; H.mkMelee Claw Physical 3 10
+            ; H.mkMelee Butt Physical 2 8
+            ]
+        ; speed = 15
+        ; weight = 1500
+        }
+    in
+    let wand = Item.Wand { wand_t = Dig; charges = 13 } in
+    let inventory = [ wand ] in
+    { (mkCreature info) with inventory
     }
 
 let random difficultyLevel =
