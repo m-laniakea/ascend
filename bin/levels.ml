@@ -6,11 +6,61 @@ module S = State
 
 let center = Map.center
 
+let toOccupant c = Some (Map.Creature c)
+
+let levelFinal () =
+    let pGnilsog = { center with col = center.col + 2 } in
+    let gnilsog = Creature.mkGnilsog 0 |> toOccupant in
+
+    let guardLocus = { pGnilsog with col = pGnilsog.col + 7 } in
+    let pGuardN = Map.north guardLocus in
+    let pGuardS = Map.south guardLocus in
+    let guardN = Creature.mkCaptain () |> toOccupant in
+    let guardS = Creature.mkCaptain () |> toOccupant in
+
+    let pDragon = { pGnilsog with col = pGnilsog.col + 26 } in
+    let dragon = Creature.mkDragon () |> toOccupant in
+
+    let map =
+        [ "-------------------------------------------------------------------------------"
+        ; "|...|.........................................................................|"
+        ; "|.|.|.||||||||||||||||||||||||-----------------------------------------------.|"
+        ; "|.|.|.-------------------------...............................................|"
+        ; "|.|.|.........................|.--------------------------....................|"
+        ; "|.|.|-----------------------|.|.|------------------------|....................|"
+        ; "|.|.|.......................|.|.||----------------------||....................|"
+        ; "|.|.|.---------------------.|.|.|||....................|||....................|"
+        ; "|.|.|.....................|.|.|.||||...------------...||||....................|"
+        ; "|.|.|--------------------.|.|.|.||||...|||.....|..|...||||........---.........|"
+        ; "|<|.D.....................|.D.|.HHHH...||......H..H...DDDD........|.|.........|"
+        ; "|.|.|--------------------.|.|.|.||||...|||.....|..|...||||........---.........|"
+        ; "|.|.|.....................|.|.|.||||...------------...||||....................|"
+        ; "|.|.|.---------------------.|.|.|||....................|||....................|"
+        ; "|.|.|.......................|.|.||----------------------||....................|"
+        ; "|.|.|------------------------.|.|------------------------|....................|"
+        ; "|.|.|.........................|.--------------------------....................|"
+        ; "|.|.|.-------------------------...............................................|"
+        ; "|.|.|.||||||||||||||||||||||||-----------------------------------------------.|"
+        ; "|...|.........................................................................|"
+        ; "-------------------------------------------------------------------------------"
+        ]
+        |> Map.ofPicture
+        |> Map.setItems [ Item.runedBroadsword ] pGuardN
+        |> Map.setItems [ Item.runedBroadsword ] pGuardS
+        |> Map.setOccupant guardN pGuardN
+        |> Map.setOccupant guardS pGuardS
+        |> Map.setOccupant gnilsog pGnilsog
+        |> Map.setItems [ Item.scepterOfYorel ] pGnilsog
+        |> Map.setOccupant dragon pDragon
+    in
+    let rooms = [] in
+    S.{ rooms; map; level_t = Final }
+
 let levelGarden () =
     let mitras = Creature.mkMitras () in
     let info = { mitras.info with speed = 0 } in
     let mitras = { mitras with info } in
-    let occupant = Some (Map.Creature mitras) in
+    let occupant = mitras |> toOccupant in
 
     let colsQuarter = P.{ row = 0; col = Map.size.cols / 4 } in
     let rowsQuarter = P.{ row = Map.size.rows / 4; col = 0 } in
@@ -111,7 +161,7 @@ let bigroom =
         ||  d > 100 && Random_.oneIn 20
         )
     in
-    let occupant = Some (Map.Creature (Creature.mkMinotaur ())) in
+    let occupant = Creature.mkMinotaur () |> toOccupant in
 
     List.fold_left
         ( fun m (p : P.t) ->

@@ -51,6 +51,25 @@ type t =
     ; pointsSpeed : int
     }
 
+let infoDragon =
+    { name = "red dragon"
+    ; symbol = "D"
+    ; attributes = [NoHands]
+    ; color = A.lightred
+    ; difficulty = 20
+    ; levelBase = 15
+    ; acBase = -1
+    ; frequency = 1
+    ; hits =
+        [ H.mkRanged Breath Fire 6 6
+        ; H.mkMelee Bite Physical 3 8
+        ; H.mkMelee Claw Physical 1 4
+        ; H.mkMelee Claw Physical 1 4
+        ]
+    ; speed = 9
+    ; weight = 4500
+    }
+
 let creatures =
     [   { name = "newt"
         ; symbol = ":"
@@ -388,23 +407,7 @@ let creatures =
         ; speed = 15
         ; weight = 1200
         }
-    ;   { name = "red dragon"
-        ; symbol = "D"
-        ; attributes = [NoHands]
-        ; color = A.lightred
-        ; difficulty = 20
-        ; levelBase = 15
-        ; acBase = -1
-        ; frequency = 1
-        ; hits =
-            [ H.mkRanged Breath Fire 6 6
-            ; H.mkMelee Bite Physical 3 8
-            ; H.mkMelee Claw Physical 1 4
-            ; H.mkMelee Claw Physical 1 4
-            ]
-        ; speed = 9
-        ; weight = 4500
-        }
+    ; infoDragon
     ]
 
 let rollHp ci = match ci.levelBase with
@@ -428,6 +431,32 @@ let mkCreature ci =
 
 let mkCreatures ci n =
     L.init n (fun _ -> mkCreature ci)
+
+let infoGnilsog =
+    { acBase = 0
+    ; attributes = []
+    ; color = A.magenta
+    ; difficulty = 21
+    ; frequency = 0
+    ; hits =
+        [ H.mkMelee Claw Physical 2 6 (* TODO steal scepter *)
+        ]
+    ; levelBase = 17
+    ; name = "Gnilsog"
+    ; speed = 12
+    ; symbol = "@"
+    ; weight = 1450
+    }
+
+let mkGnilsog timesKilled =
+    let levelBase = infoGnilsog.levelBase + timesKilled in
+    let difficulty = infoGnilsog.difficulty + timesKilled in
+    let info =
+        { infoGnilsog with levelBase
+        ; difficulty
+        }
+    in
+    mkCreature info
 
 let mkAurochs () =
     let info =
@@ -515,6 +544,29 @@ let mkMinotaur () =
     let inventory = [ wand ] in
     { (mkCreature info) with inventory
     }
+
+let mkCaptain () =
+    let info =
+        { acBase = 0
+        ; attributes = []
+        ; color = A.blue
+        ; difficulty = 14
+        ; frequency = 0
+        ; hits =
+            [ H.mkWeapon 4 4
+            ; H.mkWeapon 4 4
+            ]
+        ; levelBase = 12
+        ; name = "captain"
+        ; speed = 10
+        ; symbol = "@"
+        ; weight = 1450
+        }
+    in
+    mkCreature info
+
+let mkDragon () =
+    mkCreature infoDragon
 
 let random difficultyLevel =
     let difficultyMin = difficultyLevel / 6 + 1 in

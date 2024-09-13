@@ -211,13 +211,15 @@ let ofPicture p =
         ( Seq.map (function
         | '+' -> Door (Closed, Horizontal)
         | 'D' -> Door (Closed, Vertical)
+        | '*' -> Door (Hidden, Horizontal)
+        | 'H' -> Door (Hidden, Vertical)
         | '.' -> Floor
         | '#' -> Hallway HallRegular
         | '>' -> StairsDown
         | '<' -> StairsUp
         | '-' -> Wall Horizontal
         | '|' -> Wall Vertical
-        | _ -> failwith "Unknown tile"
+        | c -> failwith (C.sf "Unknown tile: '%c'" c)
         ))
     |> List.map (Seq.map tileOfT)
     |> List.map List.of_seq

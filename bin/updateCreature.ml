@@ -11,6 +11,7 @@ let onPeaceBroken state =
 
     match level.level_t with
     | Dungeon -> state (* TODO Attacking peaceful in dungeon *)
+    | Final -> state (* TODO Attacking peaceful in final level *)
     | Garden idMitras -> match Map.getCreature idMitras m with
         | None -> state (* Mitras gone somehow... *)
         | Some (mitras, p) ->

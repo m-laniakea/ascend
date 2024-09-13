@@ -2,6 +2,7 @@ module C = Common
 
 type level_t =
     | Dungeon
+    | Final
     | Garden of Random_.uid (* mitras id *)
 
 type level =

@@ -324,6 +324,9 @@ let genDungeon state =
     SL.levelAdd { rooms; map; level_t = Dungeon } state
     |> placeRoomCreatures rooms
 
+let genLevelFinal state =
+    SL.levelAdd (Levels.levelFinal ()) state
+
 let introGarden =
     [ "A voice speaks to you from high and low:"
     ; ""
@@ -376,4 +379,5 @@ let gen (state : S.t) =
     match true with
     | _ when shouldGenSpecial sl.hasGarden 5 7 state -> genGarden state
     | _ when shouldGenSpecial sl.hasBigroom 10 13 state -> genBigroom state
+    | _ when shouldGenSpecial false 16 16 state -> genLevelFinal state
     | _ -> genDungeon state

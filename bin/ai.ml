@@ -545,6 +545,7 @@ let animateCreatures state =
 
 let maybeSpawnCreatures state = match SL.levelType state with
     | Garden _ -> state
+    | Final -> state
     | Dungeon ->
         if R.oneIn 50 then
             spawnCreatures ~preferNear:RandomFirstOnly ~room:None state
