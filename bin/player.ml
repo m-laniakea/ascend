@@ -338,7 +338,16 @@ let read (si : C.selectionItem) (state : S.t) =
             let state = { state with player } in
             match s.scroll_t with
             | CreateMonster -> S.msgAdd state "The area feels more dangerous!"; Ai.spawnCreatures ~preferNear:(Near sp.pos) ~room:None state
-            | MagicMapping -> S.msgAdd state "An image coalesces in your mind."; S.setKnowledgeCurrentMap (SL.map state) state (* TODO remove item positions *)
+            | MagicMapping ->
+                ( match (SL.level state).level_t with
+                | Dungeon
+                | Garden _ ->
+                    S.msgAdd state "An image coalesces in your mind.";
+                    S.setKnowledgeCurrentMap (SL.map state) state (* TODO remove item positions *)
+                | Final ->
+                    S.msgAdd state "The scroll shudders, then crumbles to dust.";
+                    state
+                )
             | Teleport ->
                 S.msgAdd state "Your position feels more uncertain.";
                 let pp = sp.pos in
@@ -392,8 +401,15 @@ let zap (si : C.selectionItem) dir (state : S.t) =
             else
             ( match w.wand_t with
             | Dig ->
-                S.msgAdd state "The dungeon seems less solid for a moment.";
-                UpdateMap.dig sp.pos dir (12 + R.rn 1 8) state
+                ( match (SL.level state).level_t with
+                | Dungeon
+                | Garden _ ->
+                    S.msgAdd state "The dungeon seems less solid for a moment.";
+                    UpdateMap.dig sp.pos dir (12 + R.rn 1 8) state
+                | Final ->
+                    S.msgAdd state "The wand gets very hot, but nothing else happens.";
+                    state
+                )
             | Fire ->
                 S.msgAdd state "A column of fire erupts from your wand.";
                 Attack.castRay Hit.Fire sp.pos dir { rolls = 6; sides = 6 } state
