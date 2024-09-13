@@ -5,6 +5,10 @@ module R = Random_
 module S = State
 module SL = StateLevels
 
+let hasScepter (state : S.t) =
+    Some (Item.scepterOfYorel |> Item.toWeapon) = state.player.weaponWielded
+    || List.exists (fun i -> i = Item.scepterOfYorel) state.player.inventory
+
 let playerGoUp (state : S.t) =
     (* ^ TODO move to actionPlayer *)
     let p = state.player.pos in
@@ -12,9 +16,15 @@ let playerGoUp (state : S.t) =
         state
     else
         let sl = state.levels in
-        if sl.indexLevel = 0 then
+        match sl.indexLevel with
+        | 0 when hasScepter state ->
+            S.msgAdd state "You win!";
+            state (* TODO 'You win!' page *)
+        | 0 ->
+            S.msgAdd state "Without the Scepter, there is but one escape...";
+            S.msgAdd state "death.";
             state
-        else
+        | _ ->
             SL.setIndexLevel (sl.indexLevel - 1) state
             |> UpdateMap.rotCorpses
             |> Player.moveToStairs ~dir:Down
