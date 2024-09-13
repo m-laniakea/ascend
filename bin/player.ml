@@ -11,6 +11,7 @@ module SL = StateLevels
 module SP = StatePlayer
 
 let itemsDisplayedMax = 5
+let goldMax = Item.getPriceTrade Item.scepterOfYorel
 
 type fDir = P.t -> P.t
 
@@ -477,6 +478,9 @@ let drop sl (state : S.t) =
                 sp.inventory, [], sp.gold
             | value when value <= 0 ->
                 S.msgAdd state "You can just leave that here.";
+                iRemain, iDropped, sp.gold
+            | _ when sp.gold >= goldMax ->
+                S.msgAdd state "Oh Croesus, thank you for your donation!";
                 iRemain, iDropped, sp.gold
             | value ->
                 S.msgAdd state (C.sf "Thank you! Here's %i zorkmids for you." value);
