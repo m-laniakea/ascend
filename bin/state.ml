@@ -31,6 +31,7 @@ type player =
     ; inventory : Item.t list
     ; inventoryWeightMax : int
     ; status : C.status list
+    ; timesKilled : int
     ; knowledgeLevels : level list
     ; turnHealthWarned : int
     }

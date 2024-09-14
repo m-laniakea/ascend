@@ -307,6 +307,8 @@ let checkHp (state : S.t) =
             let _ = S.msgAdd state "You die..." in
             { state with mode = Dead }
         | Some f ->
+            let player = { sp with timesKilled = sp.timesKilled + 1 } in
+            let state = { state with player } in
             let _ = S.msgAdd state "You die. But you don't really die..." in
             (quaff f state)
         )

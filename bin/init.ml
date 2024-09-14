@@ -46,6 +46,7 @@ let state =
         ; inventory = []
         ; inventoryWeightMax = 500
         ; knowledgeLevels = []
+        ; timesKilled = 0
         ; turnHealthWarned = 0
         }
     in
