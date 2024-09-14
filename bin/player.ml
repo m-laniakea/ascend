@@ -259,7 +259,7 @@ let quaff (si : C.selectionItem) (state : S.t) =
             let state = { state with player } in
             match p.potion_t with
             | Healing -> S.msgAdd state "You feel better."; UpdatePlayer.addHp (8 + (R.roll {sides=4; rolls=4})) state
-            | HealingExtra -> S.msgAdd state "You feel much better."; UpdatePlayer.addHp (16 + (R.roll {sides=4; rolls=8})) state
+            | HealingExtra -> S.msgAdd state "You feel much better."; UpdatePlayer.addHp (16 + (R.roll {sides=4; rolls=12})) state
             | HealingFull ->
                 S.msgAdd state "Thank you kindly for freeing me!";
                 S.msgAdd state "You feel completely healed.";
