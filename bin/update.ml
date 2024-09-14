@@ -28,7 +28,7 @@ let playerGoUp (state : S.t) =
             SL.setIndexLevel (sl.indexLevel - 1) state
             |> UpdateMap.rotCorpses
             |> Player.moveToStairs ~dir:Down
-            |> Ai.moveStairsFollowers state
+            |> Ai.moveFollowers state
             |> UpdatePlayer.knowledgeMap
 
 let playerGoDown (state : S.t) =
@@ -42,13 +42,13 @@ let playerGoDown (state : S.t) =
             GenMap.gen state
             |> Player.moveToStairs ~dir:Up
             |> UpdatePlayer.knowledgeMapAddEmpty
-            |> Ai.moveStairsFollowers state
+            |> Ai.moveFollowers state
             |> UpdatePlayer.knowledgeMap
         else
             SL.setIndexLevel (sl.indexLevel + 1) state
             |> UpdateMap.rotCorpses
             |> Player.moveToStairs ~dir:Up
-            |> Ai.moveStairsFollowers state
+            |> Ai.moveFollowers state
             |> UpdatePlayer.knowledgeMap
 
 let modeDead event state = match event with

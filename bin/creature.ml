@@ -6,6 +6,7 @@ module A = N.A
 module C = Common
 module H = Hit
 module M = Matrix.Matrix
+module P = Position
 module R = Random_
 
 type hostility =
@@ -21,10 +22,11 @@ type sizeGroupSpawn =
 type attributes =
     | Blind
     | Domestic
+    | FollowAlways
+    | FollowStairs
     | NoHands
     | Mindless
     | SpawnGroup of sizeGroupSpawn
-    | StairsFollow
     | Telepathic
 
 type info =
@@ -253,7 +255,8 @@ let creatures =
     ;   { name = "human zombie"
         ; symbol = "Z"
         ; attributes =
-            [ Mindless
+            [ FollowStairs
+            ; Mindless
             ; SpawnGroup GroupSmall
             ]
         ; color = A.lightwhite
@@ -435,29 +438,31 @@ let mkCreature ci =
 let mkCreatures ci n =
     L.init n (fun _ -> mkCreature ci)
 
-let infoGnilsog =
-    { acBase = 0
-    ; attributes =
-        [ StairsFollow
-        ]
-    ; color = A.magenta
-    ; difficulty = 21
-    ; frequency = 0
-    ; hits =
-        [ H.mkMelee Claw Physical 2 6 (* TODO steal scepter *)
-        ]
-    ; levelBase = 17
-    ; name = "Gnilsog"
-    ; speed = 12
-    ; symbol = "@"
-    ; weight = 1450
-    }
 
 let mkGnilsog timesKilled =
-    let levelBase = infoGnilsog.levelBase + timesKilled in
-    let difficulty = infoGnilsog.difficulty + timesKilled in
     let info =
-        { infoGnilsog with levelBase
+        { acBase = 0
+        ; attributes = []
+        ; color = A.magenta
+        ; difficulty = 21
+        ; frequency = 0
+        ; hits =
+            [ H.mkMelee Claw Physical 2 6 (* TODO steal scepter *)
+            ]
+        ; levelBase = 17
+        ; name = "Gnilsog"
+        ; speed = 12
+        ; symbol = "@"
+        ; weight = 1450
+        }
+    in
+
+    let levelBase = info.levelBase + timesKilled in
+    let difficulty = info.difficulty + timesKilled in
+    let attributes = if timesKilled <= 0 then info.attributes else FollowAlways::info.attributes in
+    let info =
+        { info with levelBase
+        ; attributes
         ; difficulty
         }
     in
@@ -507,7 +512,9 @@ let mkButterfly () =
 
 let infoMitras =
     { acBase = -10
-    ; attributes = [Telepathic]
+    ; attributes =
+        [ Telepathic
+        ]
     ; color = A.white
     ; difficulty = 26
     ; frequency = 0
@@ -555,7 +562,9 @@ let mkMinotaur () =
 let mkCaptain () =
     let info =
         { acBase = 0
-        ; attributes = []
+        ; attributes =
+            [ FollowStairs
+            ]
         ; color = A.blue
         ; difficulty = 14
         ; frequency = 0
@@ -625,7 +634,13 @@ let isTelepath = List.exists (function | Telepathic -> true | _ -> false)
 
 let isTameable c = hasAttribute c Domestic
 
-let isStairsFollower c = c.hostility = Tame || hasAttribute c StairsFollow
+let isFollowerStairs c = c.hostility = Tame || hasAttribute c FollowStairs
+let isFollowerAlways c = hasAttribute c FollowAlways
+
+let canFollow pStairs c p =
+    isFollowerAlways c
+    || P.distance2 pStairs p <= 2
+    && isFollowerStairs c
 
 let canOpenDoor c = not (hasAttribute c NoHands)
 

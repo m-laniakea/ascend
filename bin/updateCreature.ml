@@ -16,7 +16,12 @@ let onPeaceBroken state =
         | None -> state (* Mitras gone somehow... *)
         | Some (mitras, p) ->
             if mitras.hostility <> Peaceful then state else
-            let info = { mitras.info with speed = Cr.infoMitras.speed } in
+            let attributes = Cr.FollowAlways::mitras.info.attributes in
+            let info =
+                { mitras.info with speed = Cr.infoMitras.speed
+                ; attributes
+                }
+            in
             let mitras = { mitras with hostility = Hostile; info } in
             let occupant = Some (Map.Creature mitras) in
             let m = Map.setOccupant occupant p m in

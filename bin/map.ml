@@ -281,6 +281,15 @@ let getCreaturesBySpeed =
     )
     []
 
+let getFollowersWithPos pStairs =
+    Matrix.foldI
+    ( fun _ p acc -> function
+        | { occupant = Some (Creature c); _ } when Creature.canFollow pStairs c p ->
+            (c, p)::acc
+        | _ -> acc
+    )
+    []
+
 let setItems items p m =
     let t = Matrix.get m p in
     let t = { t with items } in

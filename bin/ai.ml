@@ -573,26 +573,27 @@ let doCreaturePassive c state =
         state
         pAttacks
 
-let moveStairsFollowers (stateOld : S.t) (state : S.t) =
-    let posOld = stateOld.player.pos in
+let moveFollowers (stateOld : S.t) (state : S.t) =
+    let posToFollow = stateOld.player.pos in
     let mOld = SL.map stateOld in
 
-    let m, followers =
-        Map.posAround posOld
-        |> L.fold_left
-            ( fun (m, followers) p -> match Map.getCreatureAtOpt m p with
-            | None -> m, followers
-            | Some c when Cr.isStairsFollower c ->
-                let t = Matrix.get m p in
-                let t = { t with occupant = None } in
-                Matrix.set t p m, c::followers
+    let followersWithPos = Map.getFollowersWithPos posToFollow mOld in
 
-            | _ -> m, followers
-            )
-        (mOld, [])
+    let mOldUpdated =
+        L.fold_left
+        ( fun m (_, p) ->
+            let t = Matrix.get m p in
+            let t = Map.{ t with occupant = None } in
+            Matrix.set t p m
+        )
+        mOld
+        followersWithPos
     in
+
+    let followers = L.map fst followersWithPos in
+
     let state' = SL.setIndexLevel stateOld.levels.indexLevel state in
-    let state' = SL.setMap m state' in
+    let state' = SL.setMap mOldUpdated state' in
     SL.setIndexLevel state.levels.indexLevel state'
     |> placeCreatures followers ~preferNear:(Near state.player.pos) ~room:None
 
