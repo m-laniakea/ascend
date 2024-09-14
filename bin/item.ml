@@ -144,7 +144,7 @@ let name ?(mPlural="") = function
 
 let nameDisplay i =
     let count = count i in
-    let mPlural = if count = 1 then "" else "s" in
+    let mPlural = C.plural count in
     C.sf "%i %s" count (name ~mPlural i)
 
 let getPriceBase = function

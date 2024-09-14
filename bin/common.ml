@@ -47,3 +47,7 @@ type selectionItem =
 
 type status =
     | Paralyzed of int
+
+let plural = function
+    | 1 -> ""
+    | _ -> "s"
