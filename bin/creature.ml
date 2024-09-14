@@ -24,6 +24,7 @@ type attributes =
     | NoHands
     | Mindless
     | SpawnGroup of sizeGroupSpawn
+    | StairsFollow
     | Telepathic
 
 type info =
@@ -436,7 +437,9 @@ let mkCreatures ci n =
 
 let infoGnilsog =
     { acBase = 0
-    ; attributes = []
+    ; attributes =
+        [ StairsFollow
+        ]
     ; color = A.magenta
     ; difficulty = 21
     ; frequency = 0
@@ -621,6 +624,8 @@ let isPet c = c.hostility = Tame
 let isTelepath = List.exists (function | Telepathic -> true | _ -> false)
 
 let isTameable c = hasAttribute c Domestic
+
+let isStairsFollower c = c.hostility = Tame || hasAttribute c StairsFollow
 
 let canOpenDoor c = not (hasAttribute c NoHands)
 
