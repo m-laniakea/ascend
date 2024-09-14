@@ -51,6 +51,8 @@ type t =
     ; pointsSpeed : int
     }
 
+let idGnilsog = R.uid ()
+
 let infoDragon =
     { name = "red dragon"
     ; symbol = "D"
@@ -456,7 +458,9 @@ let mkGnilsog timesKilled =
         ; difficulty
         }
     in
-    mkCreature info
+    let gnilsog = mkCreature info in
+    let id = idGnilsog in
+    { gnilsog with id }
 
 let mkAurochs () =
     let info =

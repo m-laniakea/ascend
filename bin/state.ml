@@ -65,9 +65,18 @@ type mode =
     | Playing
     | Selecting of selection
 
+type stateEndgame =
+    { timesGnilsogSlain : int
+    }
+
+type endgame =
+    | BeforeEndgame
+    | Endgame of stateEndgame
+
 type t =
     { levels : levels
     ; player : player
+    ; endgame : endgame
     ; messages : string Queue.t
     ; mode : mode
     ; turns : int

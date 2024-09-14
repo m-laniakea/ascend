@@ -8,8 +8,11 @@ let center = Map.center
 
 let toOccupant c = Some (Map.Creature c)
 
+let pGnilsog = { center with col = center.col + 2 }
+let pDragon = { pGnilsog with col = pGnilsog.col + 26 }
+let pDragonGate = Map.west pDragon
+
 let levelFinal () =
-    let pGnilsog = { center with col = center.col + 2 } in
     let gnilsog =
         { (Creature.mkGnilsog 0) with inventory = [ Item.scepterOfYorel ] }
         |> toOccupant
@@ -21,7 +24,6 @@ let levelFinal () =
     let guardN = Creature.mkCaptain () |> toOccupant in
     let guardS = Creature.mkCaptain () |> toOccupant in
 
-    let pDragon = { pGnilsog with col = pGnilsog.col + 26 } in
     let dragon = Creature.mkDragon () |> toOccupant in
 
     let map =

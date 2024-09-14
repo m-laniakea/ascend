@@ -24,6 +24,32 @@ let onPeaceBroken state =
             let _ = S.msgAdd state "You sense a massive statue beginning to move..." in
             SL.setMap m state
 
+let textGnilsogFirstKilled =
+    [ "The vile Gnilsog lies slain before you..."
+    ; ""
+    ; "But before you can rejoice, you feel the dungeon shudder!"
+    ; "A petrifying shriek reverberates throughout the halls."
+    ; "You sense metal groaning and rattling!"
+    ; "Walls crumble, as a massive creature unleshes its rage..."
+    ]
+
+let onCreatureDeath (c : Creature.t) (state : S.t) =
+    match c.id with
+    | id when id = Cr.idGnilsog ->
+        ( match state.endgame with
+            | BeforeEndgame ->
+                let endgame = S.Endgame { timesGnilsogSlain = 1 } in
+                let mode = S.DisplayText textGnilsogFirstKilled in
+                let state = UpdateMap.lowerDragonGate state in
+                { state with mode; endgame }
+
+            | Endgame se ->
+                let ts = se.timesGnilsogSlain in
+                let endgame = S.Endgame { timesGnilsogSlain = ts + 1 } in
+                { state with endgame }
+        )
+    | _ -> state
+
 let addHp ~sourceIsPlayer n p (c : Creature.t) state =
     let state, t' =
         if c.hp + n < 0 then
@@ -42,6 +68,7 @@ let addHp ~sourceIsPlayer n p (c : Creature.t) state =
             in
             let state = if sourceIsPlayer && c.hostility <> Hostile then onPeaceBroken state else state in
             let state = if sourceIsPlayer then UpdatePlayer.xpAdd (Cr.xpOnKill c) state else state in
+            let state = onCreatureDeath c state in
             let m = SL.map state in
             let t = Matrix.get m p in
             state, Map.{ t with occupant = None; items = deathDrops @ t.items }

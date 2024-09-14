@@ -70,3 +70,15 @@ let dig from dir range state =
 
     in
     aux from range state
+
+let setTileType tt p state =
+    let m = SL.map state in
+    let t = Matrix.get m p in
+    let t = { t with t = tt } in
+    let m = Matrix.set t p m in
+    SL.setMap m state
+
+let lowerDragonGate state =
+    match (SL.level state).level_t with
+    | Final -> setTileType Floor Levels.pDragonGate state
+    | _ -> failwith "Asked to lower dragon gate on wrong level..."

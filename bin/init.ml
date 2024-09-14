@@ -54,6 +54,7 @@ let state =
         S.
         { levels
         ; player
+        ; endgame = BeforeEndgame
         ; messages = Queue.create ()
         ; mode = DisplayText intro
         ; turns = 0
