@@ -67,6 +67,8 @@ type mode =
 
 type stateEndgame =
     { timesGnilsogSlain : int
+    ; gnilsogAlive : bool
+    ; nextHarassment : int
     }
 
 type endgame =

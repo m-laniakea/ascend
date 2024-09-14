@@ -29,23 +29,35 @@ let textGnilsogFirstKilled =
     ; ""
     ; "But before you can rejoice, you feel the dungeon shudder!"
     ; "A petrifying shriek reverberates throughout the halls."
-    ; "You sense metal groaning and rattling!"
-    ; "Walls crumble, as a massive creature unleshes its rage..."
+    ; "You sense metal rattling and groaning!"
+    ; "Walls crumble, as a massive creature unleashes its rage..."
     ]
+
+let getNextHarassment (state : S.t) = state.turns + Random_.rn 51 226
 
 let onCreatureDeath (c : Creature.t) (state : S.t) =
     match c.id with
     | id when id = Cr.idGnilsog ->
         ( match state.endgame with
             | BeforeEndgame ->
-                let endgame = S.Endgame { timesGnilsogSlain = 1 } in
+                let endgame = S.Endgame
+                    { timesGnilsogSlain = 1
+                    ; gnilsogAlive = false
+                    ; nextHarassment = getNextHarassment state
+                    }
+                in
                 let mode = S.DisplayText textGnilsogFirstKilled in
                 let state = UpdateMap.lowerDragonGate state in
                 { state with mode; endgame }
 
             | Endgame se ->
                 let ts = se.timesGnilsogSlain in
-                let endgame = S.Endgame { timesGnilsogSlain = ts + 1 } in
+                let endgame = S.Endgame
+                    { timesGnilsogSlain = ts + 1
+                    ; gnilsogAlive = false
+                    ; nextHarassment = getNextHarassment state
+                    }
+                in
                 { state with endgame }
         )
     | _ -> state

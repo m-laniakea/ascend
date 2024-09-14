@@ -599,10 +599,11 @@ let rec handleParalysis (state : S.t) = match state with
 and afterAction state =
     state
     |> UpdateMap.rotCorpses
-    |> Ai.maybeSpawnCreatures
     |> UpdatePlayer.knowledgeMap
     |> Ai.animateCreatures
     (* TODO update playerMap after each creature move *)
+    |> Ai.maybeSpawnCreatures
+    |> Ai.maybeHarassPlayer
     |> S.incTurns
     |> UpdatePlayer.knowledgeCreaturesDelete
     |> UpdatePlayer.knowledgeMap

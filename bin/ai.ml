@@ -595,3 +595,35 @@ let moveStairsFollowers (stateOld : S.t) (state : S.t) =
     let state' = SL.setMap m state' in
     SL.setIndexLevel state.levels.indexLevel state'
     |> placeCreatures followers ~preferNear:(Near state.player.pos) ~room:None
+
+let maybeHarassPlayer (state : S.t) =
+    match state.endgame with
+    | BeforeEndgame -> state
+    | Endgame es ->
+        ( match es.gnilsogAlive with
+        | true -> state
+        | false ->
+            if state.turns < es.nextHarassment then state else
+
+            let endgame = S.Endgame { es with nextHarassment = UpdateCreature.getNextHarassment state } in
+            let state = { state with endgame } in
+
+            let nearPlayer = Near state.player.pos in
+
+            match R.rn 0 5 with
+            | 0 | 1 | 2 ->
+                S.msgAdd state "You feel vaguely nervous.";
+                state
+            | 3 | 4 ->
+                C.repeat (R.rn 1 3) (spawnCreatures ~preferNear:nearPlayer ~room:None) state
+            | 5 ->
+                S.msgAdd state "A voice booms out...";
+                S.msgAdd state "So thou thought thou couldst kill me, fool.";
+                let state = placeCreatures [ Cr.mkGnilsog es.timesGnilsogSlain ] ~preferNear:nearPlayer ~room:None state in
+
+                let endgame = S.Endgame { es with gnilsogAlive = true } in
+                { state with endgame }
+
+            | _ -> assert false
+
+        )
