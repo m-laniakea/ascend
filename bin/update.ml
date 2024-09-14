@@ -18,8 +18,7 @@ let playerGoUp (state : S.t) =
         let sl = state.levels in
         match sl.indexLevel with
         | 0 when hasScepter state ->
-            S.msgAdd state "You win!";
-            state (* TODO 'You win!' page *)
+            { state with mode = Victory }
         | 0 ->
             S.msgAdd state "Without the Scepter, there is but one escape...";
             S.msgAdd state "death.";
@@ -52,6 +51,10 @@ let playerGoDown (state : S.t) =
             |> UpdatePlayer.knowledgeMap
 
 let modeDead event state = match event with
+    | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> None
+    | _ -> Some state
+
+let modeVictory event state = match event with
     | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> None
     | _ -> Some state
 
@@ -103,3 +106,4 @@ let exec event (state : State.t) = match (state.mode : State.mode) with
     | DisplayText _ -> modeDisplayText event state
     | Playing -> modePlaying event state
     | Selecting s -> modeSelecting event state s
+    | Victory -> modeVictory event state

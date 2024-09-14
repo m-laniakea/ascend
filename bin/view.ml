@@ -89,6 +89,38 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         |> L.map (I.string A.(st bold))
         |> I.vcat
     in
+    let messageVictory (state : S.t) =
+        let sp = state.player in
+        let statsKilled =
+            let tk = sp.timesKilled in
+            if 0 = tk then
+                "without ever dying"
+            else
+                C.sf "having died %i time%s" tk (C.plural tk)
+        in
+        let gold = state.player.gold in
+        let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
+
+        [ "The scepter bursts open the hatch to the dungeon!"
+        ; "You hear the voice of Gnilsog gasp 'NO!' and then fade away to nothingness."
+        ; ""
+        ; "You cautiously ascend the ladder, the air sweet, the gentle breeze invigorating."
+        ; "The sun shines benevolently upon you, warming away the chill you have felt for far too long."
+        ; ""
+        ; "The forces of former Gnilsog kneel respectfully before you."
+        ; ""
+        ; "Goodbye, hero!"
+        ; ""
+        ; C.sf "You entered the Dungeons %i turn%s ago." state.turns (C.plural state.turns)
+        ; C.sf "You are carrying %i gold and %i zorkmids worth of items." gold valItems
+        ; C.sf "You are level %i with %i XP" sp.level sp.xp
+        ; C.sf "You ascended %s." statsKilled
+        ; ""
+        ; "Farewell."
+        ]
+        |> L.map (I.string A.empty)
+        |> I.vcat
+    in
     let messages (state : S.t) =
         Queue.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
     in
@@ -134,6 +166,8 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
                     |> L.map (fun (s : C.selectionItem) -> I.string A.empty (C.sf "%c %s %s" s.letter (if s.selected then "+" else "-") s.name))
                     |> I.vcat
                 )
+        | Victory ->
+            messageVictory state
     )
     |> Term.image term
 

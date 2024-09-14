@@ -65,6 +65,7 @@ type mode =
     | DisplayText of string list
     | Playing
     | Selecting of selection
+    | Victory
 
 type stateEndgame =
     { timesGnilsogSlain : int
