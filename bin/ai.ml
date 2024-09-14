@@ -137,7 +137,7 @@ let placeCreatures creatures ~preferNear ~room state =
     aux creatures ~preferNear state
 
 let spawnCreatures ~preferNear ~room state =
-    let d = SL.depth state in (* TODO difficulty ob1 on level gen *)
+    let d = SL.difficulty state in (* TODO difficulty ob1 on level gen *)
     let creatures = Cr.random d in
 
     placeCreatures creatures ~preferNear ~room state
