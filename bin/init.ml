@@ -11,7 +11,7 @@ let intro =
     ; ""
     ; "Far below, in the furthest depths of the dungeon, Gnilsog now takes joy in watching the continuing stream of"
     ; "prisoners perish in infinite ways. All the while, the Corrupter continues to abuse the might of the Scepter"
-    ; "to maintain immortality, to rule unjustly, and to benight the inhabitants of the overworld..."
+    ; "to maintain immortality, to rule unjustly, and to benight the inhabitants of the overworld."
     ; ""
     ; "Having been captured and imprisoned by the forces of Gnilsog,"
     ; "You, secret and loyal follower of Rievax the Revelator,"
