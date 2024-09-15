@@ -137,7 +137,7 @@ let placeCreatures creatures ~preferNear ~room state =
     aux creatures ~preferNear state
 
 let spawnCreatures ~preferNear ~room state =
-    let d = SL.depth state in (* TODO difficulty ob1 on level gen *)
+    let d = SL.difficulty state in (* TODO difficulty ob1 on level gen *)
     let creatures = Cr.random d in
 
     placeCreatures creatures ~preferNear ~room state
@@ -289,7 +289,8 @@ let creatureAttackRanged (c : Creature.t) cp tp state =
                 | Ranged hr as h ->
                     let hs = hr.stats in
                     let msgsHit = Hit.getMsgs h in
-                    S.msgAdd state (C.sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
+                    let canSee = Sight.playerCanSee state cp in
+                    S.msgAddSeen state ~canSee (C.sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
                     Attack.castRay (Hit.getEffect h) cp pDir hs.roll state'
                 | _ -> assert false
         )
@@ -545,8 +546,13 @@ let animateCreatures state =
 
 let maybeSpawnCreatures state = match SL.levelType state with
     | Garden _ -> state
+    | Final -> state
     | Dungeon ->
-        if R.oneIn 50 then
+        let interval = match state.endgame with
+            | BeforeEndgame -> 50
+            | Endgame _ -> 25
+        in
+        if R.oneIn interval then
             spawnCreatures ~preferNear:RandomFirstOnly ~room:None state
         else
             state
@@ -572,25 +578,58 @@ let doCreaturePassive c state =
         state
         pAttacks
 
-let movePetsFromLevel (stateOld : S.t) (state : S.t) =
-    let posOld = stateOld.player.pos in
+let moveFollowers (stateOld : S.t) (state : S.t) =
+    let posToFollow = stateOld.player.pos in
     let mOld = SL.map stateOld in
 
-    let m, pets =
-        Map.posAround posOld
-        |> L.fold_left
-            ( fun (m, pets) p -> match Map.getCreatureAtOpt m p with
-            | None -> m, pets
-            | Some c when c.hostility = Tame ->
-                let t = Matrix.get m p in
-                let t = { t with occupant = None } in
-                Matrix.set t p m, c::pets
+    let followersWithPos = Map.getFollowersWithPos posToFollow mOld in
 
-            | _ -> m, pets
-            )
-        (mOld, [])
+    let mOldUpdated =
+        L.fold_left
+        ( fun m (_, p) ->
+            let t = Matrix.get m p in
+            let t = Map.{ t with occupant = None } in
+            Matrix.set t p m
+        )
+        mOld
+        followersWithPos
     in
+
+    let followers = L.map fst followersWithPos in
+
     let state' = SL.setIndexLevel stateOld.levels.indexLevel state in
-    let state' = SL.setMap m state' in
+    let state' = SL.setMap mOldUpdated state' in
     SL.setIndexLevel state.levels.indexLevel state'
-    |> placeCreatures pets ~preferNear:(Near state.player.pos) ~room:None
+    |> placeCreatures followers ~preferNear:(Near state.player.pos) ~room:None
+
+let maybeHarassPlayer (state : S.t) =
+    match state.endgame with
+    | BeforeEndgame -> state
+    | Endgame es ->
+        ( match es.gnilsogAlive with
+        | true -> state
+        | false ->
+            if state.turns < es.nextHarassment then state else
+
+            let endgame = S.Endgame { es with nextHarassment = UpdateCreature.getNextHarassment state } in
+            let state = { state with endgame } in
+
+            let nearPlayer = Near state.player.pos in
+
+            match R.rn 0 5 with
+            | 0 | 1 | 2 ->
+                S.msgAdd state "You feel vaguely nervous.";
+                state
+            | 3 | 4 ->
+                C.repeat (R.rn 1 3) (spawnCreatures ~preferNear:nearPlayer ~room:None) state
+            | 5 ->
+                S.msgAdd state "A voice booms out...";
+                S.msgAdd state "So thou thought thou couldst kill me, fool.";
+                let state = placeCreatures [ Cr.mkGnilsog es.timesGnilsogSlain ] ~preferNear:nearPlayer ~room:None state in
+
+                let endgame = S.Endgame { es with gnilsogAlive = true } in
+                { state with endgame }
+
+            | _ -> assert false
+
+        )

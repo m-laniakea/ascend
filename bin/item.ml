@@ -144,7 +144,7 @@ let name ?(mPlural="") = function
 
 let nameDisplay i =
     let count = count i in
-    let mPlural = if count = 1 then "" else "s" in
+    let mPlural = C.plural count in
     C.sf "%i %s" count (name ~mPlural i)
 
 let getPriceBase = function
@@ -232,7 +232,7 @@ let comestibles =
         }
     ]
 
-let runedBroadswordInfo =
+let infoRunedBroadsword =
     { name = "runed broadsword"
     ; color = A.white
     ; damage = { rolls = 2; sides = 6 }
@@ -241,7 +241,17 @@ let runedBroadswordInfo =
     ; weight = 70
     }
 
-let runedBroadsword = Weapon runedBroadswordInfo
+let scepterOfYorel =
+    Weapon
+    { name = "Scepter of Yorel"
+    ; color = A.lightcyan
+    ; damage = { rolls = 8; sides = 1 }
+    ; price = 19960509
+    ; freqRel = 0
+    ; weight = 100
+    }
+
+let runedBroadsword = Weapon infoRunedBroadsword
 
 let weapons =
     [   { name = "dagger"
@@ -258,7 +268,7 @@ let weapons =
         ; freqRel = 12
         ; weight = 30
         }
-    ; runedBroadswordInfo
+    ; infoRunedBroadsword
     ]
 
 let rnComestible () =

@@ -11,6 +11,7 @@ module SL = StateLevels
 module SP = StatePlayer
 
 let itemsDisplayedMax = 5
+let goldMax = Item.getPriceTrade Item.scepterOfYorel
 
 type fDir = P.t -> P.t
 
@@ -258,7 +259,7 @@ let quaff (si : C.selectionItem) (state : S.t) =
             let state = { state with player } in
             match p.potion_t with
             | Healing -> S.msgAdd state "You feel better."; UpdatePlayer.addHp (8 + (R.roll {sides=4; rolls=4})) state
-            | HealingExtra -> S.msgAdd state "You feel much better."; UpdatePlayer.addHp (16 + (R.roll {sides=4; rolls=8})) state
+            | HealingExtra -> S.msgAdd state "You feel much better."; UpdatePlayer.addHp (16 + (R.roll {sides=4; rolls=12})) state
             | HealingFull ->
                 S.msgAdd state "Thank you kindly for freeing me!";
                 S.msgAdd state "You feel completely healed.";
@@ -306,6 +307,8 @@ let checkHp (state : S.t) =
             let _ = S.msgAdd state "You die..." in
             { state with mode = Dead }
         | Some f ->
+            let player = { sp with timesKilled = sp.timesKilled + 1 } in
+            let state = { state with player } in
             let _ = S.msgAdd state "You die. But you don't really die..." in
             (quaff f state)
         )
@@ -338,7 +341,16 @@ let read (si : C.selectionItem) (state : S.t) =
             let state = { state with player } in
             match s.scroll_t with
             | CreateMonster -> S.msgAdd state "The area feels more dangerous!"; Ai.spawnCreatures ~preferNear:(Near sp.pos) ~room:None state
-            | MagicMapping -> S.msgAdd state "An image coalesces in your mind."; S.setKnowledgeCurrentMap (SL.map state) state (* TODO remove item positions *)
+            | MagicMapping ->
+                ( match (SL.level state).level_t with
+                | Dungeon
+                | Garden _ ->
+                    S.msgAdd state "An image coalesces in your mind.";
+                    S.setKnowledgeCurrentMap (SL.map state) state (* TODO remove item positions *)
+                | Final ->
+                    S.msgAdd state "The scroll shudders, then crumbles to dust.";
+                    state
+                )
             | Teleport ->
                 S.msgAdd state "Your position feels more uncertain.";
                 let pp = sp.pos in
@@ -392,8 +404,15 @@ let zap (si : C.selectionItem) dir (state : S.t) =
             else
             ( match w.wand_t with
             | Dig ->
-                S.msgAdd state "The dungeon seems less solid for a moment.";
-                UpdateMap.dig sp.pos dir (12 + R.rn 1 8) state
+                ( match (SL.level state).level_t with
+                | Dungeon
+                | Garden _ ->
+                    S.msgAdd state "The dungeon seems less solid for a moment.";
+                    UpdateMap.dig sp.pos dir (12 + R.rn 1 8) state
+                | Final ->
+                    S.msgAdd state "The wand gets very hot, but nothing else happens.";
+                    state
+                )
             | Fire ->
                 S.msgAdd state "A column of fire erupts from your wand.";
                 Attack.castRay Hit.Fire sp.pos dir { rolls = 6; sides = 6 } state
@@ -461,6 +480,9 @@ let drop sl (state : S.t) =
                 sp.inventory, [], sp.gold
             | value when value <= 0 ->
                 S.msgAdd state "You can just leave that here.";
+                iRemain, iDropped, sp.gold
+            | _ when sp.gold >= goldMax ->
+                S.msgAdd state "Oh Croesus, thank you for your donation!";
                 iRemain, iDropped, sp.gold
             | value ->
                 S.msgAdd state (C.sf "Thank you! Here's %i zorkmids for you." value);
@@ -579,10 +601,11 @@ let rec handleParalysis (state : S.t) = match state with
 and afterAction state =
     state
     |> UpdateMap.rotCorpses
-    |> Ai.maybeSpawnCreatures
     |> UpdatePlayer.knowledgeMap
     |> Ai.animateCreatures
     (* TODO update playerMap after each creature move *)
+    |> Ai.maybeSpawnCreatures
+    |> Ai.maybeHarassPlayer
     |> S.incTurns
     |> UpdatePlayer.knowledgeCreaturesDelete
     |> UpdatePlayer.knowledgeMap

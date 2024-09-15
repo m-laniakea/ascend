@@ -211,13 +211,15 @@ let ofPicture p =
         ( Seq.map (function
         | '+' -> Door (Closed, Horizontal)
         | 'D' -> Door (Closed, Vertical)
+        | '*' -> Door (Hidden, Horizontal)
+        | 'H' -> Door (Hidden, Vertical)
         | '.' -> Floor
         | '#' -> Hallway HallRegular
         | '>' -> StairsDown
         | '<' -> StairsUp
         | '-' -> Wall Horizontal
         | '|' -> Wall Vertical
-        | _ -> failwith "Unknown tile"
+        | c -> failwith (C.sf "Unknown tile: '%c'" c)
         ))
     |> List.map (Seq.map tileOfT)
     |> List.map List.of_seq
@@ -275,6 +277,24 @@ let getCreaturesBySpeed =
     ( fun _ _ acc -> function
         | { occupant = Some (Creature c); _ } ->
             (c.info.speed, c)::acc
+        | _ -> acc
+    )
+    []
+
+let getFollowersWithPos pStairs =
+    Matrix.foldI
+    ( fun _ p acc -> function
+        | { occupant = Some (Creature c); _ } when Creature.canFollow pStairs c p ->
+            (c, p)::acc
+        | _ -> acc
+    )
+    []
+
+let getPets =
+    Matrix.foldI
+    ( fun _ _ acc -> function
+        | { occupant = Some (Creature c); _ } when Creature.isPet c ->
+            c::acc
         | _ -> acc
     )
     []

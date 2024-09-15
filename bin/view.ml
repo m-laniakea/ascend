@@ -89,6 +89,71 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         |> L.map (I.string A.(st bold))
         |> I.vcat
     in
+    let messageVictory (state : S.t) =
+        let sp = state.player in
+        let statsKilled =
+            let tk = sp.timesKilled in
+            if 0 = tk then
+                "without ever dying"
+            else
+                C.sf "having died %i time%s" tk (C.plural tk)
+        in
+        let gold = state.player.gold in
+        let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
+
+        let storyPet =
+            let m = SL.map state in
+            match Map.getPets m with
+            | [] -> []
+            | c::_ ->
+                [ C.sf "Your pet %s zooms gleefully through the lush grass and around you," c.info.name
+                ; "before munching on a giant carrot!"
+                ; ""
+                ]
+        in
+
+        let isVictoryFlawless =
+            (* TODO other conditions *)
+            0 = sp.timesKilled
+        in
+
+        let storyBonus = match isVictoryFlawless with
+            | false -> []
+            | true ->
+                [ "Rievax the Revelator appears before you."
+                ; ""
+                ; "You smile at each other, and you begin raising your hands to offer the Scepter,"
+                ; "but the Revelator motions for you to stop."
+                ; "\"No. My time has come and may go again soon. The Scepter is yours, as it always has been."
+                ; "Use your gifts wisely, for the benefit of all.\""
+                ; ""
+                ]
+        in
+
+        [ "The scepter bursts open the hatch to the dungeon!"
+        ; "You hear the voice of Gnilsog gasp 'NO!' as its soul is scattered back into the void."
+        ; ""
+        ; "You cautiously ascend the ladder, the air sweet, the gentle breeze invigorating."
+        ; "The sun shines benevolently upon you, warming away the chill you have felt for far too long."
+        ; ""
+        ; "The former forces of Gnilsog kneel respectfully before you."
+        ; ""
+        ; "Goodbye, hero!"
+        ; ""
+        ; C.sf "You entered the Dungeons %i turn%s ago." state.turns (C.plural state.turns)
+        ; C.sf "You are carrying %i gold and %i zorkmids worth of items." gold valItems
+        ; C.sf "You are level %i with %i XP" sp.level sp.xp
+        ; C.sf "You ascended %s." statsKilled
+        ; ""
+        ]
+        @ storyPet
+        @ storyBonus
+        @
+        [ "Farewell."
+        ]
+        |> L.map (I.string A.empty)
+        |> I.vcat
+    in
     let messages (state : S.t) =
         Queue.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
     in
@@ -98,7 +163,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
             <-> messages state
             <-> messageDeath state
         | DisplayText s ->
-            s
+            s @ [""; ""; "Press <space> to continue..."]
             |> L.map (I.string A.empty)
             |> I.vcat
 
@@ -134,6 +199,8 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
                     |> L.map (fun (s : C.selectionItem) -> I.string A.empty (C.sf "%c %s %s" s.letter (if s.selected then "+" else "-") s.name))
                     |> I.vcat
                 )
+        | Victory ->
+            messageVictory state
     )
     |> Term.image term
 

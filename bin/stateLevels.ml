@@ -2,6 +2,9 @@ open State
 
 module L = List
 
+let depthFinal = 17
+let stairsToFinal = depthFinal - 1
+
 let level state =
     let sl = state.levels in
     List.nth sl.levels sl.indexLevel
@@ -16,6 +19,10 @@ let depth state =
     sl.indexLevel + 1
 
 let depthNext state = (depth state) + 1
+
+let difficulty state = match state.endgame with
+    | BeforeEndgame -> depth state
+    | Endgame se -> depthFinal + se.timesGnilsogSlain / 2
 
 let setMap m state =
     let sl = state.levels in

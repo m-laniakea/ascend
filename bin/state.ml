@@ -2,6 +2,7 @@ module C = Common
 
 type level_t =
     | Dungeon
+    | Final
     | Garden of Random_.uid (* mitras id *)
 
 type level =
@@ -30,6 +31,7 @@ type player =
     ; inventory : Item.t list
     ; inventoryWeightMax : int
     ; status : C.status list
+    ; timesKilled : int
     ; knowledgeLevels : level list
     ; turnHealthWarned : int
     }
@@ -63,16 +65,34 @@ type mode =
     | DisplayText of string list
     | Playing
     | Selecting of selection
+    | Victory
+
+type stateEndgame =
+    { timesGnilsogSlain : int
+    ; gnilsogAlive : bool
+    ; nextHarassment : int
+    }
+
+type endgame =
+    | BeforeEndgame
+    | Endgame of stateEndgame
 
 type t =
     { levels : levels
     ; player : player
+    ; endgame : endgame
     ; messages : string Queue.t
     ; mode : mode
     ; turns : int
     }
 
 let msgAdd state s = Queue.push s state.messages
+
+let msgAddSeen state ~canSee s =
+    if canSee then
+        msgAdd state s
+    else
+        ()
 
 let getKnowledgeCurrentLevel state =
     let sl = state.levels in

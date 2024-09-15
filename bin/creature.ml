@@ -6,6 +6,7 @@ module A = N.A
 module C = Common
 module H = Hit
 module M = Matrix.Matrix
+module P = Position
 module R = Random_
 
 type hostility =
@@ -21,10 +22,14 @@ type sizeGroupSpawn =
 type attributes =
     | Blind
     | Domestic
+    | FollowAlways
+    | FollowStairs
     | NoHands
     | Mindless
+    | Resist of Hit.effect
     | SpawnGroup of sizeGroupSpawn
     | Telepathic
+    | Vulnerable of Hit.effect
 
 type info =
     { acBase : int
@@ -49,6 +54,30 @@ type t =
     ; inventory : Item.t list
     ; level : int
     ; pointsSpeed : int
+    }
+
+let idGnilsog = R.uid ()
+
+let infoDragon =
+    { name = "red dragon"
+    ; symbol = "D"
+    ; attributes =
+        [ NoHands
+        ; Resist Fire
+        ]
+    ; color = A.lightred
+    ; difficulty = 20
+    ; levelBase = 15
+    ; acBase = -1
+    ; frequency = 1
+    ; hits =
+        [ H.mkRanged Breath Fire 6 6
+        ; H.mkMelee Bite Physical 3 8
+        ; H.mkMelee Claw Physical 1 4
+        ; H.mkMelee Claw Physical 1 4
+        ]
+    ; speed = 9
+    ; weight = 4500
     }
 
 let creatures =
@@ -231,7 +260,8 @@ let creatures =
     ;   { name = "human zombie"
         ; symbol = "Z"
         ; attributes =
-            [ Mindless
+            [ FollowStairs
+            ; Mindless
             ; SpawnGroup GroupSmall
             ]
         ; color = A.lightwhite
@@ -340,7 +370,9 @@ let creatures =
         }
     ;   { name = "gargoyle"
         ; symbol = "g"
-        ; attributes = []
+        ; attributes =
+            [ Vulnerable Sonic
+            ]
         ; color = C.brown
         ; difficulty = 8
         ; levelBase = 6
@@ -374,7 +406,9 @@ let creatures =
         }
     ;   { name = "winged gargoyle"
         ; symbol = "g"
-        ; attributes = []
+        ; attributes =
+            [ Vulnerable Sonic
+            ]
         ; color = A.magenta
         ; difficulty = 11
         ; levelBase = 9
@@ -388,23 +422,7 @@ let creatures =
         ; speed = 15
         ; weight = 1200
         }
-    ;   { name = "red dragon"
-        ; symbol = "D"
-        ; attributes = [NoHands]
-        ; color = A.lightred
-        ; difficulty = 20
-        ; levelBase = 15
-        ; acBase = -1
-        ; frequency = 1
-        ; hits =
-            [ H.mkRanged Breath Fire 6 6
-            ; H.mkMelee Bite Physical 3 8
-            ; H.mkMelee Claw Physical 1 4
-            ; H.mkMelee Claw Physical 1 4
-            ]
-        ; speed = 9
-        ; weight = 4500
-        }
+    ; infoDragon
     ]
 
 let rollHp ci = match ci.levelBase with
@@ -428,6 +446,38 @@ let mkCreature ci =
 
 let mkCreatures ci n =
     L.init n (fun _ -> mkCreature ci)
+
+
+let mkGnilsog timesKilled =
+    let info =
+        { acBase = 0
+        ; attributes = []
+        ; color = A.magenta
+        ; difficulty = 21
+        ; frequency = 0
+        ; hits =
+            [ H.mkMelee Claw Physical 2 6 (* TODO steal scepter *)
+            ]
+        ; levelBase = 17
+        ; name = "Gnilsog"
+        ; speed = 12
+        ; symbol = "@"
+        ; weight = 1450
+        }
+    in
+
+    let levelBase = info.levelBase + timesKilled in
+    let difficulty = info.difficulty + timesKilled in
+    let attributes = if timesKilled <= 0 then info.attributes else FollowAlways::info.attributes in
+    let info =
+        { info with levelBase
+        ; attributes
+        ; difficulty
+        }
+    in
+    let gnilsog = mkCreature info in
+    let id = idGnilsog in
+    { gnilsog with id }
 
 let mkAurochs () =
     let info =
@@ -471,7 +521,9 @@ let mkButterfly () =
 
 let infoMitras =
     { acBase = -10
-    ; attributes = [Telepathic]
+    ; attributes =
+        [ Telepathic
+        ]
     ; color = A.white
     ; difficulty = 26
     ; frequency = 0
@@ -515,6 +567,31 @@ let mkMinotaur () =
     let inventory = [ wand ] in
     { (mkCreature info) with inventory
     }
+
+let mkCaptain () =
+    let info =
+        { acBase = 0
+        ; attributes =
+            [ FollowStairs
+            ]
+        ; color = A.blue
+        ; difficulty = 14
+        ; frequency = 0
+        ; hits =
+            [ H.mkWeapon 4 4
+            ; H.mkWeapon 4 4
+            ]
+        ; levelBase = 12
+        ; name = "captain"
+        ; speed = 10
+        ; symbol = "@"
+        ; weight = 1450
+        }
+    in
+    mkCreature info
+
+let mkDragon () =
+    mkCreature infoDragon
 
 let random difficultyLevel =
     let difficultyMin = difficultyLevel / 6 + 1 in
@@ -565,6 +642,17 @@ let isPet c = c.hostility = Tame
 let isTelepath = List.exists (function | Telepathic -> true | _ -> false)
 
 let isTameable c = hasAttribute c Domestic
+
+let isFollowerStairs c = c.hostility = Tame || hasAttribute c FollowStairs
+let isFollowerAlways c = hasAttribute c FollowAlways
+
+let isResistant c e = hasAttribute c (Resist e)
+let isVulnerable c e = hasAttribute c (Vulnerable e)
+
+let canFollow pStairs c p =
+    isFollowerAlways c
+    || P.distance2 pStairs p <= 2
+    && isFollowerStairs c
 
 let canOpenDoor c = not (hasAttribute c NoHands)
 

@@ -3,7 +3,7 @@ module S = State
 module SL = StateLevels
 
 let intro =
-    [ "Welcome to the Dungeons."
+    [ "\"Welcome\" to the Dungeons."
     ; ""
     ; "In the beginning of the words, there was Rievax the Revelator."
     ; "A long time ago, Gnilsog the Corruptor deceived the world and stole from the Revelator an artifact of immense power:"
@@ -11,7 +11,7 @@ let intro =
     ; ""
     ; "Far below, in the furthest depths of the dungeon, Gnilsog now takes joy in watching the continuing stream of"
     ; "prisoners perish in infinite ways. All the while, the Corrupter continues to abuse the might of the Scepter"
-    ; "to maintain immortality, to rule unjustly, and to benight the inhabitants of the overworld..."
+    ; "to maintain immortality, to rule unjustly, and to benight the inhabitants of the overworld."
     ; ""
     ; "Having been captured and imprisoned by the forces of Gnilsog,"
     ; "You, secret and loyal follower of Rievax the Revelator,"
@@ -20,7 +20,7 @@ let intro =
     ]
 
 let state =
-    Random.init 53;
+    Random.init 662;
 
     let levels =
         S.
@@ -46,6 +46,7 @@ let state =
         ; inventory = []
         ; inventoryWeightMax = 500
         ; knowledgeLevels = []
+        ; timesKilled = 0
         ; turnHealthWarned = 0
         }
     in
@@ -54,6 +55,7 @@ let state =
         S.
         { levels
         ; player
+        ; endgame = BeforeEndgame
         ; messages = Queue.create ()
         ; mode = DisplayText intro
         ; turns = 0
@@ -61,6 +63,8 @@ let state =
     in
     Queue.push "Welcome!" stateI.messages;
     Queue.push "There is a moon tonight." stateI.messages;
+    Queue.push "" stateI.messages;
+    Queue.push "Hint: (s)earch" stateI.messages;
     GenMap.gen stateI
     |> Player.moveToStairs ~dir:Up
     |> UpdatePlayer.knowledgeMapAddEmpty
