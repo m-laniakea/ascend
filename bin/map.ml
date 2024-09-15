@@ -290,6 +290,15 @@ let getFollowersWithPos pStairs =
     )
     []
 
+let getPets =
+    Matrix.foldI
+    ( fun _ _ acc -> function
+        | { occupant = Some (Creature c); _ } when Creature.isPet c ->
+            c::acc
+        | _ -> acc
+    )
+    []
+
 let setItems items p m =
     let t = Matrix.get m p in
     let t = { t with items } in

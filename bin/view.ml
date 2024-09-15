@@ -101,13 +101,42 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         let gold = state.player.gold in
         let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
 
+        let storyPet =
+            let m = SL.map state in
+            match Map.getPets m with
+            | [] -> []
+            | c::_ ->
+                [ C.sf "Your pet %s zooms gleefully through the lush grass and around you," c.info.name
+                ; "before munching on a giant carrot!"
+                ; ""
+                ]
+        in
+
+        let isVictoryFlawless =
+            (* TODO other conditions *)
+            0 = sp.timesKilled
+        in
+
+        let storyBonus = match isVictoryFlawless with
+            | false -> []
+            | true ->
+                [ "Rievax the Revelator appears before you."
+                ; ""
+                ; "You smile at each other, and you begin raising your hands to offer the Scepter,"
+                ; "but the Revelator motions for you to stop."
+                ; "\"No. My time has come and may go again soon. The Scepter is yours, as it always has been."
+                ; "Use your gifts wisely, for the benefit of all.\""
+                ; ""
+                ]
+        in
+
         [ "The scepter bursts open the hatch to the dungeon!"
-        ; "You hear the voice of Gnilsog gasp 'NO!' and then fade away to nothingness."
+        ; "You hear the voice of Gnilsog gasp 'NO!' as its soul is scattered back into the void."
         ; ""
         ; "You cautiously ascend the ladder, the air sweet, the gentle breeze invigorating."
         ; "The sun shines benevolently upon you, warming away the chill you have felt for far too long."
         ; ""
-        ; "The forces of former Gnilsog kneel respectfully before you."
+        ; "The former forces of Gnilsog kneel respectfully before you."
         ; ""
         ; "Goodbye, hero!"
         ; ""
@@ -116,7 +145,11 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         ; C.sf "You are level %i with %i XP" sp.level sp.xp
         ; C.sf "You ascended %s." statsKilled
         ; ""
-        ; "Farewell."
+        ]
+        @ storyPet
+        @ storyBonus
+        @
+        [ "Farewell."
         ]
         |> L.map (I.string A.empty)
         |> I.vcat
