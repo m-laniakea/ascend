@@ -163,7 +163,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
             <-> messages state
             <-> messageDeath state
         | DisplayText s ->
-            s
+            s @ [""; ""; "Press <space> to continue..."]
             |> L.map (I.string A.empty)
             |> I.vcat
 
