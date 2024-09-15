@@ -29,6 +29,7 @@ type attributes =
     | Resist of Hit.effect
     | SpawnGroup of sizeGroupSpawn
     | Telepathic
+    | Vulnerable of Hit.effect
 
 type info =
     { acBase : int
@@ -369,7 +370,9 @@ let creatures =
         }
     ;   { name = "gargoyle"
         ; symbol = "g"
-        ; attributes = []
+        ; attributes =
+            [ Vulnerable Sonic
+            ]
         ; color = C.brown
         ; difficulty = 8
         ; levelBase = 6
@@ -403,7 +406,9 @@ let creatures =
         }
     ;   { name = "winged gargoyle"
         ; symbol = "g"
-        ; attributes = []
+        ; attributes =
+            [ Vulnerable Sonic
+            ]
         ; color = A.magenta
         ; difficulty = 11
         ; levelBase = 9
@@ -642,6 +647,7 @@ let isFollowerStairs c = c.hostility = Tame || hasAttribute c FollowStairs
 let isFollowerAlways c = hasAttribute c FollowAlways
 
 let isResistant c e = hasAttribute c (Resist e)
+let isVulnerable c e = hasAttribute c (Vulnerable e)
 
 let canFollow pStairs c p =
     isFollowerAlways c

@@ -69,7 +69,7 @@ let onCreatureDeath (c : Creature.t) (state : S.t) =
 
 let addHp ~sourceIsPlayer n p (c : Creature.t) state =
     let state, t' =
-        if c.hp + n < 0 then
+        if c.hp + n <= 0 then
             let isPet = Creature.isPet c in
             let whos = if isPet then "Your" else "The" in
             let _ = if Sight.playerCanSee state p then

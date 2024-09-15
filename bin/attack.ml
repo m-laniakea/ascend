@@ -160,6 +160,14 @@ let getReflectedDir p (dir : P.dir) state =
     | false, true -> dirReflectRow (* horizontal reflection *)
     | true, true -> R.item [ dirReflectCol; dirReflectRow ] (* exposed corner *)
 
+let getDamageGrave c effect =
+    if not (Cr.isVulnerable c effect) then 0 else
+
+    let hpMax = c.hpMax in
+    match c.hp with
+    | hp when hp <= hpMax / 4 -> hp
+    | hp -> hp / 2 + 1
+
 let castRay (effect : Hit.effect) from dir roll (state : S.t) =
     let reductionRangeOnHit = 3 in
     let damage =
@@ -202,7 +210,14 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
                     S.msgAddSeen state ~canSee (C.sf "The %s has no effect on the %s." msgs.msgCause c.info.name);
                     state, false, range - reductionRangeOnHit
                 | false ->
-                    S.msgAddSeen state ~canSee (C.sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name);
+                    let damage = match getDamageGrave c effect with
+                        | dg when 0 = dg ->
+                            S.msgAddSeen state ~canSee (C.sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name);
+                            damage
+                        | dg ->
+                            S.msgAddSeen state ~canSee (C.sf "The %s gravely wounds the %s." msgs.msgCause c.info.name);
+                            max damage dg
+                    in
                     UpdateCreature.addHp ~sourceIsPlayer (-damage) pn c state, false, range - reductionRangeOnHit
                 )
 
