@@ -196,11 +196,16 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
                     state, false, range
                 )
             | { occupant = Some Creature c; _ } ->
-                ( if Sight.playerCanSee state pn then
-                    S.msgAdd state (C.sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name)
-                );
-                UpdateCreature.addHp ~sourceIsPlayer (-damage) pn c state, false, range - reductionRangeOnHit
-                (* ^TODO resistances *)
+                let canSee = Sight.playerCanSee state pn in
+                ( match Cr.isResistant c effect with
+                | true ->
+                    S.msgAddSeen state ~canSee (C.sf "The %s has no effect on the %s." msgs.msgCause c.info.name);
+                    state, false, range - reductionRangeOnHit
+                | false ->
+                    S.msgAddSeen state ~canSee (C.sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name);
+                    UpdateCreature.addHp ~sourceIsPlayer (-damage) pn c state, false, range - reductionRangeOnHit
+                )
+
             | { occupant = Some Player; _ } ->
                 S.msgAdd state (C.sf "The %s %s you!" msgs.msgCause msgs.msgEffect);
                 UpdatePlayer.addHp (-damage) state, false, range - reductionRangeOnHit
