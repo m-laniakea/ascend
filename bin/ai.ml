@@ -548,7 +548,11 @@ let maybeSpawnCreatures state = match SL.levelType state with
     | Garden _ -> state
     | Final -> state
     | Dungeon ->
-        if R.oneIn 50 then
+        let interval = match state.endgame with
+            | BeforeEndgame -> 50
+            | Endgame _ -> 25
+        in
+        if R.oneIn interval then
             spawnCreatures ~preferNear:RandomFirstOnly ~room:None state
         else
             state
