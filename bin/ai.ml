@@ -289,7 +289,8 @@ let creatureAttackRanged (c : Creature.t) cp tp state =
                 | Ranged hr as h ->
                     let hs = hr.stats in
                     let msgsHit = Hit.getMsgs h in
-                    S.msgAdd state (C.sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
+                    let canSee = Sight.playerCanSee state cp in
+                    S.msgAddSeen state ~canSee (C.sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
                     Attack.castRay (Hit.getEffect h) cp pDir hs.roll state'
                 | _ -> assert false
         )

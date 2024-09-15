@@ -88,6 +88,12 @@ type t =
 
 let msgAdd state s = Queue.push s state.messages
 
+let msgAddSeen state ~canSee s =
+    if canSee then
+        msgAdd state s
+    else
+        ()
+
 let getKnowledgeCurrentLevel state =
     let sl = state.levels in
     List.nth state.player.knowledgeLevels sl.indexLevel
