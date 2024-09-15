@@ -26,6 +26,7 @@ type attributes =
     | FollowStairs
     | NoHands
     | Mindless
+    | Resist of Hit.effect
     | SpawnGroup of sizeGroupSpawn
     | Telepathic
 
@@ -59,7 +60,10 @@ let idGnilsog = R.uid ()
 let infoDragon =
     { name = "red dragon"
     ; symbol = "D"
-    ; attributes = [NoHands]
+    ; attributes =
+        [ NoHands
+        ; Resist Fire
+        ]
     ; color = A.lightred
     ; difficulty = 20
     ; levelBase = 15
@@ -636,6 +640,8 @@ let isTameable c = hasAttribute c Domestic
 
 let isFollowerStairs c = c.hostility = Tame || hasAttribute c FollowStairs
 let isFollowerAlways c = hasAttribute c FollowAlways
+
+let isResistant c e = hasAttribute c (Resist e)
 
 let canFollow pStairs c p =
     isFollowerAlways c

@@ -1,6 +1,7 @@
 open Matrix
 
 module C = Common
+module Cr = Creature
 module P = Position
 module R = Random_
 module S = State
