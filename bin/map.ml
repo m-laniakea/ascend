@@ -308,3 +308,22 @@ let setOccupant occupant p m =
     let t = Matrix.get m p in
     let t = { t with occupant } in
     Matrix.set t p m
+
+let getTilesBetween a b m =
+    assert (isInMap a);
+    assert (isInMap b);
+
+    if a = b then [] else
+
+    let dir = P.dirOfLine a b in
+
+    let rec aux p acc =
+        let p' = P.step p dir in
+        if p' = b then acc else
+
+        let acc = p'::acc in
+        aux p' acc
+    in
+
+    aux a []
+    |> L.map (Matrix.get m)
