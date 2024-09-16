@@ -101,6 +101,14 @@ let toPassive = function
     | Passive p -> p
     | _ -> assert false
 
+let isRanged = function
+    | Ranged _ -> true
+    | _ -> false
+
+let toRanged = function
+    | Ranged p -> p
+    | _ -> assert false
+
 let getMsgs a =
     let msgHit = match a with
         | Passive _ -> "jiggles"
