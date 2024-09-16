@@ -327,3 +327,24 @@ let getTilesBetween a b m =
 
     aux a []
     |> L.map (Matrix.get m)
+
+let tileBlocksProjectile = function
+    | { occupant = Some Creature _; _ } | { occupant = Some Player; _ } -> true
+    | t when isTileTypeWalkable t -> false
+    | _ -> true
+
+let doorDestroyableBy = function
+    | Hit.Dig
+    | Fire
+        -> true
+
+    | Cold
+    | Paralyze
+    | Physical
+    | Sonic
+        -> false
+
+let tileBlocksEffect e = function
+    | { t = Door (Closed, _); _ } when doorDestroyableBy e -> false
+    | t when isTileTypeWalkable t -> false
+    | _ -> true
