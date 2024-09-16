@@ -94,6 +94,12 @@ let msgAddSeen state ~canSee s =
     else
         ()
 
+let msgHearNotSeen state ~canSee s =
+    if canSee then
+        ()
+    else
+        msgAdd state ("You hear " ^ s)
+
 let getKnowledgeCurrentLevel state =
     let sl = state.levels in
     List.nth state.player.knowledgeLevels sl.indexLevel
