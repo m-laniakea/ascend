@@ -8,9 +8,21 @@ let center = Map.center
 
 let toOccupant c = Some (Map.Creature c)
 
+let rc = center.row
+let cc = center.col
+
 let pGnilsog = { center with col = center.col + 2 }
 let pDragon = { pGnilsog with col = pGnilsog.col + 26 }
 let pDragonGate = Map.west pDragon
+let pDoorsGnilsog =
+    P.
+    [ mk ~r:rc ~c:(cc + 8)
+    ; mk ~r:rc ~c:(cc + 11)
+    ; mk ~r:rc ~c:(cc + 15)
+    ; mk ~r:rc ~c:(cc + 16)
+    ; mk ~r:rc ~c:(cc + 17)
+    ; mk ~r:rc ~c:(cc + 18)
+    ]
 
 let levelFinal () =
     let gnilsog =

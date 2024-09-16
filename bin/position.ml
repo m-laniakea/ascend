@@ -28,6 +28,11 @@ let diff a b =
     ; col = b.col - a.col
     }
 
+let mk ~r ~c =
+    { row = r
+    ; col = c
+    }
+
 let isDirUnnormalizedValid dir =
     abs(dir.row) = abs(dir.col) (* x-shape *)
     || (dir.row = 0) <> (dir.col = 0) (* +-shape *)

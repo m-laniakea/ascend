@@ -33,6 +33,7 @@ let textGnilsogFirstKilled =
     [ "The vile Gnilsog lies slain before you..."
     ; ""
     ; "But before you can rejoice, you feel the dungeon shudder!"
+    ; "Some mechanisms above the doors begins to whirr and clank..."
     ; "A petrifying shriek reverberates throughout the halls."
     ; "You sense metal rattling and groaning!"
     ; "Walls crumble, as a massive creature unleashes its rage..."
@@ -52,6 +53,7 @@ let onCreatureDeath (c : Creature.t) (state : S.t) =
                     }
                 in
                 let mode = S.DisplayText textGnilsogFirstKilled in
+                let state = UpdateMap.closeDoorsGnilsogIfAble state in
                 let state = UpdateMap.lowerDragonGate state in
                 { state with mode; endgame }
 
