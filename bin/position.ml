@@ -28,13 +28,21 @@ let diff a b =
     ; col = b.col - a.col
     }
 
-let dir p =
+let isDirUnnormalizedValid dir =
+    abs(dir.row) = abs(dir.col) (* x-shape *)
+    || (dir.row = 0) <> (dir.col = 0) (* +-shape *)
+
+let normalize p =
+    assert (isDirUnnormalizedValid p);
     (* normalizes delta. WARN: only works for lines on x or + shapes *)
-    assert (p.row <> 0 || p.col <> 0);
     let den = max (abs p.row) (abs p.col) in
     { dr = p.row / den
     ; dc = p.col / den
     }
+
+let dir p = normalize p
+
+let dirOfLine a b = diff a b |> dir
 
 let step p dir =
     { row = p.row + dir.dr
