@@ -24,7 +24,10 @@ let levelFinal () =
     let guardN = Creature.mkCaptain () |> toOccupant in
     let guardS = Creature.mkCaptain () |> toOccupant in
 
-    let dragon = Creature.mkDragon () |> toOccupant in
+    let dragon =
+        Creature.mkDragon ~telepathic:true (* TODO aggravate status for player makes more sense *)
+        |> toOccupant
+    in
 
     let map =
         [ "-------------------------------------------------------------------------------"

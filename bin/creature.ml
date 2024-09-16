@@ -595,8 +595,11 @@ let mkCaptain () =
     in
     mkCreature info
 
-let mkDragon () =
-    mkCreature infoDragon
+let mkDragon ~telepathic =
+    let attr = infoDragon.attributes in
+    let attributes = if telepathic then Telepathic::attr else attr in
+    let info = { infoDragon with attributes } in
+    mkCreature info
 
 let random difficultyLevel =
     let difficultyMin = difficultyLevel / 6 + 1 in
