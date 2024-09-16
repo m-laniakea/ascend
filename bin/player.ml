@@ -402,26 +402,27 @@ let zap (si : C.selectionItem) dir (state : S.t) =
                 let _ = S.msgAdd state "Nothing happens." in
                 state
             else
+            let range = R.rn 20 26 in
             ( match w.wand_t with
             | Dig ->
                 ( match (SL.level state).level_t with
                 | Dungeon
                 | Garden _ ->
                     S.msgAdd state "The dungeon seems less solid for a moment.";
-                    UpdateMap.dig sp.pos dir (12 + R.rn 1 8) state
+                    UpdateMap.dig sp.pos dir range state
                 | Final ->
                     S.msgAdd state "The wand gets very hot, but nothing else happens.";
                     state
                 )
             | Fire ->
                 S.msgAdd state "A column of fire erupts from your wand.";
-                Attack.castRay Hit.Fire sp.pos dir { rolls = 6; sides = 6 } state
+                Attack.castRay Hit.Fire sp.pos dir range { rolls = 6; sides = 6 } state
             | MagicMissile ->
                 S.msgAdd state "A hail of particles shoots from your wand.";
-                Attack.castRay Hit.Physical sp.pos dir { rolls = 2; sides = 6 } state
+                Attack.castRay Hit.Physical sp.pos dir range { rolls = 2; sides = 6 } state
             | Striking ->
                 S.msgAdd state "Your wand emits a loud burst.";
-                Attack.castRay Hit.Sonic sp.pos dir { rolls = 1; sides = 6 } state
+                Attack.castRay Hit.Sonic sp.pos dir range { rolls = 1; sides = 6 } state
                 (* TODO it's invisible and crumbles boulders *)
             )
         | _ -> S.msgAdd state "can't zap that."; state

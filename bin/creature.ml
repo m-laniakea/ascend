@@ -9,6 +9,11 @@ module M = Matrix.Matrix
 module P = Position
 module R = Random_
 
+let rangeThrown = 8
+let rangeRangedMin = 20
+let rangeRangedMax = 26
+let range2RangedMax = rangeRangedMax * rangeRangedMax
+
 type hostility =
     | Docile
     | Hostile
@@ -613,16 +618,28 @@ let getAttacksPassive c =
     |> List.filter (Hit.isPassive)
     |> List.map (Hit.toPassive)
 
+let getAttacksRanged c =
+    c.info.hits
+    |> List.filter (Hit.isRanged)
+    |> List.map (Hit.toRanged)
+
 let getWeaponForThrow c = match Item.getWeaponsByDamage c.inventory with
     | [] | _::[] -> None
     | _::sd::_ -> Some sd
+
+let hasAttackRangedWeapon c =
+    c.info.hits
+    |> List.exists
+        ( function
+            | Hit.Weapon _ -> getWeaponForThrow c |> Option.is_some
+            | _ -> false
+        )
 
 let hasAttackRanged c =
     c.info.hits
     |> List.exists
         ( function
             | Hit.Ranged _ -> true
-            | Hit.Weapon _ -> getWeaponForThrow c |> Option.is_some
             | _ -> false
         )
 

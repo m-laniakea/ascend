@@ -168,12 +168,11 @@ let getDamageGrave c effect =
     | hp when hp <= hpMax / 4 -> hp
     | hp -> hp / 2 + 1
 
-let castRay (effect : Hit.effect) from dir roll (state : S.t) =
+let castRay (effect : Hit.effect) from dir range roll (state : S.t) =
     let reductionRangeOnHit = 3 in
     let damage =
         R.roll roll
     in
-    let range = 20 + R.rn 1 8 in
     let sourceIsPlayer = from = state.player.pos in
 
     let msgs = Hit.getMsgsEffect effect in

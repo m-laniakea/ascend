@@ -10,8 +10,6 @@ module R = Random_
 module S = State
 module SL = StateLevels
 
-let rangeThrownCreature = 8
-
 let canMoveHere c m p =
     (* ^TODO naming *)
     match (M.get m p : Map.tile) with
@@ -262,7 +260,7 @@ let creatureAttackMelee (c : Creature.t) pFrom p (state : S.t) =
 
 let creatureThrow (c : Creature.t) p item dir state =
     let msgThrower = C.sf "The %s throws a %s." c.info.name (Item.name item) in (* TODO a vs an *)
-    let state = Attack.throw item p dir rangeThrownCreature msgThrower state in
+    let state = Attack.throw item p dir Creature.rangeThrown msgThrower state in
 
     let m = SL.map state in
     let tCreature = Matrix.get m p in
@@ -272,26 +270,32 @@ let creatureThrow (c : Creature.t) p item dir state =
     let m' = Matrix.set tCreature p m in
     SL.setMap m' state
 
-let creatureAttackRanged (c : Creature.t) cp tp state =
+let creatureAttackRangedAll (c : Creature.t) cp tp state =
     c.info.hits
     |> List.filter (function | Hit.Ranged _ -> true | Weapon _ -> true | _ -> false)
     |> List.fold_left
         ( fun state' h ->
+            let m = SL.map state' in
+            match Map.getCreatureAtOpt m cp with
+            | None -> state
+            | Some c ->
+
             let pDiff = P.diff cp tp in
             let pDir = P.dir pDiff in
 
             match h with
                 | Hit.Weapon _ ->
                     ( match Creature.getWeaponForThrow c with
-                    | None -> assert false
+                    | None -> state'
                     | Some w -> creatureThrow c cp (Item.Weapon w) pDir state'
                     )
                 | Ranged hr as h ->
                     let hs = hr.stats in
                     let msgsHit = Hit.getMsgs h in
                     let canSee = Sight.playerCanSee state cp in
+                    let range = R.rn Cr.rangeRangedMin Cr.rangeRangedMax in
                     S.msgAddSeen state ~canSee (C.sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
-                    Attack.castRay (Hit.getEffect h) cp pDir hs.roll state'
+                    Attack.castRay (Hit.getEffect h) cp pDir range hs.roll state'
                 | _ -> assert false
         )
         state
@@ -326,17 +330,45 @@ let eatIfPetOrPickupItems (c : Creature.t) p state =
         SL.setMap m' state
     | _ -> state
 
+let canAttackRangedWeapon c pc pt ~canSeeTarget state =
+    if not
+        ( canSeeTarget
+        && P.distance2 pc pt <= Creature.rangeThrown
+        && P.areLinedUp pc pt
+        && Cr.hasAttackRangedWeapon c
+        )
+    then false else
+
+    let m = SL.map state in
+
+    Map.getTilesBetween pc pt m
+    |> L.exists Map.tileBlocksProjectile
+    |> not
+
 let canAttackMelee pc pt = P.distance2 pc pt <= 2
 
-let canAttackRanged c cp pt ~canSeeTarget =
-    canSeeTarget
-    && P.areLinedUp cp pt
-    && Cr.hasAttackRanged c
-    (* ^TODO check that attack has path to target *)
+let canAttackRanged c cp pt ~canSeeTarget state =
+    if not
+        ( canSeeTarget
+        && P.distance2 cp pt <= Creature.range2RangedMax
+        && P.areLinedUp cp pt
+        && Cr.hasAttackRanged c
+        )
+    then false else
 
-let canAttack c pc pt ~canSeeTarget =
+    let m = SL.map state in
+    let tilesBetween = Map.getTilesBetween cp pt m in
+
+    let tilesBlockEffect e = L.exists (Map.tileBlocksEffect e) tilesBetween in
+
+    Cr.getAttacksRanged c
+    |> L.map (fun ar -> Hit.getEffect (Ranged ar))
+    |> L.exists (fun e -> not (tilesBlockEffect e))
+
+let canAttack c pc pt ~canSeeTarget state =
     canAttackMelee pc pt
-    || canAttackRanged c pc pt ~canSeeTarget
+    || canAttackRangedWeapon c pc pt ~canSeeTarget state
+    || canAttackRanged c pc pt ~canSeeTarget state
 
 type path = P.t list
 
@@ -351,7 +383,7 @@ let handleTarget c pc target state =
     | TargetAttack pt when canAttackMelee pc pt ->
         pc, creatureAttackMelee c pc pt state
     | TargetAttack pt ->
-        pc, creatureAttackRanged c pc pt state
+        pc, creatureAttackRangedAll c pc pt state
     | TargetApproach path ->
         ( match path with
         | [] -> assert false
@@ -390,7 +422,7 @@ let getTargetPet c cp state =
             |> L.sort (P.closestTo cp)
         in
         let targetAttack, pathToEnemy = match L.nth_opt targets 0 with
-            | Some pt when canAttack c cp pt ~canSeeTarget:true -> Some (TargetAttack pt), getCreaturePath c m cp pt
+            | Some pt when canAttack c cp pt ~canSeeTarget:true state -> Some (TargetAttack pt), getCreaturePath c m cp pt
             | Some pt -> None, getCreaturePath c m cp pt
             | None -> None, None
         in
@@ -422,7 +454,7 @@ let getTargetWhenHostile c pc state =
     let posPlayer = state.player.pos in
     let canSeePlayer = Sight.creatureCanSee c pc posPlayer state in
 
-    if canAttack c pc posPlayer ~canSeeTarget:canSeePlayer then Some (TargetAttack posPlayer) else
+    if canAttack c pc posPlayer ~canSeeTarget:canSeePlayer state then Some (TargetAttack posPlayer) else
 
     let isItemDesired = Item.isWeapon in
 
@@ -451,7 +483,7 @@ let getTargetWhenHostile c pc state =
         in
         let targetAttack, pathToEnemy = match L.nth_opt targets 0 with
             (* ^TODO refactor with that in getTargetPet *)
-            | Some pt when canAttack c pc pt ~canSeeTarget:true -> Some (TargetAttack pt), getCreaturePath c m pc pt
+            | Some pt when canAttack c pc pt ~canSeeTarget:true state -> Some (TargetAttack pt), getCreaturePath c m pc pt
             | Some pt -> None, getCreaturePath c m pc pt
             | None -> None, None
         in
