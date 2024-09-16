@@ -186,6 +186,7 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
         *)
 
         let state, shouldReflect, range =
+            let canSee = Sight.playerCanSee state pn in
             let m = SL.map state in match Matrix.get m pn with
             | { occupant = Some Boulder; _ } as t ->
                 ( match effect with
@@ -204,7 +205,6 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
                     state, false, range
                 )
             | { occupant = Some Creature c; _ } ->
-                let canSee = Sight.playerCanSee state pn in
                 ( match Cr.isResistant c effect with
                 | true ->
                     S.msgAddSeen state ~canSee (C.sf "The %s has no effect on the %s." msgs.msgCause c.info.name);
@@ -225,6 +225,19 @@ let castRay (effect : Hit.effect) from dir roll (state : S.t) =
                 S.msgAdd state (C.sf "The %s %s you!" msgs.msgCause msgs.msgEffect);
                 UpdatePlayer.addHp (-damage) state, false, range - reductionRangeOnHit
                 (* ^TODO resistances *)
+
+            | { occupant = None; t = Door (Closed, ori); _ } when effect = Fire ->
+                (* TODO Other effects can harm doors as well *)
+                ( match R.oneIn 3 with
+                | true ->
+                    S.msgAddSeen state ~canSee "The fire singes the door.";
+                    state, false, 0
+                | false ->
+                    S.msgAddSeen state ~canSee "The fire reduces the door to ash.";
+                    S.msgHearNotSeen state ~canSee "burning wood crackling violently.";
+                    let state = UpdateMap.setTileType (Door (Broken, ori)) pn state in
+                    state, false, range - reductionRangeOnHit * 2
+                )
 
             | { occupant = None; _ } as t ->
                 if not (Map.isTileTypeWalkable t) then
