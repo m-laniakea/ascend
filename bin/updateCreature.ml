@@ -30,9 +30,19 @@ let onPeaceBroken state =
             SL.setMap m state
 
 let textGnilsogFirstKilled =
-    [ "The vile Gnilsog lies slain before you..."
+    [ "Gnilsog gasps, staggering backwards, before collapsing into a lifeless heap."
     ; ""
-    ; "But before you can rejoice, you feel the dungeon shudder!"
+    ; "The vile Gnilsog lies slain before you!"
+    ; ""
+    ; "But before you can rejoice, the corpse's mouth opens wide, then freezes."
+    ; "You hear: \"Didst thou truly believe thou couldst violate my sanctum,"
+    ; "take my life, and abscond with my artifact unscathed, you THIEF?\""
+    ; ""
+    ; "You hear maniacal laughter in the distance..."
+    ; "Gnilsog's cold, lifeless hand reaches into a mold-infested pocket,"
+    ; "pulls out a small medallion and snaps it in two."
+    ; ""
+    ; "You feel the dungeon shudder."
     ; "Some mechanisms above the doors begins to whirr and clank..."
     ; "A petrifying shriek reverberates throughout the halls."
     ; "You sense metal rattling and groaning!"

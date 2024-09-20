@@ -3,7 +3,7 @@ module S = State
 module SL = StateLevels
 
 let intro =
-    [ "\"Welcome\" to the Dungeons."
+    [ "You awaken in the Dungeons..."
     ; ""
     ; "In the beginning of the words, there was Rievax the Revelator."
     ; "A long time ago, Gnilsog the Corruptor deceived the world and stole from the Revelator an artifact of immense power:"
