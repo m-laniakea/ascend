@@ -266,7 +266,7 @@ let creatureThrow (c : Creature.t) p item dir state =
 
     let m = SL.map state in
     let tCreature = Matrix.get m p in
-    let creature = Map.Creature { c with inventory = C.listRemove item c.inventory } in
+    let creature = Map.Creature { c with inventory = Items.remove c.inventory item C.(Count 1) } in
     let tCreature = { tCreature with occupant = Some creature } in
 
     let m' = Matrix.set tCreature p m in

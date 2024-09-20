@@ -21,7 +21,6 @@ let combine a b =
     let stats = { stack } in
     { a with stats }
 
-
 let substract from howMany =
     let countRemain = match howMany with
         | C.All -> 0

@@ -84,7 +84,7 @@ let absorb (state : S.t) =
             }
             (* ^TODO do we really need to rebuild the item? *)
         in
-        let t = { t with items = C.listRemove toRemove t.items } in
+        let t = { t with items = Items.remove t.items toRemove (C.Count 1) } in
         let m = Matrix.set t p m in
         SL.setMap m state
 
@@ -272,7 +272,7 @@ let quaff (si : C.selectionItem) (state : S.t) =
         | Weapon _ -> S.msgAdd state "You change your mind about swallowing your weapon."; state
         | Wand _ -> S.msgAdd state "You change your mind about swallowing your wand."; state
         | Potion p ->
-            let inventory, _ = C.partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
+            let inventory = Items.remove sp.inventory item (C.Count 1) in
             let player = { sp with inventory } in
             let state = { state with player } in
             match p with
@@ -356,7 +356,7 @@ let read (si : C.selectionItem) (state : S.t) =
         | Weapon _ -> S.msgAdd state "There's nothing to read on this weapon."; state
         | Wand _ -> S.msgAdd state "This is indeed a wand."; state
         | Scroll s ->
-            let inventory, _ = C.partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
+            let inventory = Items.remove sp.inventory item (C.Count 1) in
             let player = { sp with inventory } in
             let state = { state with player } in
             match s with
@@ -386,7 +386,7 @@ let read (si : C.selectionItem) (state : S.t) =
 
 let wield (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
-    let item = List.nth sp.inventory si.iIndex in
+    let item, inventory = Items.splitIndex sp.inventory si.iIndex (C.Count 1) in
     let weaponWielded = Some item in
     S.msgAdd state (C.sf "You wield %s." (Item.nameDisplay item));
 
@@ -395,8 +395,7 @@ let wield (si : C.selectionItem) (state : S.t) =
         | Some w -> [w]
     in
 
-    let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
-    let inventory = unwielded @ inventory in
+    let inventory = Items.concat unwielded inventory in
     let player =
         { sp with weaponWielded
         ; inventory
@@ -482,12 +481,11 @@ let close fDir (state : S.t) =
 
 
 let drop sl (state : S.t) =
-    let sI = L.map C.(fun s -> s.iIndex) sl in
     let sp = state.player in
     let m = SL.map state in
     let t = Matrix.get m sp.pos in
 
-    let iDropped, iRemain = C.partitionI (fun ix _ -> C.contains sI ix) sp.inventory in
+    let iDropped, iRemain = Items.takeSelection sp.inventory sl in
 
     let valueTrade items =
         L.map Item.getPriceTrade items
@@ -525,12 +523,11 @@ let weightItems items =
     |> L.fold_left (+) 0
 
 let pickup sl (state : S.t) =
-    let sI = L.map (fun (s : C.selectionItem) -> s.iIndex) sl in
     let sp = state.player in
     let m = SL.map state in
     let t = Matrix.get m sp.pos in
 
-    let iTaken, iRemain = C.partitionI (fun ix _ -> C.contains sI ix) t.items in
+    let iTaken, iRemain = Items.takeSelection t.items sl in
 
     let weightTotal = weightItems iTaken + weightItems sp.inventory in
     if weightTotal > sp.inventoryWeightMax then
@@ -565,7 +562,7 @@ let pickup sl (state : S.t) =
     else
 
     let gold = sp.gold + totalGoldTaken in
-    let player = { sp with inventory = iTaken @ sp.inventory; gold } in
+    let player = { sp with inventory = Items.concat iTaken sp.inventory ; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
     { (SL.setMap m' state) with player }
     (* ^TODO combine items *)
@@ -574,13 +571,12 @@ let throw (si : C.selectionItem) dir (state : S.t) =
     let rangeThrown = 6 in (* TODO *)
     let sp = state.player in
 
-    let item = List.nth sp.inventory si.iIndex in
+    let item, inventory = Items.splitIndex sp.inventory si.iIndex (C.Count 1) in
 
     let msgThrower = C.sf "You throw the %s." (Item.name item) in (* TODO a vs an *)
     let state = Attack.throw item sp.pos dir rangeThrown msgThrower state in
     let sp = state.player in
 
-    let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
     let player = { sp with inventory } in
 
     { state with player }

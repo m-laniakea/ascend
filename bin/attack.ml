@@ -135,7 +135,8 @@ let throw (item : Item.t) pFrom dir range msgThrower state =
     | true ->
         let m = SL.map state in
         let tLanded = Matrix.get m posLast in
-        let tLanded = { tLanded with items = item::tLanded.items } in
+        let items = Items.add tLanded.items item in
+        let tLanded = { tLanded with items } in
         let m' = Matrix.set tLanded posLast m in
 
         SL.setMap m' state
