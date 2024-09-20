@@ -664,8 +664,12 @@ let maybeHarassPlayer (state : S.t) =
             | 3 | 4 ->
                 C.repeat (R.rn 1 3) (spawnCreatures ~preferNear:nearPlayer ~room:None) state
             | 5 ->
-                S.msgAdd state "A voice booms out...";
-                S.msgAdd state "So thou thought thou couldst kill me, fool.";
+                (if es.timesGnilsogSlain <= 1 then
+                    let _ = S.msgAdd state "A voice booms out..." in
+                    S.msgAdd state "So thou thought thou couldst kill me, fool."
+                else
+                    S.msgAdd state "Gnilsog cackles amusedly."
+                );
                 let state = placeCreatures [ Cr.mkGnilsog es.timesGnilsogSlain ] ~preferNear:nearPlayer ~room:None state in
 
                 let endgame = S.Endgame { es with gnilsogAlive = true } in
