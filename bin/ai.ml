@@ -650,7 +650,14 @@ let maybeHarassPlayer (state : S.t) =
 
             let nearPlayer = Near state.player.pos in
 
-            match R.rn 0 5 with
+            let indexActionMax = match (SL.level state).level_t with
+                | Garden _ -> 2
+                | Final when es.timesGnilsogSlain <= 1 -> 2
+                | Final
+                | Dungeon -> 5
+            in
+
+            match R.rn 0 indexActionMax with
             | 0 | 1 | 2 ->
                 S.msgAdd state "You feel vaguely nervous.";
                 state
