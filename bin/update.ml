@@ -6,7 +6,7 @@ module S = State
 module SL = StateLevels
 
 let hasScepter (state : S.t) =
-    Some (Item.scepterOfYorel |> Item.toWeapon) = state.player.weaponWielded
+    Some (Item.scepterOfYorel) = state.player.weaponWielded
     || List.exists (fun i -> i = Item.scepterOfYorel) state.player.inventory
 
 let playerGoUp (state : S.t) =

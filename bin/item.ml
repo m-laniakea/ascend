@@ -4,17 +4,22 @@ module A = N.A
 module C = Common
 module R = Random_
 
+type stackable =
+    | NonStackable
+    | Stack of int
+
 type weapon =
     { name : string
     ; color : A.color
     ; damage : R.roll
     ; price : int
     ; freqRel : int
+    ; stackable : bool
     ; weight : int
     }
 
 type stats =
-    { count : int
+    { stack : stackable
     }
 
 type comestible =
@@ -25,26 +30,16 @@ type comestible =
     ; weight : int
     }
 
-type scroll_t =
+type scroll =
     | CreateMonster
     | MagicMapping
     | Teleport
 
-type scroll =
-    { stats : stats
-    ; scroll_t : scroll_t
-    }
-
-type potion_t =
+type potion =
     | Healing
     | HealingExtra
     | HealingFull
     | Sickness
-
-type potion =
-    { stats : stats
-    ; potion_t : potion_t
-    }
 
 type wand_t =
     | Dig
@@ -73,57 +68,59 @@ type container =
     ; items : item list
     }
 
-and item =
+and item_t =
     | Comestible of comestible
     | Container of container
     | Corpse of corpse
-    | Gold of int
+    | Gold
     | Potion of potion
-    | Rock of int
+    | Rock
     | Scroll of scroll
     | Weapon of weapon
     | Wand of wand
+
+and item =
+    { t : item_t
+    ; stats : stats
+    }
 
 type itemList = item list
 
 type t = item
 
-let count = function
-    | Comestible _ -> 1
-    | Container _ -> 1
-    | Corpse _ -> 1
-    | Gold t -> t
-    | Potion { stats = s; _ } -> s.count
-    | Rock t -> t
-    | Scroll { stats = s; _ } -> s.count
-    | Weapon _ -> 1
-    | Wand _ -> 1
+let count item = match item.stats.stack with
+    | NonStackable -> 1
+    | Stack n -> n
 
-let weight = function
-    | Comestible c -> c.weight
-    | Container _ -> assert false
-    | Corpse c -> c.weight
-    | Gold _ -> 0
-    | Potion { stats = s; _ } -> 20 * s.count
-    | Rock t -> 10 * t
-    | Scroll { stats = s; _ } -> 5 * s.count
-    | Weapon w -> w.weight
-    | Wand _ -> 7
+let weight item =
+    let count = count item in
+    let weightSingle = match item.t with
+        | Comestible c -> c.weight
+        | Container _ -> assert false
+        | Corpse c -> c.weight
+        | Gold -> 0 (* TODO 0 because we cannot drop gold yet *)
+        | Potion _ -> 20
+        | Rock -> 10
+        | Scroll _ -> 5
+        | Weapon w -> w.weight
+        | Wand _ -> 7
+    in
+    weightSingle * count
 
-let name ?(mPlural="") = function
+let name ?(mPlural="") item = match item.t with
     | Comestible c -> c.name ^ mPlural
     | Corpse c -> c.name ^ " corpse"
-    | Gold _ -> "gold piece" ^ mPlural
+    | Gold -> "gold piece" ^ mPlural
     | Potion p -> "potion" ^ mPlural ^ " of " ^
-        ( match p.potion_t with
+        ( match p with
             | Healing -> "healing"
             | HealingExtra -> "extra healing"
             | HealingFull -> "bottled fairy"
             | Sickness -> "sickness"
         )
-    | Rock _ -> "rock" ^ mPlural
+    | Rock -> "rock" ^ mPlural
     | Scroll s -> "scroll" ^ mPlural ^ " of " ^
-        ( match s.scroll_t with
+        ( match s with
             | CreateMonster -> "create monster"
             | MagicMapping -> "magic mapping"
             | Teleport -> "teleportation"
@@ -133,8 +130,8 @@ let name ?(mPlural="") = function
         | Sack -> "sack"
         | Chest -> "chest"
         )
-    | Weapon w -> w.name
-    | Wand w -> "wand"^ mPlural ^ " of " ^
+    | Weapon w -> w.name ^ mPlural
+    | Wand w -> "wand" ^ mPlural ^ " of " ^
         ( match w.wand_t with
             | Dig -> "digging"
             | Fire -> "fire"
@@ -142,12 +139,14 @@ let name ?(mPlural="") = function
             | Striking -> "striking"
         )
 
-let nameDisplay i =
-    let count = count i in
+let nameDisplay item =
+    let count = count item in
     let mPlural = C.plural count in
-    C.sf "%i %s" count (name ~mPlural i)
+    let name = name ~mPlural item in
+    C.sf "%i %s" count name
 
-let getPriceBase = function
+let getPriceBase item =
+    ( match item.t with
     | Comestible c -> c.price
     | Container c ->
         ( match c.container_t with
@@ -155,18 +154,18 @@ let getPriceBase = function
             | Sack -> 2
         )
     | Corpse _ -> 0
-    | Gold i -> i
+    | Gold -> 1
     | Potion p ->
-        ( match p.potion_t with
+        ( match p with
             | Healing -> 20
             | HealingExtra -> 100
             | HealingFull -> 200
             | Sickness -> 50
 
         )
-    | Rock _ -> 0
+    | Rock -> 0
     | Scroll s ->
-        ( match s.scroll_t with
+        ( match s with
             | CreateMonster -> 200
             | MagicMapping -> 100
             | Teleport -> 100
@@ -179,9 +178,11 @@ let getPriceBase = function
             | MagicMissile -> 150
             | Striking -> 150
         )
+    )
+    * (count item)
 
 let getPriceTrade i =
-    let pb = match i with
+    let pb = match i.t with
         | Wand w -> if 0 = w.charges then 0 else getPriceBase i
         | _ -> getPriceBase i
     in
@@ -189,33 +190,37 @@ let getPriceTrade i =
 
 let getPriceShop i = getPriceBase i * 4 / 3
 
-let isQuaffable = function
+let isQuaffable item = match item.t with
     | Comestible _ -> false
     | Container _ -> false
     | Corpse _ -> false
-    | Gold _ -> false
+    | Gold -> false
     | Potion _ -> true
-    | Rock _ -> false
+    | Rock -> false
     | Scroll _ -> false
     | Weapon _ -> false
     | Wand _ -> false
 
-let isReadable = function
+let isReadable item = match item.t with
     | Comestible _ -> false
     | Container _ -> false
     | Corpse _ -> false
-    | Gold _ -> false
+    | Gold -> false
     | Potion _ -> false
-    | Rock _ -> false
+    | Rock -> false
     | Scroll _ -> true
     | Weapon _ -> false
     | Wand _ -> false
 
-let isZappable = function
+let isZappable item = match item.t with
     | Wand _ -> true
     | _ -> false
 
-let rock n = Rock n
+let rock n =
+    let stats = { stack = Stack n } in
+    { t = Rock
+    ; stats
+    }
 
 let comestibles =
     [   { name = "apple"
@@ -238,34 +243,48 @@ let infoRunedBroadsword =
     ; damage = { rolls = 2; sides = 6 }
     ; price = 10
     ; freqRel = 1
+    ; stackable = false
     ; weight = 70
     }
 
+let mkWeapon info =
+    let stack = if info.stackable then Stack 1 else NonStackable in
+    let stats = { stack } in
+
+    { t = Weapon info
+    ; stats
+    }
+
 let scepterOfYorel =
-    Weapon
+    mkWeapon
     { name = "Scepter of Yorel"
     ; color = A.lightcyan
     ; damage = { rolls = 8; sides = 1 }
     ; price = 19960509
     ; freqRel = 0
+    ; stackable = false
     ; weight = 100
     }
 
-let runedBroadsword = Weapon infoRunedBroadsword
+let runedBroadsword = mkWeapon infoRunedBroadsword
 
 let weapons =
-    [   { name = "dagger"
+    [
+        { name = "dagger"
         ; color = A.cyan
         ; damage = { rolls = 1; sides = 4 }
         ; price = 4
         ; freqRel = 30
+        ; stackable = true
         ; weight = 10
         }
-    ;   { name = "club"
+    ;
+        { name = "club"
         ; color = C.brown
         ; damage = { rolls = 1; sides = 6 }
         ; price = 3
         ; freqRel = 12
+        ; stackable = true
         ; weight = 30
         }
     ; infoRunedBroadsword
@@ -273,17 +292,24 @@ let weapons =
 
 let rnComestible () =
     let freq = List.map (fun c -> c, c.freqRel) comestibles in
-    Comestible (R.relative freq)
+
+    { t = Comestible (R.relative freq)
+    ; stats = { stack = Stack 1 }
+    }
 
 let rnWeapon () =
     let freq = List.map (fun (w : weapon) -> w, w.freqRel) weapons in
-    Weapon (R.relative freq)
+    mkWeapon (R.relative freq)
 
 let rnGold d =
     let den = max (12 - d) 2 in
     let mul = R.rn 1 (30 / den) in
     let base = R.rn 1 (d + 2) in
-    Gold (base * mul)
+
+    let stack = Stack (base * mul) in
+    { t = Gold
+    ; stats = { stack }
+    }
 
 let rnPotion () =
     let freq =
@@ -294,7 +320,9 @@ let rnPotion () =
         ]
     in
     let t = R.relative freq in
-    Potion { potion_t = t; stats = {count = 1} }
+    { t = Potion t
+    ; stats = { stack = Stack 1 }
+    }
 
 let rnScroll () =
     let freq =
@@ -304,7 +332,9 @@ let rnScroll () =
         ]
     in
     let t = R.relative freq in
-    Scroll { scroll_t = t; stats = {count = 1} }
+    { t = Scroll t
+    ; stats = { stack = Stack 1 }
+    }
 
 let rnWand () =
     let freq =
@@ -315,7 +345,10 @@ let rnWand () =
         ]
     in
     let t = R.relative freq in
-    Wand { wand_t = t; charges = R.rn 4 8 }
+    let t = Wand { wand_t = t; charges = R.rn 4 8 } in
+    { t
+    ; stats = { stack = NonStackable }
+    }
 
 let random () =
     let freq =
@@ -329,24 +362,24 @@ let random () =
     let t = R.relative freq in
     t ()
 
-let isComestible = function
+let isComestible item = match item.t with
     | Comestible _ -> true
     | _ -> false
 
-let isThrowable = function
+let isThrowable item = match item.t with
     | Comestible _
     | Weapon _
     -> true
     | Container _
     | Corpse _
-    | Gold _
+    | Gold
     | Potion _
-    | Rock _
+    | Rock
     | Scroll _
     | Wand _
     -> false
 
-let isWeapon = function
+let isWeapon i = match i.t with
     | Weapon _ -> true
     | _ -> false
 
@@ -355,15 +388,23 @@ let toWeapon = function
     | _ -> assert false
 
 let getWeaponsByDamage l =
-    List.filter isWeapon l
-    |> List.map toWeapon
-    |> List.sort (fun w1 w2 -> R.rollCompare w2.damage w1.damage)
+    l
+    |> List.filter isWeapon
+    |> List.sort
+        ( fun w1 w2 -> match w1.t, w2.t with
+        | Weapon w1, Weapon w2 -> R.rollCompare w2.damage w1.damage
+        | _ -> assert false
+        )
 
 let getWeaponMostDamaging l =
     let bd = getWeaponsByDamage l in
     List.nth_opt bd 0
 
-let isCorpse = function
+let getWeaponDamage w = match w.t with
+    | Weapon w -> w.damage
+    | _ -> failwith "not a weapon"
+
+let isCorpse i = match i.t with
     | Corpse _ -> true
     | _ -> false
 
@@ -395,16 +436,29 @@ let mkCorpse name color weight t =
         | true -> corpseAgeZombie, String.sub name 0 lenNoZombie
         | false -> 0, name
     in
-    Corpse
+    let t =
+        Corpse
         { name
         ; color
         ; turnDeceased = t - addAge
         ; weight
         }
+    in
+
+    { t
+    ; stats = { stack = NonStackable }
+    }
 
 let rotCorpses turns l =
     List.fold_left
-        ( fun items i -> match i with
+        ( fun items i -> match i.t with
             | Corpse c when turns - c.turnDeceased > turnsCorpseRot -> items
-            | i -> i::items
+            | _ -> i::items
         ) [] (List.rev l)
+
+let canStack item itemOther =
+    item.stats.stack <> NonStackable
+    && itemOther.stats.stack <> NonStackable
+    && item.t = itemOther.t
+
+let equal item itemOther = item.t = itemOther.t
