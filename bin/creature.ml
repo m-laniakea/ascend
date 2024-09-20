@@ -568,7 +568,12 @@ let mkMinotaur () =
         ; weight = 1500
         }
     in
-    let wand = Item.Wand { wand_t = Dig; charges = 13 } in
+    let wand =
+        Item.
+        { t = Wand { wand_t = Dig; charges = 13 }
+        ; stats = { stack = NonStackable }
+        }
+    in
     let inventory = [ wand ] in
     { (mkCreature info) with inventory
     }

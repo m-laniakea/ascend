@@ -226,7 +226,9 @@ let creatureAttackMelee (c : Creature.t) pFrom p (state : S.t) =
                     | Hit.Weapon h ->
                         ( match Item.getWeaponMostDamaging c.inventory with
                         | None -> R.roll h
-                        | Some w -> (R.roll h) + (R.roll w.damage)
+                        | Some w ->
+                            let damage = Item.getWeaponDamage w in
+                            (R.roll h) + (R.roll damage)
                         )
                     | _ -> assert false
                     )
@@ -264,7 +266,7 @@ let creatureThrow (c : Creature.t) p item dir state =
 
     let m = SL.map state in
     let tCreature = Matrix.get m p in
-    let creature = Map.Creature { c with inventory = C.listRemove item c.inventory } in
+    let creature = Map.Creature { c with inventory = Items.remove c.inventory item C.(Count 1) } in
     let tCreature = { tCreature with occupant = Some creature } in
 
     let m' = Matrix.set tCreature p m in
@@ -287,7 +289,7 @@ let creatureAttackRangedAll (c : Creature.t) cp tp state =
                 | Hit.Weapon _ ->
                     ( match Creature.getWeaponForThrow c with
                     | None -> state'
-                    | Some w -> creatureThrow c cp (Item.Weapon w) pDir state'
+                    | Some i -> creatureThrow c cp i pDir state'
                     )
                 | Ranged hr as h ->
                     let hs = hr.stats in

@@ -38,7 +38,7 @@ let domesticateWithThrown item c pn state =
 
     SL.setMap m state
 
-let throw item pFrom dir range msgThrower state =
+let throw (item : Item.t) pFrom dir range msgThrower state =
     let m = SL.map state in
     let isMiss () = R.oneIn 4 in
     let sourceIsPlayer = pFrom = state.player.pos in
@@ -61,7 +61,7 @@ let throw item pFrom dir range msgThrower state =
         S.msgAdd state (C.sf "The %s hits the %s." (Item.name item) c.info.name)
     in
 
-    let rollDamage () = match item with
+    let rollDamage () = match item.t with
         | Item.Weapon w -> R.roll w.damage
         | _ -> R.rn 1 2
     in
@@ -74,17 +74,17 @@ let throw item pFrom dir range msgThrower state =
             (* ^TODO blindness/not correct when you are not target *)
     );
 
-    let rec doThrow item dir pc range state = match P.step pc dir with
+    let rec doThrow dir pc range state = match P.step pc dir with
         | _ when range <= 0 -> state, pc, true
         | pn when not (Map.isInMap pn) -> state, pc, true
         | pn ->
             ( match Matrix.get m pn with
-            | { occupant = Some Boulder; _ } -> doThrow item dir pn (range - 1) state
+            | { occupant = Some Boulder; _ } -> doThrow dir pn (range - 1) state
             | { occupant = Some (Creature c); _ } ->
                 ( match isMiss () with
                 | true ->
                     msgAddCreatureMissed c pn;
-                    doThrow item dir pn (range - 1) state
+                    doThrow dir pn (range - 1) state
                 | false ->
                     if canThrownDomesticate item c then
                         domesticateWithThrown item c pn state, pn, false
@@ -97,7 +97,7 @@ let throw item pFrom dir range msgThrower state =
                 ( match isMiss () with
                 | true ->
                     S.msgAdd state (C.sf "The %s misses you." (Item.name item));
-                    doThrow item dir pn (range - 1) state
+                    doThrow dir pn (range - 1) state
                 | false ->
                     S.msgAdd state (C.sf "The %s hits you." (Item.name item));
                     let damage = rollDamage () in
@@ -105,13 +105,13 @@ let throw item pFrom dir range msgThrower state =
                 )
             | t ->
                 if Map.isTileTypeWalkable t then
-                    doThrow item dir pn (range - 1) state
+                    doThrow dir pn (range - 1) state
                 else
                     state, pc, true
             )
     in
 
-    let state, posLast, doesItemRemain = doThrow item dir pFrom range state in
+    let state, posLast, doesItemRemain = doThrow dir pFrom range state in
     let posStart = getPosStart pFrom posLast in
 
     ( match posStart with
@@ -135,7 +135,8 @@ let throw item pFrom dir range msgThrower state =
     | true ->
         let m = SL.map state in
         let tLanded = Matrix.get m posLast in
-        let tLanded = { tLanded with items = item::tLanded.items } in
+        let items = Items.add tLanded.items item in
+        let tLanded = { tLanded with items } in
         let m' = Matrix.set tLanded posLast m in
 
         SL.setMap m' state

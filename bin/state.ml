@@ -27,7 +27,7 @@ type player =
     ; level : int
     ; xp : int
     ; acBonus : int
-    ; weaponWielded : Item.weapon option
+    ; weaponWielded : Item.t option
     ; inventory : Item.t list
     ; inventoryWeightMax : int
     ; status : C.status list
@@ -53,6 +53,7 @@ type selectDir =
 type selectItems =
     { sItems : C.selectionItem list
     ; single : bool
+    ; howMany : C.howMany
     ; onComplete : onSelectItemsComplete
     }
 
