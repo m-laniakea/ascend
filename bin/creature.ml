@@ -437,20 +437,20 @@ let rollHp ci = match ci.levelBase with
 
 let hasAttackWeapon ci = List.exists (function | Hit.Weapon _ -> true | _ -> false) ci.hits
 
-let mkCreature ci =
+let mkCreature ?(level=None) ci =
     let hpMax = rollHp ci in
     { id = R.uid ()
     ; hp = hpMax
     ; hpMax
     ; hostility = Hostile
-    ; level = ci.levelBase
+    ; level = Option.value level ~default:ci.levelBase
     ; pointsSpeed = ci.speed
     ; inventory = if hasAttackWeapon ci && R.oneIn 2 then [Item.rnWeapon ()] else []
     ; info = ci
     }
 
-let mkCreatures ci n =
-    L.init n (fun _ -> mkCreature ci)
+let mkCreatures ?(level=None) ci n =
+    L.init n (fun _ -> mkCreature ~level ci)
 
 
 let mkGnilsog timesKilled =
@@ -601,6 +601,12 @@ let mkDragon ~telepathic =
     let info = { infoDragon with attributes } in
     mkCreature info
 
+let getLevel difficulty levelBase =
+    let bonusDepth = (difficulty - levelBase |> max 0) / 4 in
+    let levelMax = levelBase * 3 / 2 in
+    let level = levelBase + bonusDepth in
+    min level levelMax
+
 let random difficultyLevel =
     let difficultyMin = difficultyLevel / 6 + 1 in
 
@@ -609,12 +615,19 @@ let random difficultyLevel =
 
     let freq = List.map (fun c -> c, c.frequency) creaturesOk in
     let ci = R.relative freq in
+    let level = Some (getLevel difficultyLevel ci.levelBase) in
 
     let attrSpawn = L.filter_map (function | SpawnGroup s -> Some s | _ -> None) ci.attributes in
-    match attrSpawn with
-    | [] -> mkCreatures ci 1
-    | GroupSmall::_ -> if R.oneIn 2 then mkCreatures ci (R.rn 2 4 |> min difficultyLevel) else mkCreatures ci 1
-    | GroupLarge::_ -> mkCreatures ci (R.rn 2 4 + R.rn 0 4)
+    let count = match attrSpawn with
+        | [] -> 1
+        | GroupSmall::_ ->
+            if R.oneIn 2 then
+                R.rn 2 4 |> min difficultyLevel
+            else
+                1
+        | GroupLarge::_ -> R.rn 2 4 + R.rn 0 4
+    in
+    mkCreatures ~level ci count
 
 let getAttacksPassive c =
     c.info.hits
