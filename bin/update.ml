@@ -5,6 +5,39 @@ module R = Random_
 module S = State
 module SL = StateLevels
 
+let help =
+    [ "Movement:"
+    ; "y  k  u"
+    ; " \\ | / "
+    ; "h  @  l"
+    ; " / | \\"
+    ; "b  j  n"
+
+    ; " "
+
+    ; "Actions:"
+    ; "(a)bsorb corpse - only fresh corpses recommended"
+    ; "(c)lose door - it's considered polite to close dungeon doors behind you"
+    ; "(d)rop items - see select"
+    ; "(g)o blind/unblind - you may find it useful to block out sight sometimes"
+    ; "(q)uaff potion"
+    ; "(r)ead scroll"
+    ; "(s)earch - if at first you do not find, search again"
+    ; "(t)hrow - weapons, or tasty treats for certain domestic creatures"
+    ; "(w)ield weapon - any weapon is likely better than your bare fists"
+    ; "(z)ap wand"
+    ; "(,) pickup - see select"
+
+    ; " "
+
+    ; "Select:"
+    ; "<letter> select/unselect"
+    ; "<count><letter> select amount - e.g. 12c (select 12 of item c)"
+    ; "<escape> abort/exit"
+    ; "<space> confirm"
+    ; "(,) select all/none"
+    ]
+
 let hasScepter (state : S.t) =
     Some (Item.scepterOfYorel) = state.player.weaponWielded
     || List.exists (fun i -> i = Item.scepterOfYorel) state.player.inventory
@@ -94,6 +127,9 @@ let modePlaying event state =
 
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
+
+    | `Key (`ASCII '?', _) -> Some { state with mode = DisplayText help }
+
     | _ -> Some state
 
 let modeSelecting event state s = match event with

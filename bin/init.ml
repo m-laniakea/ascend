@@ -64,7 +64,8 @@ let state =
     Queue.push "Welcome!" stateI.messages;
     Queue.push "There is a moon tonight." stateI.messages;
     Queue.push "" stateI.messages;
-    Queue.push "Hint: (s)earch" stateI.messages;
+    Queue.push "press (?) to see valid commands" stateI.messages;
+    Queue.push "Stuck? (s)earch" stateI.messages;
     GenMap.gen stateI
     |> Player.moveToStairs ~dir:Up
     |> UpdatePlayer.knowledgeMapAddEmpty
