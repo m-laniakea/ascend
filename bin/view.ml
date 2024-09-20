@@ -8,6 +8,7 @@ module A = N.A
 module I = N.I
 
 module C = Common
+module Cr = Creature
 module P = Position
 module S = State
 module SL = StateLevels
@@ -25,7 +26,7 @@ let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i.t with
     | Weapon w -> I.string A.(styles ++ fg w.color) ")"
     | Wand _ -> I.string A.(styles ++ fg A.cyan) "/"
 
-let imageOfTile state _ p = function
+let imageOfTile (state : S.t) _ p = function
     | Map.{ occupant = Some occ; _ } ->
         ( match occ with
             | Creature c ->
@@ -52,7 +53,9 @@ let imageOfTile state _ p = function
         | Wall Horizontal -> "-"
         | Wall Vertical -> "|"
         in
-        let color = if SL.isLit p state || Sight.playerCanSee state p then
+        let attr = state.player.attributes in
+        let playerNotBlind = not (Cr.isBlind attr) in
+        let color = if playerNotBlind && (SL.isLit p state || Sight.playerCanSee state p) then
                 A.white
             else
                 A.lightblack
