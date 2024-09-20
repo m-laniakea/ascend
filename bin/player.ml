@@ -529,7 +529,8 @@ let pickup sl (state : S.t) =
 
     let iTaken, iRemain = Items.takeSelection t.items sl in
 
-    let weightTotal = weightItems iTaken + weightItems sp.inventory in
+    let weightWielded = Option.fold ~none:0 ~some:(fun w -> Item.weight w) sp.weaponWielded in
+    let weightTotal = weightItems iTaken + weightItems sp.inventory + weightWielded in
     if weightTotal > sp.inventoryWeightMax then
         let _ = S.msgAdd state "That would be more than you can carry." in
         state
