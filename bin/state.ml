@@ -53,6 +53,7 @@ type selectDir =
 type selectItems =
     { sItems : C.selectionItem list
     ; single : bool
+    ; howMany : C.howMany
     ; onComplete : onSelectItemsComplete
     }
 

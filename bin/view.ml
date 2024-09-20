@@ -157,6 +157,15 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
     let messages (state : S.t) =
         Queue.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
     in
+    let imageOfSelectionItem (si : C.selectionItem) =
+        let c = match si.howMany with
+            | _ when not si.selected -> "-"
+            | Count _ -> "#"
+            | All -> "+"
+        in
+        let text = C.sf "%c %s %s" si.letter c si.name in
+        I.string A.empty text
+    in
     ( match state.mode with
         | Dead ->
             header state
@@ -196,7 +205,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
                 | SelectItems s ->
                     s.sItems
                     |> L.sort (fun (s : C.selectionItem) s'-> Char.compare s.letter s'.letter)
-                    |> L.map (fun (s : C.selectionItem) -> I.string A.empty (C.sf "%c %s %s" s.letter (if s.selected then "+" else "-") s.name))
+                    |> L.map imageOfSelectionItem
                     |> I.vcat
                 )
         | Victory ->

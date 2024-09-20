@@ -300,9 +300,11 @@ let findFairy (state : S.t) =
         Some
         C.
         { iIndex
+        ; howMany = Count 1
         ; name = ""
         ; selected = true
         ; letter = ' '
+        ; selectionMax = 1
         }
 
 let maybeWarnHealth (state : S.t) msg =
