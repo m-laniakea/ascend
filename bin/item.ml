@@ -379,6 +379,10 @@ let isThrowable item = match item.t with
     | Wand _
     -> false
 
+let isGold i = match i.t with
+    | Gold -> true
+    | _ -> false
+
 let isWeapon i = match i.t with
     | Weapon _ -> true
     | _ -> false

@@ -167,7 +167,7 @@ let pickup (state : S.t) =
         | [] ->
             let _ = S.msgAdd state "There's nothing to pick up here." in
             Some state
-        | _::[] ->
+        | item::[] when 1 = Item.count item || Item.isGold item ->
             Player.action (Pickup selection.sItems) state
         | _ ->
             let mode = S.Selecting (SelectItems selection) in
