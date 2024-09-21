@@ -515,7 +515,7 @@ let drop sl (state : S.t) =
 
     let player = { sp with inventory; gold } in
 
-    let m' = Matrix.set { t with items = dropped @ t.items } sp.pos m in
+    let m' = Matrix.set { t with items = Items.concat dropped t.items } sp.pos m in
     { (SL.setMap m' state) with player }
 
 let weightItems items =
@@ -556,7 +556,7 @@ let pickup sl (state : S.t) =
                 state
             else
                 let gold = sp.gold - itemsValue in
-                let player = { sp with inventory = iTaken @ sp.inventory; gold } in
+                let player = { sp with inventory = Items.concat iTaken sp.inventory; gold } in
                 let m' = Matrix.set { t with items = iRemain } sp.pos m in
                 { (SL.setMap m' state) with player }
 
