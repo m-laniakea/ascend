@@ -150,7 +150,10 @@ let getRoomPositions room =
     |> List.flatten
 
 
-let getAreaRoom room = getRoomPositions room |> L.length
+let getAreaRoom room =
+    let cols = room.posSE.col - room.posNW.col + 1 in
+    let rows = room.posSE.row - room.posNW.row + 1 in
+    rows * cols
 
 let getRoomTiles room m =
     getRoomPositions room
