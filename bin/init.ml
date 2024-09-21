@@ -20,7 +20,11 @@ let intro =
     ]
 
 let state =
-    Random.init 662;
+    (*
+    Random.init 270;
+    ^also nice
+    *)
+    Random.init 26475;
 
     let levels =
         S.
