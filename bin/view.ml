@@ -80,9 +80,20 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
     let footer (state : S.t) =
         I.string A.empty (C.sf "$ %i" state.player.gold)
     in
+    let getInventoryValue (state : S.t) =
+        let sp = state.player in
+        let wielded = Option.fold ~none:[] ~some:(fun w -> [w]) sp.weaponWielded in
+        let inventory = wielded @ sp.inventory in
+        let hasScepter = StatePlayer.hasScepter state in
+
+        let items = if hasScepter then Items.remove inventory Item.scepterOfYorel C.(Count 1) else inventory in
+
+        L.map Item.getPriceBase items |> L.fold_left (+) 0
+    in
+
     let messageDeath (state : S.t) =
         let gold = state.player.gold in
-        let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
+        let valItems = getInventoryValue state in
         [ ""
         ; "You are dead."
         ; C.sf "You died on level %i." state.levels.indexLevel
@@ -102,7 +113,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
                 C.sf "having died %i time%s" tk (C.plural tk)
         in
         let gold = state.player.gold in
-        let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
+        let valItems = getInventoryValue state in
 
         let storyPet =
             let m = SL.map state in

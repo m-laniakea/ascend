@@ -38,10 +38,6 @@ let help =
     ; "(,) select all/none"
     ]
 
-let hasScepter (state : S.t) =
-    Some (Item.scepterOfYorel) = state.player.weaponWielded
-    || List.exists (fun i -> i = Item.scepterOfYorel) state.player.inventory
-
 let playerGoUp (state : S.t) =
     (* ^ TODO move to actionPlayer *)
     let p = state.player.pos in
@@ -50,7 +46,7 @@ let playerGoUp (state : S.t) =
     else
         let sl = state.levels in
         match sl.indexLevel with
-        | 0 when hasScepter state ->
+        | 0 when StatePlayer.hasScepter state ->
             { state with mode = Victory }
         | 0 ->
             S.msgAdd state "Without the Scepter, there is but one escape...";
