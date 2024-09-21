@@ -27,6 +27,9 @@ let help =
     ; "(w)ield weapon - any weapon is likely better than your bare fists"
     ; "(z)ap wand"
     ; "(,) pickup - see select"
+    ; "(<) go up (while on stairs)"
+    ; "(>) go down (while on stairs)"
+    ; "(?) this menu"
 
     ; " "
 
