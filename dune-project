@@ -11,7 +11,7 @@
 
 (maintainers "m-laniakea")
 
-(license GPL-2.0-only)
+(license AGPL-3.0-only)
 
 (package
  (name ascend)

@@ -5,7 +5,7 @@ description:
   "Venture into the depths to retrieve the stolen artifact, and ascend! NetHack lite."
 maintainer: ["m-laniakea"]
 authors: ["eir"]
-license: "GPL-2.0-only"
+license: "AGPL-3.0-only"
 tags: ["game" "terminal"]
 homepage: "https://github.com/m-laniakea/ascend"
 bug-reports: "https://github.com/m-laniakea/ascend/issues"
