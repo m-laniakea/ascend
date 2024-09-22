@@ -77,7 +77,7 @@ let handleItems k (s : S.selectItems) state = match k with
             C.
             ( match s.howMany with
             | All -> Count digit
-            | Count n when n >= 10000000000 -> s.howMany
+            | Count n when n >= 1000000000 -> s.howMany
             | Count n -> Count (n * 10 + digit)
             )
         in
