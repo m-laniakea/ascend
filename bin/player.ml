@@ -372,17 +372,21 @@ let read (si : C.selectionItem) (state : S.t) =
                     state
                 )
             | Teleport ->
-                S.msgAdd state "Your position feels more uncertain.";
                 let pp = sp.pos in
                 let m = SL.map state in
                 let spawnPositions =
                     Map.allMapPositions
                     |> L.filter (fun p -> Ai.canSpawnAt ~forbidPos:None m p)
-                    (* TODO this would break if the map is full of creatures *)
                 in
-                let pNew = R.item spawnPositions in
-                let mf = P.diff pp pNew |> P.add in
-                move mf state
+                match spawnPositions with
+                | [] ->
+                    S.msgAdd state "You feel surrounded.";
+                    state
+                | _ ->
+                    S.msgAdd state "Your position feels more uncertain.";
+                    let pNew = R.item spawnPositions in
+                    let mf = P.diff pp pNew |> P.add in
+                    move mf state
 
 let wield (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
