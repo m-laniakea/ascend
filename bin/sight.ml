@@ -79,7 +79,6 @@ let playerCanSee (state : S.t) toSee =
     let attr = state.player.attributes in
     let isBlind = Cr.isBlind attr in
     let isTelepath = isBlind && Cr.isTelepath attr in
-    (* TODO blindness *)
     canSee playerD2Sight ~isBlind ~isTelepath pp toSee state
 
 let creatureCanSee (c : Creature.t) from toSee state =

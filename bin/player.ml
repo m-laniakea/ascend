@@ -448,7 +448,6 @@ let zap (si : C.selectionItem) dir (state : S.t) =
             | Striking ->
                 S.msgAdd state "Your wand emits a loud burst.";
                 Attack.castRay Hit.Sonic sp.pos dir range { rolls = 1; sides = 6 } state
-                (* TODO it's invisible and crumbles boulders *)
             )
         | _ -> S.msgAdd state "can't zap that."; state
 
@@ -570,7 +569,6 @@ let pickup sl (state : S.t) =
     let player = { sp with inventory = Items.concat iTaken sp.inventory ; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
     { (SL.setMap m' state) with player }
-    (* ^TODO combine items *)
 
 let throw (si : C.selectionItem) dir (state : S.t) =
     let rangeThrown = 6 in (* TODO *)

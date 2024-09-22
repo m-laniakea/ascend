@@ -51,7 +51,6 @@ let revealRoomTilesIfLit (state : S.t) =
     in
 
     match StatePlayer.room state with
-    (* TODO blindness *)
     | None -> state
     | Some room -> match room with
         | { lit = false; _ } -> state
