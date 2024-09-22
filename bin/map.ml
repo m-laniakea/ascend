@@ -338,6 +338,7 @@ let tileBlocksProjectile = function
 
 let doorDestroyableBy = function
     | Hit.Dig
+    | Electric
     | Fire
         -> true
 

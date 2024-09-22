@@ -141,7 +141,11 @@ let spawnCreatures ~preferNear ~room state =
     placeCreatures creatures ~preferNear ~room state
 
 let getCreatureMoveNext pGoal c m p =
-    Map.posAround p
+    ( if Cr.hasAttribute c MoveGrid then
+            Map.nextManhattan p
+        else
+            Map.posAround p
+    )
     |> List.filter (fun p -> pGoal = p || canMoveHere c m p)
 
 let moveCreature a b (state : S.t) =
@@ -347,7 +351,11 @@ let canAttackRangedWeapon c pc pt ~canSeeTarget state =
     |> L.exists Map.tileBlocksProjectile
     |> not
 
-let canAttackMelee pc pt = P.distance2 pc pt <= 2
+let canAttackMelee c pc pt =
+    if Cr.hasAttribute c MoveGrid then
+        P.distance2 pc pt <= 1
+    else
+        P.distance2 pc pt <= 2
 
 let canAttackRanged c cp pt ~canSeeTarget state =
     if not
@@ -368,7 +376,7 @@ let canAttackRanged c cp pt ~canSeeTarget state =
     |> L.exists (fun e -> not (tilesBlockEffect e))
 
 let canAttack c pc pt ~canSeeTarget state =
-    canAttackMelee pc pt
+    canAttackMelee c pc pt
     || canAttackRangedWeapon c pc pt ~canSeeTarget state
     || canAttackRanged c pc pt ~canSeeTarget state
 
@@ -382,7 +390,7 @@ type target =
 
 let handleTarget c pc target state =
     match target with
-    | TargetAttack pt when canAttackMelee pc pt ->
+    | TargetAttack pt when canAttackMelee c pc pt ->
         pc, creatureAttackMelee c pc pt state
     | TargetAttack pt ->
         pc, creatureAttackRangedAll c pc pt state

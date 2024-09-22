@@ -29,6 +29,7 @@ type attributes =
     | Domestic
     | FollowAlways
     | FollowStairs
+    | MoveGrid
     | NoHands
     | Mindless
     | Resist of Hit.effect
@@ -99,6 +100,23 @@ let creatures =
             ]
         ; speed = 6
         ; weight = 10
+        }
+    ;   { name = "grid bug"
+        ; symbol = "x"
+        ; attributes =
+            [ MoveGrid
+            ; NoHands
+            ]
+        ; color = A.magenta
+        ; difficulty = 1
+        ; levelBase = 0
+        ; acBase = 9
+        ; frequency = 3
+        ; hits =
+            [ H.mkMelee Bite Electric 1 1
+            ]
+        ; speed = 12
+        ; weight = 15
         }
     ;   { name = "sewer rat"
         ; symbol = "r"

@@ -6,6 +6,7 @@ module R = Random_
 type effect =
     | Cold
     | Dig
+    | Electric
     | Fire
     | Paralyze
     | Physical
@@ -86,6 +87,7 @@ let getMsgsEffect e =
     let msgCause, msgEffect = match e with
         | Cold -> "cold", "freezes"
         | Dig -> "digging spell", "passes through"
+        | Electric -> "electricity", "zaps"
         | Fire -> "fire", "burns"
         | Paralyze -> "paralysis", "stiffens"
         | Physical -> "attack", "hits"
@@ -135,6 +137,7 @@ let getImageForAnimation t (dir : Position.dir) =
     let mColor = match t with
     | Cold -> Some A.(fg cyan)
     | Dig ->  None
+    | Electric -> Some A.(fg lightyellow)
     | Fire -> Some A.(fg lightred)
     | Paralyze -> None
     | Physical -> Some A.(fg white)
