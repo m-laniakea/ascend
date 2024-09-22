@@ -6,7 +6,7 @@ module S = State
 module SL = StateLevels
 
 let help =
-    [ "Movement:"
+    [ "Movement/Attack:"
     ; "y  k  u"
     ; " \\ | / "
     ; "h  @  l"
@@ -22,14 +22,14 @@ let help =
     ; "(g)o blind/unblind - you may find it useful to block out sight sometimes"
     ; "(q)uaff potion"
     ; "(r)ead scroll"
-    ; "(s)earch - if at first you do not find, search again"
+    ; "(s)earch - there may be hidden doors and hallways...try searching"
     ; "(t)hrow - weapons, or tasty treats for certain domestic creatures"
     ; "(w)ield weapon - any weapon is likely better than your bare fists"
     ; "(z)ap wand"
     ; "(,) pickup - see select"
     ; "(<) go up (while on stairs)"
     ; "(>) go down (while on stairs)"
-    ; "(?) this menu"
+    ; "(?) open this menu"
 
     ; " "
 
