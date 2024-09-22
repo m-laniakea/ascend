@@ -515,7 +515,7 @@ let mkAurochs () =
         ; levelBase = 5
         ; name = "aurochs"
         ; speed = 9
-        ; symbol = "C"
+        ; symbol = "U"
         ; weight = 2500
         }
     in
