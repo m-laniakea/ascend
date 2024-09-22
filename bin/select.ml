@@ -14,15 +14,18 @@ let selectionOfItems ~single oc l =
         C.
         ( fun ix (iix, i) ->
             { letter = 0x61 (* 'a' *) + ix |> Char.chr
+            ; howMany = All
             ; iIndex = iix
             ; name = Item.nameDisplay i
             ; selected = false
+            ; selectionMax = Item.count i
             }
         )
     |>  ( fun l ->
             S.
             { sItems = l
             ; single
+            ; howMany = All
             ; onComplete = oc
             }
         )
@@ -68,6 +71,22 @@ let handleItems k (s : S.selectItems) state = match k with
 
         Some { state with mode }
 
+    | n when n >= '0' && n <= '9' ->
+        let digit = Char.code n - Char.code '0' in
+        let howMany =
+            C.
+            ( match s.howMany with
+            | All -> Count digit
+            | Count n when n >= 1000000000 -> s.howMany
+            | Count n -> Count (n * 10 + digit)
+            )
+        in
+
+        let selectItems = S.SelectItems { s with howMany } in
+        let mode = S.Selecting selectItems in
+        Some { state with mode }
+
+
     | k ->
         match L.find_index (fun (si : C.selectionItem) -> k = si.letter) s.sItems with
         | None -> Some state
@@ -78,8 +97,19 @@ let handleItems k (s : S.selectItems) state = match k with
             else
                 s.sItems
             in
-            let sItems = C.listSet i { si with selected = not (si.selected) } sItems in
-            let mode = S.Selecting (SelectItems { s with sItems }) in
+            let howMany = match s.howMany with
+                | Count n when n > si.selectionMax -> C.All
+                | Count _ as hm -> hm
+                | All -> All
+            in
+            let selected = not (si.selected) && howMany <> Count 0 in
+            let si =
+                { si with selected
+                ; howMany
+                }
+            in
+            let sItems = C.listSet i si sItems in
+            let mode = S.Selecting (SelectItems { s with sItems; howMany = All }) in
             Some { state with mode }
 
 let handleDir k sd (state : S.t) =
@@ -137,7 +167,7 @@ let pickup (state : S.t) =
         | [] ->
             let _ = S.msgAdd state "There's nothing to pick up here." in
             Some state
-        | _::[] ->
+        | item::[] when 1 = Item.count item || Item.isGold item ->
             Player.action (Pickup selection.sItems) state
         | _ ->
             let mode = S.Selecting (SelectItems selection) in

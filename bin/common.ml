@@ -38,10 +38,16 @@ let repeat n fWithArgs toModify =
     in
     aux n toModify
 
+type howMany =
+    | All
+    | Count of int
+
 type selectionItem =
     { iIndex : int
+    ; howMany : howMany
     ; name : string
     ; selected : bool
+    ; selectionMax : int
     ; letter : char
     }
 

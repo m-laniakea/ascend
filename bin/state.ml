@@ -27,7 +27,7 @@ type player =
     ; level : int
     ; xp : int
     ; acBonus : int
-    ; weaponWielded : Item.weapon option
+    ; weaponWielded : Item.t option
     ; inventory : Item.t list
     ; inventoryWeightMax : int
     ; status : C.status list
@@ -53,6 +53,7 @@ type selectDir =
 type selectItems =
     { sItems : C.selectionItem list
     ; single : bool
+    ; howMany : C.howMany
     ; onComplete : onSelectItemsComplete
     }
 
@@ -93,6 +94,12 @@ let msgAddSeen state ~canSee s =
         msgAdd state s
     else
         ()
+
+let msgHearNotSeen state ~canSee s =
+    if canSee then
+        ()
+    else
+        msgAdd state ("You hear " ^ s)
 
 let getKnowledgeCurrentLevel state =
     let sl = state.levels in

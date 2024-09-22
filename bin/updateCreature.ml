@@ -30,9 +30,20 @@ let onPeaceBroken state =
             SL.setMap m state
 
 let textGnilsogFirstKilled =
-    [ "The vile Gnilsog lies slain before you..."
+    [ "Gnilsog gasps, staggering backwards, before collapsing into a lifeless heap."
     ; ""
-    ; "But before you can rejoice, you feel the dungeon shudder!"
+    ; "The vile Gnilsog lies slain before you!"
+    ; ""
+    ; "But before you can rejoice, the corpse's mouth opens wide, then freezes."
+    ; "You hear: \"Didst thou truly believe thou couldst violate my sanctum,"
+    ; "take my life, and abscond with my artifact unscathed, you THIEF?\""
+    ; ""
+    ; "You hear maniacal laughter in the distance..."
+    ; "Gnilsog's cold, lifeless hand reaches into a mold-infested pocket,"
+    ; "pulls out a small medallion and snaps it in two."
+    ; ""
+    ; "You feel the dungeon shudder."
+    ; "Some mechanisms above the doors begins to whirr and clank..."
     ; "A petrifying shriek reverberates throughout the halls."
     ; "You sense metal rattling and groaning!"
     ; "Walls crumble, as a massive creature unleashes its rage..."
@@ -52,6 +63,7 @@ let onCreatureDeath (c : Creature.t) (state : S.t) =
                     }
                 in
                 let mode = S.DisplayText textGnilsogFirstKilled in
+                let state = UpdateMap.closeDoorsGnilsogIfAble state in
                 let state = UpdateMap.lowerDragonGate state in
                 { state with mode; endgame }
 
@@ -77,18 +89,18 @@ let addHp ~sourceIsPlayer n p (c : Creature.t) state =
                 else if Cr.isPet c then
                     S.msgAdd state "You have a sad feeling for a moment."
             in
+            let corpse = Item.mkCorpse c.info.name c.info.color c.info.weight state.turns in
             let deathDrops =
-                let corpse = Item.mkCorpse c.info.name c.info.color c.info.weight state.turns in
                 (* TODO Not every creature can leave a corpse *)
                 let item = if isPet then [] else if Random_.oneIn 6 then [Item.random ()] else [] in
-                corpse::item @ c.inventory
+                item @ c.inventory
             in
             let state = if sourceIsPlayer && c.hostility <> Hostile then onPeaceBroken state else state in
             let state = if sourceIsPlayer then UpdatePlayer.xpAdd (Cr.xpOnKill c) state else state in
             let state = onCreatureDeath c state in
             let m = SL.map state in
             let t = Matrix.get m p in
-            state, Map.{ t with occupant = None; items = deathDrops @ t.items }
+            state, Map.{ t with occupant = None; items = corpse::(Items.concat deathDrops t.items) }
         else
             let hostilityOld = c.hostility in
             let state, hostility = if n >= 0 || not sourceIsPlayer then state, c.hostility else

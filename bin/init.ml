@@ -3,7 +3,7 @@ module S = State
 module SL = StateLevels
 
 let intro =
-    [ "\"Welcome\" to the Dungeons."
+    [ "You awaken in the Dungeons..."
     ; ""
     ; "In the beginning of the words, there was Rievax the Revelator."
     ; "A long time ago, Gnilsog the Corruptor deceived the world and stole from the Revelator an artifact of immense power:"
@@ -20,7 +20,11 @@ let intro =
     ]
 
 let state =
-    Random.init 662;
+    (*
+    Random.init 270;
+    ^also nice
+    *)
+    Random.init 26475;
 
     let levels =
         S.
@@ -64,7 +68,8 @@ let state =
     Queue.push "Welcome!" stateI.messages;
     Queue.push "There is a moon tonight." stateI.messages;
     Queue.push "" stateI.messages;
-    Queue.push "Hint: (s)earch" stateI.messages;
+    Queue.push "press (?) to see valid commands" stateI.messages;
+    Queue.push "Stuck? (s)earch" stateI.messages;
     GenMap.gen stateI
     |> Player.moveToStairs ~dir:Up
     |> UpdatePlayer.knowledgeMapAddEmpty

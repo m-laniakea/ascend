@@ -31,3 +31,7 @@ let isInShop (state : S.t) =
     let pp = sp.pos in
     let cl = SL.level state in
     Map.isInShop cl.rooms pp
+
+let hasScepter (state : S.t) =
+    Some (Item.scepterOfYorel) = state.player.weaponWielded
+    || List.exists (fun i -> i = Item.scepterOfYorel) state.player.inventory

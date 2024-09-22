@@ -5,9 +5,41 @@ module R = Random_
 module S = State
 module SL = StateLevels
 
-let hasScepter (state : S.t) =
-    Some (Item.scepterOfYorel |> Item.toWeapon) = state.player.weaponWielded
-    || List.exists (fun i -> i = Item.scepterOfYorel) state.player.inventory
+let help =
+    [ "Movement/Attack:"
+    ; "y  k  u"
+    ; " \\ | / "
+    ; "h  @  l"
+    ; " / | \\"
+    ; "b  j  n"
+
+    ; " "
+
+    ; "Actions:"
+    ; "(a)bsorb corpse - only fresh corpses recommended"
+    ; "(c)lose door - it's considered polite to close dungeon doors behind you"
+    ; "(d)rop items - see select"
+    ; "(g)o blind/unblind - you may find it useful to block out sight sometimes"
+    ; "(q)uaff potion"
+    ; "(r)ead scroll"
+    ; "(s)earch - there may be hidden doors and hallways...try searching"
+    ; "(t)hrow - weapons, or tasty treats for certain domestic creatures"
+    ; "(w)ield weapon - any weapon is likely better than your bare fists"
+    ; "(z)ap wand"
+    ; "(,) pickup - see select"
+    ; "(<) go up (while on stairs)"
+    ; "(>) go down (while on stairs)"
+    ; "(?) open this menu"
+
+    ; " "
+
+    ; "Select:"
+    ; "<letter> select/unselect"
+    ; "<count><letter> select amount - e.g. 12c (select 12 of item c)"
+    ; "<escape> abort/exit"
+    ; "<space> confirm"
+    ; "(,) select all/none"
+    ]
 
 let playerGoUp (state : S.t) =
     (* ^ TODO move to actionPlayer *)
@@ -17,7 +49,7 @@ let playerGoUp (state : S.t) =
     else
         let sl = state.levels in
         match sl.indexLevel with
-        | 0 when hasScepter state ->
+        | 0 when StatePlayer.hasScepter state ->
             { state with mode = Victory }
         | 0 ->
             S.msgAdd state "Without the Scepter, there is but one escape...";
@@ -94,6 +126,9 @@ let modePlaying event state =
 
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
+
+    | `Key (`ASCII '?', _) -> Some { state with mode = DisplayText help }
+
     | _ -> Some state
 
 let modeSelecting event state s = match event with

@@ -1,26 +1,27 @@
 (lang dune 3.16)
 
-(name OHack)
+(name ascend)
 
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github m-laniakea/ascend))
 
-(authors "Author Name")
+(authors "eir")
 
-(maintainers "Maintainer Name")
+(maintainers "m-laniakea@github.com")
 
-(license LICENSE)
-
-(documentation https://url/to/documentation)
+(license AGPL-3.0-only)
 
 (package
- (name OHack)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune)
+ (name ascend)
+ (synopsis "Ascend - Terminal Dungeon RPG adventure")
+ (description "Venture into the depths to retrieve the stolen artifact, and ascend! NetHack lite.")
+ (depends
+  (ocaml (>= 5.2.0))
+  dune
+  (notty (>= 0.2.3)))
  (tags
-  (topics "to describe" your project)))
+  (game terminal)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html

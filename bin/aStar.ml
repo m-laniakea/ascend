@@ -1,3 +1,5 @@
+(* adapted from github.com/akabe https://gist.github.com/akabe/ad9a6deaaa639124944f *)
+
 module AStar :
 sig
   type 'a t =

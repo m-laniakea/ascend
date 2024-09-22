@@ -78,6 +78,32 @@ let setTileType tt p state =
     let m = Matrix.set t p m in
     SL.setMap m state
 
+let closeDoorsGnilsogIfAble state =
+    match (SL.level state).level_t with
+    | Final ->
+        let m = SL.map state in
+
+        let m =
+            Levels.pDoorsGnilsog
+            |> List.fold_left
+                (fun m p ->
+                    let tile = Matrix.get m p in
+                    match tile with
+                    | Map.{ occupant = Some _; _ } -> m
+                    | { items = _::_; _ } -> m
+                    | { t = Door (Open, dir); _ } as tile ->
+                        let tile = { tile with t = Door (Closed, dir) } in
+                        Matrix.set tile p m
+                    | { t = Door _; _ } -> m
+                    | _ -> failwith "not a (gnilsog) door"
+                )
+                m
+        in
+        SL.setMap m state
+
+
+    | _ -> failwith "Asked to close gnilsog's doors on wrong level..."
+
 let lowerDragonGate state =
     match (SL.level state).level_t with
     | Final -> setTileType Floor Levels.pDragonGate state

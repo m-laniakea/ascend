@@ -8,24 +8,25 @@ module A = N.A
 module I = N.I
 
 module C = Common
+module Cr = Creature
 module P = Position
 module S = State
 module SL = StateLevels
 
 let term = Term.create () (* TODO shouldn't be created a second time here *)
 
-let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i with
+let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i.t with
     | Comestible c -> I.string A.(styles ++ fg c.color) "%"
     | Container _ -> I.string A.(styles ++ fg C.brown) "("
     | Corpse c -> I.string A.(styles ++ fg c.color) "%"
-    | Gold _ -> I.string A.(styles ++ fg lightyellow) "$"
+    | Gold -> I.string A.(styles ++ fg lightyellow) "$"
     | Potion _ -> I.string A.(styles ++ fg white) "!"
-    | Rock _ -> I.string A.(styles ++ fg white) "*"
+    | Rock -> I.string A.(styles ++ fg white) "*"
     | Scroll _ -> I.string A.(styles ++ fg white) "?"
     | Weapon w -> I.string A.(styles ++ fg w.color) ")"
     | Wand _ -> I.string A.(styles ++ fg A.cyan) "/"
 
-let imageOfTile state _ p = function
+let imageOfTile (state : S.t) _ p = function
     | Map.{ occupant = Some occ; _ } ->
         ( match occ with
             | Creature c ->
@@ -52,7 +53,9 @@ let imageOfTile state _ p = function
         | Wall Horizontal -> "-"
         | Wall Vertical -> "|"
         in
-        let color = if SL.isLit p state || Sight.playerCanSee state p then
+        let attr = state.player.attributes in
+        let playerNotBlind = not (Cr.isBlind attr) in
+        let color = if playerNotBlind && (SL.isLit p state || Sight.playerCanSee state p) then
                 A.white
             else
                 A.lightblack
@@ -77,9 +80,20 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
     let footer (state : S.t) =
         I.string A.empty (C.sf "$ %i" state.player.gold)
     in
+    let getInventoryValue (state : S.t) =
+        let sp = state.player in
+        let wielded = Option.fold ~none:[] ~some:(fun w -> [w]) sp.weaponWielded in
+        let inventory = wielded @ sp.inventory in
+        let hasScepter = StatePlayer.hasScepter state in
+
+        let items = if hasScepter then Items.remove inventory Item.scepterOfYorel C.(Count 1) else inventory in
+
+        L.map Item.getPriceBase items |> L.fold_left (+) 0
+    in
+
     let messageDeath (state : S.t) =
         let gold = state.player.gold in
-        let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
+        let valItems = getInventoryValue state in
         [ ""
         ; "You are dead."
         ; C.sf "You died on level %i." state.levels.indexLevel
@@ -99,7 +113,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
                 C.sf "having died %i time%s" tk (C.plural tk)
         in
         let gold = state.player.gold in
-        let valItems = L.map Item.getPriceBase state.player.inventory |> L.fold_left (+) 0 in
+        let valItems = getInventoryValue state in
 
         let storyPet =
             let m = SL.map state in
@@ -157,6 +171,15 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
     let messages (state : S.t) =
         Queue.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
     in
+    let imageOfSelectionItem (si : C.selectionItem) =
+        let c = match si.howMany with
+            | _ when not si.selected -> "-"
+            | Count _ -> "#"
+            | All -> "+"
+        in
+        let text = C.sf "%c %s %s" si.letter c si.name in
+        I.string A.empty text
+    in
     ( match state.mode with
         | Dead ->
             header state
@@ -196,7 +219,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
                 | SelectItems s ->
                     s.sItems
                     |> L.sort (fun (s : C.selectionItem) s'-> Char.compare s.letter s'.letter)
-                    |> L.map (fun (s : C.selectionItem) -> I.string A.empty (C.sf "%c %s %s" s.letter (if s.selected then "+" else "-") s.name))
+                    |> L.map imageOfSelectionItem
                     |> I.vcat
                 )
         | Victory ->

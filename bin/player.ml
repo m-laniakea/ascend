@@ -36,15 +36,22 @@ let absorb (state : S.t) =
     let m = SL.map state in
     let t = Matrix.get m p in
 
-    let corpses = t.items |> L.filter_map (function | Item.Corpse c -> Some c | _ -> None) in
+    let corpses =
+        t.items
+        |> L.filter_map
+            (function
+            | Item.{ t = Corpse c; _ } -> Some c
+            | _ -> None
+            )
+    in
 
     match corpses with
     | [] -> S.msgAdd state "There's nothing to absorb here."; state
     | c::_ ->
         let state = match Item.corpseFreshness c state.turns with
         | Item.Fresh ->
-            ( match Item.name (Corpse c) with
-                | "floating eye corpse" when not (Cr.isTelepath player.attributes) ->
+            ( match c.name with
+                | "floating eye" when not (Cr.isTelepath player.attributes) ->
                     S.msgAdd state "You feel a strange mental acuity.";
                     UpdatePlayer.addAttribute Telepathic state
                     (* TODO Better for corpses to have attributes *)
@@ -70,7 +77,14 @@ let absorb (state : S.t) =
                 let bonus = R.rn 0 (c.weight / 25 |> max 10) in
                 UpdatePlayer.addHp (-bonus) state
         in
-        let t = { t with items = C.listRemove (Item.Corpse c) t.items } in
+        let toRemove =
+            Item.
+            { t = Corpse c
+            ; stats = { stack = NonStackable }
+            }
+            (* ^TODO do we really need to rebuild the item? *)
+        in
+        let t = { t with items = Items.remove t.items toRemove (C.Count 1) } in
         let m = Matrix.set t p m in
         SL.setMap m state
 
@@ -120,7 +134,11 @@ let attackMelee p (c : Creature.t) (state : S.t) =
                     S.msgAdd state "It would be wise to (w)ield a weapon.";
                 );
                 R.rn 1 2 (* bare-handed *)
-            | Some w -> R.roll w.damage
+            | Some w ->
+                ( match w.t with
+                | Weapon _ -> R.roll (Item.getWeaponDamage w)
+                | _ -> R.rn 1 2
+                )
             )
             |> Attack.reduceDamage acTarget
         in
@@ -244,20 +262,20 @@ let search (state : S.t) =
 let quaff (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
-    match item with
+    match item.t with
         | Comestible _ -> S.msgAdd state "Slow down! Chew your food!"; state
         | Container _ -> S.msgAdd state "What a silly thing to quaff!"; state
         | Corpse _ -> S.msgAdd state "What a silly thing to quaff!"; state
-        | Gold _ -> S.msgAdd state "You were unable to swallow the gold piece."; state
-        | Rock _ -> S.msgAdd state "You were unable to swallow the rock."; state
+        | Gold -> S.msgAdd state "You were unable to swallow the gold piece."; state
+        | Rock -> S.msgAdd state "You were unable to swallow the rock."; state
         | Scroll _ -> S.msgAdd state "This scroll is quite solid. Quite difficult to drink..."; state
         | Weapon _ -> S.msgAdd state "You change your mind about swallowing your weapon."; state
         | Wand _ -> S.msgAdd state "You change your mind about swallowing your wand."; state
         | Potion p ->
-            let inventory, _ = C.partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
+            let inventory = Items.remove sp.inventory item (C.Count 1) in
             let player = { sp with inventory } in
             let state = { state with player } in
-            match p.potion_t with
+            match p with
             | Healing -> S.msgAdd state "You feel better."; UpdatePlayer.addHp (8 + (R.roll {sides=4; rolls=4})) state
             | HealingExtra -> S.msgAdd state "You feel much better."; UpdatePlayer.addHp (16 + (R.roll {sides=4; rolls=12})) state
             | HealingFull ->
@@ -269,8 +287,8 @@ let quaff (si : C.selectionItem) (state : S.t) =
 let findFairy (state : S.t) =
     let sp = state.player in
     let fairies = L.mapi
-        ( fun ix i -> match i with
-            | Item.Potion { potion_t = HealingFull; _ } -> Some ix
+        ( fun ix (i : Item.t) -> match i.t with
+            | Item.Potion HealingFull -> Some ix
             | _ -> None
         )
         sp.inventory
@@ -282,9 +300,11 @@ let findFairy (state : S.t) =
         Some
         C.
         { iIndex
+        ; howMany = Count 1
         ; name = ""
         ; selected = true
         ; letter = ' '
+        ; selectionMax = 1
         }
 
 let maybeWarnHealth (state : S.t) msg =
@@ -326,20 +346,20 @@ let checkHp (state : S.t) =
 let read (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
-    match item with
+    match item.t with
         | Comestible _ -> S.msgAdd state "What a silly thing to read!"; state
         | Container _ -> S.msgAdd state "What a silly thing to read!"; state
         | Corpse _ -> S.msgAdd state "What a silly thing to read!"; state
-        | Gold _ -> S.msgAdd state "The gold is shiny!"; state
+        | Gold -> S.msgAdd state "The gold is shiny!"; state
         | Potion _ -> S.msgAdd state "This potion is unlabeled."; state
-        | Rock _ -> S.msgAdd state "This rock is not a tree."; state
+        | Rock -> S.msgAdd state "This rock is not a tree."; state
         | Weapon _ -> S.msgAdd state "There's nothing to read on this weapon."; state
         | Wand _ -> S.msgAdd state "This is indeed a wand."; state
         | Scroll s ->
-            let inventory, _ = C.partitionI (fun i _ -> i <> si.iIndex) sp.inventory in
+            let inventory = Items.remove sp.inventory item (C.Count 1) in
             let player = { sp with inventory } in
             let state = { state with player } in
-            match s.scroll_t with
+            match s with
             | CreateMonster -> S.msgAdd state "The area feels more dangerous!"; Ai.spawnCreatures ~preferNear:(Near sp.pos) ~room:None state
             | MagicMapping ->
                 ( match (SL.level state).level_t with
@@ -352,31 +372,34 @@ let read (si : C.selectionItem) (state : S.t) =
                     state
                 )
             | Teleport ->
-                S.msgAdd state "Your position feels more uncertain.";
                 let pp = sp.pos in
                 let m = SL.map state in
                 let spawnPositions =
                     Map.allMapPositions
                     |> L.filter (fun p -> Ai.canSpawnAt ~forbidPos:None m p)
-                    (* TODO this would break if the map is full of creatures *)
                 in
-                let pNew = R.item spawnPositions in
-                let mf = P.diff pp pNew |> P.add in
-                move mf state
+                match spawnPositions with
+                | [] ->
+                    S.msgAdd state "You feel surrounded.";
+                    state
+                | _ ->
+                    S.msgAdd state "Your position feels more uncertain.";
+                    let pNew = R.item spawnPositions in
+                    let mf = P.diff pp pNew |> P.add in
+                    move mf state
 
 let wield (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
-    let item = List.nth sp.inventory si.iIndex in
-    let weaponWielded = Some (Item.toWeapon item) in
+    let item, inventory = Items.splitIndex sp.inventory si.iIndex (C.Count 1) in
+    let weaponWielded = Some item in
     S.msgAdd state (C.sf "You wield %s." (Item.nameDisplay item));
 
     let unwielded = match sp.weaponWielded with
         | None -> []
-        | Some w -> [Item.(Weapon w)]
+        | Some w -> [w]
     in
 
-    let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
-    let inventory = unwielded @ inventory in
+    let inventory = Items.concat unwielded inventory in
     let player =
         { sp with weaponWielded
         ; inventory
@@ -388,41 +411,43 @@ let wield (si : C.selectionItem) (state : S.t) =
 let zap (si : C.selectionItem) dir (state : S.t) =
     let sp = state.player in
     let item = List.nth sp.inventory si.iIndex in
-    let item = match item with
-        | Item.Wand w -> Item.Wand { w with charges = max 0 (w.charges - 1) }
+    let item = match item.t with
+        | Item.Wand w ->
+            let t = Item.Wand { w with charges = max 0 (w.charges - 1) } in
+            { item with t }
         | _ -> assert false
     in
     let inventory = C.listSet si.iIndex item sp.inventory in
     let player = { sp with inventory } in
     let state = { state with player } in
 
-    match item with
+    match item.t with
         | Wand w ->
             if w.charges <= 0 then
                 let _ = S.msgAdd state "Nothing happens." in
                 state
             else
+            let range = R.rn 20 26 in
             ( match w.wand_t with
             | Dig ->
                 ( match (SL.level state).level_t with
                 | Dungeon
                 | Garden _ ->
                     S.msgAdd state "The dungeon seems less solid for a moment.";
-                    UpdateMap.dig sp.pos dir (12 + R.rn 1 8) state
+                    UpdateMap.dig sp.pos dir range state
                 | Final ->
                     S.msgAdd state "The wand gets very hot, but nothing else happens.";
                     state
                 )
             | Fire ->
                 S.msgAdd state "A column of fire erupts from your wand.";
-                Attack.castRay Hit.Fire sp.pos dir { rolls = 6; sides = 6 } state
+                Attack.castRay Hit.Fire sp.pos dir range { rolls = 6; sides = 6 } state
             | MagicMissile ->
                 S.msgAdd state "A hail of particles shoots from your wand.";
-                Attack.castRay Hit.Physical sp.pos dir { rolls = 2; sides = 6 } state
+                Attack.castRay Hit.Physical sp.pos dir range { rolls = 2; sides = 6 } state
             | Striking ->
                 S.msgAdd state "Your wand emits a loud burst.";
-                Attack.castRay Hit.Sonic sp.pos dir { rolls = 1; sides = 6 } state
-                (* TODO it's invisible and crumbles boulders *)
+                Attack.castRay Hit.Sonic sp.pos dir range { rolls = 1; sides = 6 } state
             )
         | _ -> S.msgAdd state "can't zap that."; state
 
@@ -459,12 +484,11 @@ let close fDir (state : S.t) =
 
 
 let drop sl (state : S.t) =
-    let sI = L.map C.(fun s -> s.iIndex) sl in
     let sp = state.player in
     let m = SL.map state in
     let t = Matrix.get m sp.pos in
 
-    let iDropped, iRemain = C.partitionI (fun ix _ -> C.contains sI ix) sp.inventory in
+    let iDropped, iRemain = Items.takeSelection sp.inventory sl in
 
     let valueTrade items =
         L.map Item.getPriceTrade items
@@ -494,7 +518,7 @@ let drop sl (state : S.t) =
 
     let player = { sp with inventory; gold } in
 
-    let m' = Matrix.set { t with items = dropped @ t.items } sp.pos m in
+    let m' = Matrix.set { t with items = Items.concat dropped t.items } sp.pos m in
     { (SL.setMap m' state) with player }
 
 let weightItems items =
@@ -502,20 +526,27 @@ let weightItems items =
     |> L.fold_left (+) 0
 
 let pickup sl (state : S.t) =
-    let sI = L.map (fun (s : C.selectionItem) -> s.iIndex) sl in
     let sp = state.player in
     let m = SL.map state in
     let t = Matrix.get m sp.pos in
 
-    let iTaken, iRemain = C.partitionI (fun ix _ -> C.contains sI ix) t.items in
+    let iTaken, iRemain = Items.takeSelection t.items sl in
 
-    let weightTotal = weightItems iTaken + weightItems sp.inventory in
+    let weightWielded = Option.fold ~none:0 ~some:(fun w -> Item.weight w) sp.weaponWielded in
+    let weightTotal = weightItems iTaken + weightItems sp.inventory + weightWielded in
     if weightTotal > sp.inventoryWeightMax then
         let _ = S.msgAdd state "That would be more than you can carry." in
         state
     else
 
-    let goldTaken, iTaken = L.partition_map (function | Item.Gold n -> Left n | i -> Right i) iTaken in
+    let goldTaken, iTaken =
+        L.partition_map
+            (fun (item : Item.t) -> match item.t with
+            | Gold -> Left (Item.count item)
+            | _ -> Right item
+            )
+            iTaken
+    in
     let totalGoldTaken = List.fold_left (+) 0 goldTaken in
 
     if SP.isInShop state then
@@ -528,29 +559,27 @@ let pickup sl (state : S.t) =
                 state
             else
                 let gold = sp.gold - itemsValue in
-                let player = { sp with inventory = iTaken @ sp.inventory; gold } in
+                let player = { sp with inventory = Items.concat iTaken sp.inventory; gold } in
                 let m' = Matrix.set { t with items = iRemain } sp.pos m in
                 { (SL.setMap m' state) with player }
 
     else
 
     let gold = sp.gold + totalGoldTaken in
-    let player = { sp with inventory = iTaken @ sp.inventory; gold } in
+    let player = { sp with inventory = Items.concat iTaken sp.inventory ; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
     { (SL.setMap m' state) with player }
-    (* ^TODO combine items *)
 
 let throw (si : C.selectionItem) dir (state : S.t) =
     let rangeThrown = 6 in (* TODO *)
     let sp = state.player in
 
-    let item = List.nth sp.inventory si.iIndex in
+    let item, inventory = Items.splitIndex sp.inventory si.iIndex (C.Count 1) in
 
     let msgThrower = C.sf "You throw the %s." (Item.name item) in (* TODO a vs an *)
     let state = Attack.throw item sp.pos dir rangeThrown msgThrower state in
     let sp = state.player in
 
-    let inventory = L.filteri (fun i _ -> i <> si.iIndex) sp.inventory in
     let player = { sp with inventory } in
 
     { state with player }

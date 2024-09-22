@@ -10,8 +10,6 @@ module R = Random_
 module S = State
 module SL = StateLevels
 
-let rangeThrownCreature = 8
-
 let canMoveHere c m p =
     (* ^TODO naming *)
     match (M.get m p : Map.tile) with
@@ -143,7 +141,11 @@ let spawnCreatures ~preferNear ~room state =
     placeCreatures creatures ~preferNear ~room state
 
 let getCreatureMoveNext pGoal c m p =
-    Map.posAround p
+    ( if Cr.hasAttribute c MoveGrid then
+            Map.nextManhattan p
+        else
+            Map.posAround p
+    )
     |> List.filter (fun p -> pGoal = p || canMoveHere c m p)
 
 let moveCreature a b (state : S.t) =
@@ -228,7 +230,9 @@ let creatureAttackMelee (c : Creature.t) pFrom p (state : S.t) =
                     | Hit.Weapon h ->
                         ( match Item.getWeaponMostDamaging c.inventory with
                         | None -> R.roll h
-                        | Some w -> (R.roll h) + (R.roll w.damage)
+                        | Some w ->
+                            let damage = Item.getWeaponDamage w in
+                            (R.roll h) + (R.roll damage)
                         )
                     | _ -> assert false
                     )
@@ -262,36 +266,42 @@ let creatureAttackMelee (c : Creature.t) pFrom p (state : S.t) =
 
 let creatureThrow (c : Creature.t) p item dir state =
     let msgThrower = C.sf "The %s throws a %s." c.info.name (Item.name item) in (* TODO a vs an *)
-    let state = Attack.throw item p dir rangeThrownCreature msgThrower state in
+    let state = Attack.throw item p dir Creature.rangeThrown msgThrower state in
 
     let m = SL.map state in
     let tCreature = Matrix.get m p in
-    let creature = Map.Creature { c with inventory = C.listRemove item c.inventory } in
+    let creature = Map.Creature { c with inventory = Items.remove c.inventory item C.(Count 1) } in
     let tCreature = { tCreature with occupant = Some creature } in
 
     let m' = Matrix.set tCreature p m in
     SL.setMap m' state
 
-let creatureAttackRanged (c : Creature.t) cp tp state =
+let creatureAttackRangedAll (c : Creature.t) cp tp state =
     c.info.hits
     |> List.filter (function | Hit.Ranged _ -> true | Weapon _ -> true | _ -> false)
     |> List.fold_left
         ( fun state' h ->
+            let m = SL.map state' in
+            match Map.getCreatureAtOpt m cp with
+            | None -> state
+            | Some c ->
+
             let pDiff = P.diff cp tp in
             let pDir = P.dir pDiff in
 
             match h with
                 | Hit.Weapon _ ->
                     ( match Creature.getWeaponForThrow c with
-                    | None -> assert false
-                    | Some w -> creatureThrow c cp (Item.Weapon w) pDir state'
+                    | None -> state'
+                    | Some i -> creatureThrow c cp i pDir state'
                     )
                 | Ranged hr as h ->
                     let hs = hr.stats in
                     let msgsHit = Hit.getMsgs h in
                     let canSee = Sight.playerCanSee state cp in
+                    let range = R.rn Cr.rangeRangedMin Cr.rangeRangedMax in
                     S.msgAddSeen state ~canSee (C.sf "The %s %s %s." c.info.name msgsHit.msgHit msgsHit.msgCause);
-                    Attack.castRay (Hit.getEffect h) cp pDir hs.roll state'
+                    Attack.castRay (Hit.getEffect h) cp pDir range hs.roll state'
                 | _ -> assert false
         )
         state
@@ -326,17 +336,49 @@ let eatIfPetOrPickupItems (c : Creature.t) p state =
         SL.setMap m' state
     | _ -> state
 
-let canAttackMelee pc pt = P.distance2 pc pt <= 2
+let canAttackRangedWeapon c pc pt ~canSeeTarget state =
+    if not
+        ( canSeeTarget
+        && P.distance2 pc pt <= Creature.rangeThrown
+        && P.areLinedUp pc pt
+        && Cr.hasAttackRangedWeapon c
+        )
+    then false else
 
-let canAttackRanged c cp pt ~canSeeTarget =
-    canSeeTarget
-    && P.areLinedUp cp pt
-    && Cr.hasAttackRanged c
-    (* ^TODO check that attack has path to target *)
+    let m = SL.map state in
 
-let canAttack c pc pt ~canSeeTarget =
-    canAttackMelee pc pt
-    || canAttackRanged c pc pt ~canSeeTarget
+    Map.getTilesBetween pc pt m
+    |> L.exists Map.tileBlocksProjectile
+    |> not
+
+let canAttackMelee c pc pt =
+    if Cr.hasAttribute c MoveGrid then
+        P.distance2 pc pt <= 1
+    else
+        P.distance2 pc pt <= 2
+
+let canAttackRanged c cp pt ~canSeeTarget state =
+    if not
+        ( canSeeTarget
+        && P.distance2 cp pt <= Creature.range2RangedMax
+        && P.areLinedUp cp pt
+        && Cr.hasAttackRanged c
+        )
+    then false else
+
+    let m = SL.map state in
+    let tilesBetween = Map.getTilesBetween cp pt m in
+
+    let tilesBlockEffect e = L.exists (Map.tileBlocksEffect e) tilesBetween in
+
+    Cr.getAttacksRanged c
+    |> L.map (fun ar -> Hit.getEffect (Ranged ar))
+    |> L.exists (fun e -> not (tilesBlockEffect e))
+
+let canAttack c pc pt ~canSeeTarget state =
+    canAttackMelee c pc pt
+    || canAttackRangedWeapon c pc pt ~canSeeTarget state
+    || canAttackRanged c pc pt ~canSeeTarget state
 
 type path = P.t list
 
@@ -348,10 +390,10 @@ type target =
 
 let handleTarget c pc target state =
     match target with
-    | TargetAttack pt when canAttackMelee pc pt ->
+    | TargetAttack pt when canAttackMelee c pc pt ->
         pc, creatureAttackMelee c pc pt state
     | TargetAttack pt ->
-        pc, creatureAttackRanged c pc pt state
+        pc, creatureAttackRangedAll c pc pt state
     | TargetApproach path ->
         ( match path with
         | [] -> assert false
@@ -390,7 +432,7 @@ let getTargetPet c cp state =
             |> L.sort (P.closestTo cp)
         in
         let targetAttack, pathToEnemy = match L.nth_opt targets 0 with
-            | Some pt when canAttack c cp pt ~canSeeTarget:true -> Some (TargetAttack pt), getCreaturePath c m cp pt
+            | Some pt when canAttack c cp pt ~canSeeTarget:true state -> Some (TargetAttack pt), getCreaturePath c m cp pt
             | Some pt -> None, getCreaturePath c m cp pt
             | None -> None, None
         in
@@ -422,7 +464,7 @@ let getTargetWhenHostile c pc state =
     let posPlayer = state.player.pos in
     let canSeePlayer = Sight.creatureCanSee c pc posPlayer state in
 
-    if canAttack c pc posPlayer ~canSeeTarget:canSeePlayer then Some (TargetAttack posPlayer) else
+    if canAttack c pc posPlayer ~canSeeTarget:canSeePlayer state then Some (TargetAttack posPlayer) else
 
     let isItemDesired = Item.isWeapon in
 
@@ -451,7 +493,7 @@ let getTargetWhenHostile c pc state =
         in
         let targetAttack, pathToEnemy = match L.nth_opt targets 0 with
             (* ^TODO refactor with that in getTargetPet *)
-            | Some pt when canAttack c pc pt ~canSeeTarget:true -> Some (TargetAttack pt), getCreaturePath c m pc pt
+            | Some pt when canAttack c pc pt ~canSeeTarget:true state -> Some (TargetAttack pt), getCreaturePath c m pc pt
             | Some pt -> None, getCreaturePath c m pc pt
             | None -> None, None
         in
@@ -565,8 +607,7 @@ let doCreaturePassive c state =
         ( fun state (pa : Hit.passive) ->
             let msgs = Hit.getMsgs (Hit.Passive pa) in
             S.msgAdd state (C.sf "It %s. The %s %s you." msgs.msgHit msgs.msgCause msgs.msgEffect);
-            let effectSize = R.roll { rolls = c.info.levelBase + 1; sides = pa.maxRoll } in
-            (* ^TODO based on current level *)
+            let effectSize = R.roll { rolls = c.level + 1; sides = pa.maxRoll } in
 
             match pa.effect with
             (* ^TODO centralize *)
@@ -616,15 +657,26 @@ let maybeHarassPlayer (state : S.t) =
 
             let nearPlayer = Near state.player.pos in
 
-            match R.rn 0 5 with
+            let indexActionMax = match (SL.level state).level_t with
+                | Garden _ -> 2
+                | Final when es.timesGnilsogSlain <= 1 -> 2
+                | Final
+                | Dungeon -> 5
+            in
+
+            match R.rn 0 indexActionMax with
             | 0 | 1 | 2 ->
                 S.msgAdd state "You feel vaguely nervous.";
                 state
             | 3 | 4 ->
                 C.repeat (R.rn 1 3) (spawnCreatures ~preferNear:nearPlayer ~room:None) state
             | 5 ->
-                S.msgAdd state "A voice booms out...";
-                S.msgAdd state "So thou thought thou couldst kill me, fool.";
+                (if es.timesGnilsogSlain <= 1 then
+                    let _ = S.msgAdd state "A voice booms out..." in
+                    S.msgAdd state "So thou thought thou couldst kill me, fool."
+                else
+                    S.msgAdd state "Gnilsog cackles amusedly."
+                );
                 let state = placeCreatures [ Cr.mkGnilsog es.timesGnilsogSlain ] ~preferNear:nearPlayer ~room:None state in
 
                 let endgame = S.Endgame { es with gnilsogAlive = true } in

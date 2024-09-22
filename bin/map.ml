@@ -150,7 +150,10 @@ let getRoomPositions room =
     |> List.flatten
 
 
-let getAreaRoom room = getRoomPositions room |> L.length
+let getAreaRoom room =
+    let cols = room.posSE.col - room.posNW.col + 1 in
+    let rows = room.posSE.row - room.posNW.row + 1 in
+    rows * cols
 
 let getRoomTiles room m =
     getRoomPositions room
@@ -308,3 +311,44 @@ let setOccupant occupant p m =
     let t = Matrix.get m p in
     let t = { t with occupant } in
     Matrix.set t p m
+
+let getTilesBetween a b m =
+    assert (isInMap a);
+    assert (isInMap b);
+
+    if a = b then [] else
+
+    let dir = P.dirOfLine a b in
+
+    let rec aux p acc =
+        let p' = P.step p dir in
+        if p' = b then acc else
+
+        let acc = p'::acc in
+        aux p' acc
+    in
+
+    aux a []
+    |> L.map (Matrix.get m)
+
+let tileBlocksProjectile = function
+    | { occupant = Some Creature _; _ } | { occupant = Some Player; _ } -> true
+    | t when isTileTypeWalkable t -> false
+    | _ -> true
+
+let doorDestroyableBy = function
+    | Hit.Dig
+    | Electric
+    | Fire
+        -> true
+
+    | Cold
+    | Paralyze
+    | Physical
+    | Sonic
+        -> false
+
+let tileBlocksEffect e = function
+    | { t = Door (Closed, _); _ } when doorDestroyableBy e -> false
+    | t when isTileTypeWalkable t -> false
+    | _ -> true

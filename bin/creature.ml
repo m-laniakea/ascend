@@ -9,6 +9,11 @@ module M = Matrix.Matrix
 module P = Position
 module R = Random_
 
+let rangeThrown = 8
+let rangeRangedMin = 20
+let rangeRangedMax = 26
+let range2RangedMax = rangeRangedMax * rangeRangedMax
+
 type hostility =
     | Docile
     | Hostile
@@ -24,6 +29,7 @@ type attributes =
     | Domestic
     | FollowAlways
     | FollowStairs
+    | MoveGrid
     | NoHands
     | Mindless
     | Resist of Hit.effect
@@ -94,6 +100,23 @@ let creatures =
             ]
         ; speed = 6
         ; weight = 10
+        }
+    ;   { name = "grid bug"
+        ; symbol = "x"
+        ; attributes =
+            [ MoveGrid
+            ; NoHands
+            ]
+        ; color = A.magenta
+        ; difficulty = 1
+        ; levelBase = 0
+        ; acBase = 9
+        ; frequency = 3
+        ; hits =
+            [ H.mkMelee Bite Electric 1 1
+            ]
+        ; speed = 12
+        ; weight = 15
         }
     ;   { name = "sewer rat"
         ; symbol = "r"
@@ -432,20 +455,20 @@ let rollHp ci = match ci.levelBase with
 
 let hasAttackWeapon ci = List.exists (function | Hit.Weapon _ -> true | _ -> false) ci.hits
 
-let mkCreature ci =
+let mkCreature ?(level=None) ci =
     let hpMax = rollHp ci in
     { id = R.uid ()
     ; hp = hpMax
     ; hpMax
     ; hostility = Hostile
-    ; level = ci.levelBase
+    ; level = Option.value level ~default:ci.levelBase
     ; pointsSpeed = ci.speed
     ; inventory = if hasAttackWeapon ci && R.oneIn 2 then [Item.rnWeapon ()] else []
     ; info = ci
     }
 
-let mkCreatures ci n =
-    L.init n (fun _ -> mkCreature ci)
+let mkCreatures ?(level=None) ci n =
+    L.init n (fun _ -> mkCreature ~level ci)
 
 
 let mkGnilsog timesKilled =
@@ -492,7 +515,7 @@ let mkAurochs () =
         ; levelBase = 5
         ; name = "aurochs"
         ; speed = 9
-        ; symbol = "C"
+        ; symbol = "U"
         ; weight = 2500
         }
     in
@@ -563,7 +586,12 @@ let mkMinotaur () =
         ; weight = 1500
         }
     in
-    let wand = Item.Wand { wand_t = Dig; charges = 13 } in
+    let wand =
+        Item.
+        { t = Wand { wand_t = Dig; charges = 13 }
+        ; stats = { stack = NonStackable }
+        }
+    in
     let inventory = [ wand ] in
     { (mkCreature info) with inventory
     }
@@ -590,8 +618,17 @@ let mkCaptain () =
     in
     mkCreature info
 
-let mkDragon () =
-    mkCreature infoDragon
+let mkDragon ~telepathic =
+    let attr = infoDragon.attributes in
+    let attributes = if telepathic then Telepathic::attr else attr in
+    let info = { infoDragon with attributes } in
+    mkCreature info
+
+let getLevel difficulty levelBase =
+    let bonusDepth = (difficulty - levelBase |> max 0) / 4 in
+    let levelMax = levelBase * 3 / 2 in
+    let level = levelBase + bonusDepth in
+    min level levelMax
 
 let random difficultyLevel =
     let difficultyMin = difficultyLevel / 6 + 1 in
@@ -601,28 +638,47 @@ let random difficultyLevel =
 
     let freq = List.map (fun c -> c, c.frequency) creaturesOk in
     let ci = R.relative freq in
+    let level = Some (getLevel difficultyLevel ci.levelBase) in
 
     let attrSpawn = L.filter_map (function | SpawnGroup s -> Some s | _ -> None) ci.attributes in
-    match attrSpawn with
-    | [] -> mkCreatures ci 1
-    | GroupSmall::_ -> if R.oneIn 2 then mkCreatures ci (R.rn 2 4 |> min difficultyLevel) else mkCreatures ci 1
-    | GroupLarge::_ -> mkCreatures ci (R.rn 2 4 + R.rn 0 4)
+    let count = match attrSpawn with
+        | [] -> 1
+        | GroupSmall::_ ->
+            if R.oneIn 2 then
+                R.rn 2 4 |> min difficultyLevel
+            else
+                1
+        | GroupLarge::_ -> R.rn 2 4 + R.rn 0 4
+    in
+    mkCreatures ~level ci count
 
 let getAttacksPassive c =
     c.info.hits
     |> List.filter (Hit.isPassive)
     |> List.map (Hit.toPassive)
 
+let getAttacksRanged c =
+    c.info.hits
+    |> List.filter (Hit.isRanged)
+    |> List.map (Hit.toRanged)
+
 let getWeaponForThrow c = match Item.getWeaponsByDamage c.inventory with
     | [] | _::[] -> None
     | _::sd::_ -> Some sd
+
+let hasAttackRangedWeapon c =
+    c.info.hits
+    |> List.exists
+        ( function
+            | Hit.Weapon _ -> getWeaponForThrow c |> Option.is_some
+            | _ -> false
+        )
 
 let hasAttackRanged c =
     c.info.hits
     |> List.exists
         ( function
             | Hit.Ranged _ -> true
-            | Hit.Weapon _ -> getWeaponForThrow c |> Option.is_some
             | _ -> false
         )
 
