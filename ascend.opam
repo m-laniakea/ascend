@@ -10,9 +10,9 @@ tags: ["game" "terminal"]
 homepage: "https://github.com/m-laniakea/ascend"
 bug-reports: "https://github.com/m-laniakea/ascend/issues"
 depends: [
-  "ocaml"
+  "ocaml" {>= "5.2.0"}
   "dune" {>= "3.16"}
-  "notty"
+  "notty" {>= "0.2.3"}
   "odoc" {with-doc}
 ]
 build: [

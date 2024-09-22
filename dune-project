@@ -17,7 +17,10 @@
  (name ascend)
  (synopsis "Ascend - Terminal Dungeon RPG adventure")
  (description "Venture into the depths to retrieve the stolen artifact, and ascend! NetHack lite.")
- (depends ocaml dune notty)
+ (depends
+  (ocaml (>= 5.2.0))
+  dune
+  (notty (>= 0.2.3)))
  (tags
   (game terminal)))
 
