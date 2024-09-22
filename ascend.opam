@@ -3,7 +3,7 @@ opam-version: "2.0"
 synopsis: "Ascend - Terminal Dungeon RPG adventure"
 description:
   "Venture into the depths to retrieve the stolen artifact, and ascend! NetHack lite."
-maintainer: ["m-laniakea"]
+maintainer: ["m-laniakea@github.com"]
 authors: ["eir"]
 license: "AGPL-3.0-only"
 tags: ["game" "terminal"]

@@ -9,7 +9,7 @@
 
 (authors "eir")
 
-(maintainers "m-laniakea")
+(maintainers "m-laniakea@github.com")
 
 (license AGPL-3.0-only)
 
