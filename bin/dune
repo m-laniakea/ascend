@@ -1,4 +1,4 @@
 (executable
- (public_name OHack)
+ (public_name ascend)
  (name main)
- (libraries OHack notty notty.unix))
+ (libraries notty notty.unix))
