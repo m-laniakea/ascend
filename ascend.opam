@@ -12,6 +12,7 @@ bug-reports: "https://github.com/m-laniakea/ascend/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.16"}
+  "notty"
   "odoc" {with-doc}
 ]
 build: [
