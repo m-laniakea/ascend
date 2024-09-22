@@ -607,8 +607,7 @@ let doCreaturePassive c state =
         ( fun state (pa : Hit.passive) ->
             let msgs = Hit.getMsgs (Hit.Passive pa) in
             S.msgAdd state (C.sf "It %s. The %s %s you." msgs.msgHit msgs.msgCause msgs.msgEffect);
-            let effectSize = R.roll { rolls = c.info.levelBase + 1; sides = pa.maxRoll } in
-            (* ^TODO based on current level *)
+            let effectSize = R.roll { rolls = c.level + 1; sides = pa.maxRoll } in
 
             match pa.effect with
             (* ^TODO centralize *)
