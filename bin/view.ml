@@ -15,24 +15,29 @@ module SL = StateLevels
 
 let term = Term.create () (* TODO shouldn't be created a second time here *)
 
-let imageOfItem ?(styles=A.(st bold)) (i : Item.t) = match i.t with
-    | Comestible c -> I.string A.(styles ++ fg c.color) "%"
-    | Container _ -> I.string A.(styles ++ fg C.brown) "("
-    | Corpse c -> I.string A.(styles ++ fg c.color) "%"
-    | Gold -> I.string A.(styles ++ fg lightyellow) "$"
-    | Potion _ -> I.string A.(styles ++ fg white) "!"
-    | Rock -> I.string A.(styles ++ fg white) "*"
-    | Scroll _ -> I.string A.(styles ++ fg white) "?"
-    | Weapon w -> I.string A.(styles ++ fg w.color) ")"
-    | Wand _ -> I.string A.(styles ++ fg A.cyan) "/"
+let onBlack style s = I.string A.(bg black ++ style) s
+
+let imageOfItem ?(styles=A.(st bold)) (i : Item.t) =
+    let color, symbol = match i.t with
+    | Comestible c -> c.color, "%"
+    | Container _ -> C.brown, "("
+    | Corpse c -> c.color, "%"
+    | Gold -> A.lightyellow, "$"
+    | Potion _ -> A.white, "!"
+    | Rock -> A.white, "*"
+    | Scroll _ -> A.white, "?"
+    | Weapon w -> w.color, ")"
+    | Wand _ -> A.cyan, "/"
+    in
+    onBlack A.(styles ++ fg color) symbol
 
 let imageOfTile (state : S.t) _ p = function
     | Map.{ occupant = Some occ; _ } ->
         ( match occ with
             | Creature c ->
-                I.string A.(st bold ++ fg c.info.color) c.info.symbol
-            | Player -> I.string A.(st bold ++ fg lightwhite) "@"
-            | Boulder -> I.string A.(st bold ++ fg white) "0"
+                onBlack A.(st bold ++ fg c.info.color) c.info.symbol
+            | Player -> onBlack A.(st bold ++ fg lightwhite) "@"
+            | Boulder -> onBlack A.(st bold ++ fg white) "0"
         )
     | { items = topItem::others; _ } ->
         let styles = if others = [] then A.(st bold) else A.(bg lightblack ++ st bold) in
@@ -60,7 +65,7 @@ let imageOfTile (state : S.t) _ p = function
             else
                 A.lightblack
         in
-        I.string A.(fg color) c
+        onBlack A.(fg color) c
 
 let applyAnimatedTiles animationLayer m =
     animationLayer
