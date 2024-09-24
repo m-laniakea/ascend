@@ -222,7 +222,7 @@ let rec move mf (state : S.t) =
                 let _ = S.msgAdd state "Items here:" in
                 List.iter
                     ( fun i ->
-                        let price = if SP.isInShop state' then C.sf "(%i zorkmids)" (Item.getPriceShop i) else "" in
+                        let price = if SP.isInShop state' then C.sf "(%i gold)" (Item.getPriceShop i) else "" in
                         S.msgAdd state (C.sf "%s %s" (Item.nameDisplay i) price)
                     )
                     tNew.items
@@ -509,7 +509,7 @@ let drop sl (state : S.t) =
                 S.msgAdd state "Oh Croesus, thank you for your donation!";
                 iRemain, iDropped, sp.gold
             | value ->
-                S.msgAdd state (C.sf "Thank you! Here's %i zorkmids for you." value);
+                S.msgAdd state (C.sf "Thank you! Here's %i gold for you." value);
                 iRemain, iDropped, sp.gold + value
             )
         | false ->

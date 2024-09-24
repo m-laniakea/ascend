@@ -102,7 +102,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         [ ""
         ; "You are dead."
         ; C.sf "You died on level %i." state.levels.indexLevel
-        ; C.sf "You were carrying %i gold and %i zorkmids worth of items." gold valItems
+        ; C.sf "You were carrying %i gold and %i gold worth of items." gold valItems
         ; "Farewell."
         ]
         |> L.map (I.string A.(st bold))
@@ -160,7 +160,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         ; "Goodbye, hero!"
         ; ""
         ; C.sf "You entered the Dungeons %i turn%s ago." state.turns (C.plural state.turns)
-        ; C.sf "You are carrying %i gold and %i zorkmids worth of items." gold valItems
+        ; C.sf "You are carrying %i gold and %i gold worth of items." gold valItems
         ; C.sf "You are level %i with %i XP" sp.level sp.xp
         ; C.sf "You ascended %s." statsKilled
         ; ""
