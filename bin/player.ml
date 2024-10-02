@@ -219,13 +219,14 @@ let rec move mf (state : S.t) =
             if List.length tNew.items > itemsDisplayedMax then
                 S.msgAdd state "Here are many items."
             else
-                let _ = S.msgAdd state "Items here:" in
-                List.iter
+                let _ = List.iter
                     ( fun i ->
                         let price = if SP.isInShop state' then C.sf "(%i gold)" (Item.getPriceShop i) else "" in
                         S.msgAdd state (C.sf "%s %s" (Item.nameDisplay i) price)
                     )
                     tNew.items
+                in
+                S.msgAdd state "Items here:"
         else
             ()
         );
@@ -642,8 +643,15 @@ and afterAction state =
     |> maybeAddHp
     |> handleParalysis
 
+let rec logTidy (state : S.t) =
+    let log = state.messages in
+    if Queue.length log <= Config.logSizeMax then () else
+
+    let _ = Queue.take log in
+    logTidy state
+
 let action a (state : S.t) =
-    Queue.clear state.messages;
+    logTidy state;
     ( match a with
     | Absorb -> absorb state
     | BlindUnblind -> blindUnblind state

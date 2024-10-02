@@ -174,7 +174,13 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         |> I.vcat
     in
     let messages (state : S.t) =
-        Queue.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
+        let msgs = Queue.to_seq state.messages in
+        let msgs =
+            List.of_seq msgs
+            |> List.rev
+            |> C.listTake Config.logPlaySizeMax
+        in
+        List.fold_left (fun i m -> i <-> (I.string A.empty m)) (I.string A.empty "") msgs
     in
     let imageOfSelectionItem (si : C.selectionItem) =
         let c = match si.howMany with
