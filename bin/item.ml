@@ -368,13 +368,13 @@ let isComestible item = match item.t with
 
 let isThrowable item = match item.t with
     | Comestible _
+    | Rock
     | Weapon _
     -> true
     | Container _
     | Corpse _
     | Gold
     | Potion _
-    | Rock
     | Scroll _
     | Wand _
     -> false
