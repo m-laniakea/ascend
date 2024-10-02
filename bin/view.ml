@@ -15,7 +15,7 @@ module SL = StateLevels
 
 let term = Term.create () (* TODO shouldn't be created a second time here *)
 
-let onBlack style s = I.string A.(bg black ++ style) s
+let onBlack style s = I.string A.(Config.styleBg ++ style) s
 
 let imageOfItem ?(styles=A.(st bold)) (i : Item.t) =
     let color, symbol = match i.t with
@@ -63,7 +63,7 @@ let imageOfTile (state : S.t) _ p = function
         let color = if playerNotBlind && (SL.isLit p state || Sight.playerCanSee state p) then
                 A.white
             else
-                A.lightblack
+                if "#" = c then A.lightblack else A.black
         in
         onBlack A.(fg color) c
 
