@@ -30,8 +30,9 @@ let help =
     ; "(,) pickup - see select"
     ; "(<) go up (while on stairs)"
     ; "(>) go down (while on stairs)"
-    ; "(?) open this menu"
+    ; "(;) farview - see Farview"
     ; "(L) Open log"
+    ; "(?) open this menu"
 
     ; " "
 
@@ -41,6 +42,12 @@ let help =
     ; "<escape> abort/exit"
     ; "<space> confirm"
     ; "(,) select all/none"
+
+    ; " "
+
+    ; "Farview:"
+    ; "Not sure what something is? Explore the map with j/k/h/l"
+    ; "Capital letters move the cursor further"
     ]
 
 let playerGoUp (state : S.t) =
