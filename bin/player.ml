@@ -345,6 +345,10 @@ let checkHp (state : S.t) =
 
 let read (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
+    if Cr.isBlind sp.attributes then
+        let _ = S.msgAdd state "You can't read while blind!" in
+        state
+    else
     let item = List.nth sp.inventory si.iIndex in
     match item.t with
         | Comestible _ -> S.msgAdd state "What a silly thing to read!"; state
