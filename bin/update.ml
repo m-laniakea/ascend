@@ -30,6 +30,7 @@ let help =
     ; "(<) go up (while on stairs)"
     ; "(>) go down (while on stairs)"
     ; "(?) open this menu"
+    ; "(L) Open log"
 
     ; " "
 
@@ -140,6 +141,14 @@ let modePlaying event state =
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
 
     | `Key (`ASCII '?', _) -> Some { state with mode = State.displayText help }
+    | `Key (`ASCII 'L', _) ->
+        let log =
+            Queue.fold
+            (fun acc l -> l::acc)
+            []
+            state.messages
+        in
+        Some { state with mode = State.displayText log }
 
     | _ -> Some state
 
