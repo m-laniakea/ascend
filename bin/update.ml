@@ -164,7 +164,7 @@ let modeSelecting event state s = match event with
     | _ -> Some state
 
 let modeFarview (fw : Position.t) event state = match event with
-    | `Key (`ASCII 'q', _) -> Some S.{ state with mode = Playing }
+    | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> Some S.{ state with mode = Playing }
     | `Key (`ASCII k, _) ->
         let incRow = match k with | 'k' -> -1 | 'j' -> 1 | 'K' -> -10 | 'J' -> 10 | _ -> 0 in
         let incCol = match k with | 'h' -> -1 | 'l' -> 1 | 'H' -> -10 | 'L' -> 10 | _ -> 0 in
