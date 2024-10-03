@@ -75,6 +75,26 @@ let applyAnimatedTiles animationLayer m =
         )
         m
 
+let descriptionOfTile (state : S.t) tile =
+    match tile with
+    | Map.{ occupant = Some o; _ } ->
+        ( match o with
+        | Boulder -> "A boulder."
+        | Creature c ->
+            let levelObserver = state.player.level in
+            C.sf "A creature giving you %s." (Creature.getFeeling levelObserver c)
+        | Player -> "You."
+        )
+    | { t = StairsDown; _ } -> "Stairs down."
+    | { t = StairsUp; _ } -> "Stairs up."
+
+    | { items = item::[]; _ } when Item.isGold item -> "Some gold."
+    | { items = _::[]; _ } -> "Some item."
+    | { items = _::_; _ } -> "A pile of items."
+
+    | { t = Door _; _ } -> "A door."
+    | _ -> ""
+
 let imageCreate ?(animationLayer=[]) (state : S.t) =
     let open Notty.Infix in
     let sp = state.player in
@@ -208,6 +228,22 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
             beforeText @ text @ afterText
             |> L.map (I.string A.empty)
             |> I.vcat
+
+        | Farview fw ->
+            let m = S.getKnowledgeCurrentMap state in
+            let tile = Matrix.get m fw in
+            header state
+            <->
+            (
+                let mView =
+                    m
+                    |> Matrix.mapI (imageOfTile state)
+                    |> Matrix.set (I.string A.(bg (gray 12)) " ") fw
+                in
+                I.tabulate Map.size.cols Map.size.rows (fun c r -> Matrix.get mView { row = r; col = c })
+            )
+            <-> footer state
+            <|> I.string A.empty (descriptionOfTile state tile)
 
         | Playing ->
             header state

@@ -69,6 +69,7 @@ type displayText =
 type mode =
     | Dead
     | DisplayText of displayText
+    | Farview of Position.t
     | Playing
     | Selecting of selection
     | Victory

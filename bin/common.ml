@@ -8,6 +8,8 @@ let sf = Format.sprintf
 
 let id a = a
 
+let clamp ~vMin ~vMax v = v |> max vMin |> min vMax
+
 let listMake n v = List.init n (fun _ -> v)
 
 let partitionI f l =

@@ -1,5 +1,6 @@
 open Matrix
 
+module C = Common
 module P = Position
 module R = Random_
 module S = State
@@ -141,6 +142,11 @@ let modePlaying event state =
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
 
     | `Key (`ASCII '?', _) -> Some { state with mode = State.displayText help }
+    | `Key (`ASCII ';', _) ->
+        let pos = state.player.pos in
+        let mode = S.Farview pos in
+        Some { state with mode }
+
     | `Key (`ASCII 'L', _) ->
         let log =
             Queue.fold
@@ -154,12 +160,36 @@ let modePlaying event state =
 
 let modeSelecting event state s = match event with
     | `Key (`Escape, _) -> Some S.{ state with mode = Playing }
-    | `Key (`ASCII k, _)  -> Select.handle k s state
+    | `Key (`ASCII k, _) -> Select.handle k s state
+    | _ -> Some state
+
+let modeFarview (fw : Position.t) event state = match event with
+    | `Key (`ASCII 'q', _) -> Some S.{ state with mode = Playing }
+    | `Key (`ASCII k, _) ->
+        let incRow = match k with | 'k' -> -1 | 'j' -> 1 | 'K' -> -10 | 'J' -> 10 | _ -> 0 in
+        let incCol = match k with | 'h' -> -1 | 'l' -> 1 | 'H' -> -10 | 'L' -> 10 | _ -> 0 in
+
+        let maxRow = Map.roomAll.posSE.row in
+        let maxCol = Map.roomAll.posSE.col in
+
+        let row = fw.row + incRow |> C.clamp ~vMin:0 ~vMax:maxRow in
+        let col = fw.col + incCol |> C.clamp ~vMin:0 ~vMax:maxCol in
+
+        let mode =
+            S.Farview
+            { row
+            ; col
+            }
+        in
+
+        Some { state with mode }
+
     | _ -> Some state
 
 let exec event (state : State.t) = match (state.mode : State.mode) with
     | Dead -> modeDead event state
     | DisplayText dt -> modeDisplayText dt event state
+    | Farview fw -> modeFarview fw event state
     | Playing -> modePlaying event state
     | Selecting s -> modeSelecting event state s
     | Victory -> modeVictory event state
