@@ -61,9 +61,14 @@ type selection =
     | SelectDir of selectDir
     | SelectItems of selectItems
 
+type displayText =
+    { scroll : int
+    ; text : string list
+    }
+
 type mode =
     | Dead
-    | DisplayText of string list
+    | DisplayText of displayText
     | Playing
     | Selecting of selection
     | Victory
@@ -85,6 +90,12 @@ type t =
     ; messages : string Queue.t
     ; mode : mode
     ; turns : int
+    }
+
+let displayText text =
+    DisplayText
+    { scroll = 0
+    ; text
     }
 
 let msgAdd state s = Queue.push s state.messages

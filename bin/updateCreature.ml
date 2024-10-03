@@ -62,7 +62,7 @@ let onCreatureDeath (c : Creature.t) (state : S.t) =
                     ; nextHarassment = getNextHarassment state
                     }
                 in
-                let mode = S.DisplayText textGnilsogFirstKilled in
+                let mode = S.displayText textGnilsogFirstKilled in
                 let state = UpdateMap.closeDoorsGnilsogIfAble state in
                 let state = UpdateMap.lowerDragonGate state in
                 { state with mode; endgame }

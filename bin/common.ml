@@ -15,6 +15,7 @@ let partitionI f l =
     |> L.partition_map (fun (i, v) -> if f i v then Left v else Right v)
 
 let listTake n = L.filteri (fun i _ -> i < n)
+let listDrop n = L.filteri (fun i _ -> i >= n)
 
 let listSet i v =
     List.mapi (fun ci ov -> if ci <> i then ov else v)

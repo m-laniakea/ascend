@@ -61,7 +61,7 @@ let state =
         ; player
         ; endgame = BeforeEndgame
         ; messages = Queue.create ()
-        ; mode = DisplayText intro
+        ; mode = S.displayText intro
         ; turns = 0
         }
     in

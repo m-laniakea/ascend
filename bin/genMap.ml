@@ -338,7 +338,7 @@ let genGarden state =
     let aurochs = List.init 3 (fun _ -> Creature.mkAurochs ()) in
     let butterflies = List.init 26 (fun _ -> Creature.mkButterfly ()) in
     let levels = S.{ state.levels with hasGarden = true } in
-    let state = { state with levels; mode = DisplayText introGarden } in
+    let state = { state with levels; mode = S.displayText introGarden } in
     SL.levelAdd (Levels.levelGarden ()) state
     |> Ai.placeCreatures aurochs ~preferNear:RandomAll ~room:None
     |> Ai.placeCreatures butterflies ~preferNear:RandomAll ~room:None

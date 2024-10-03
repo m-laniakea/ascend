@@ -196,8 +196,16 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
             header state
             <-> messages state
             <-> messageDeath state
-        | DisplayText s ->
-            s @ [""; ""; "Press <space> to continue..."]
+        | DisplayText dt ->
+            let scrollMax = List.length dt.text - Config.heightScreenMain |> max 0 in
+            let beforeText = if dt.scroll > 0 then ["<^ More text above. Scroll with j/k.>"] else [] in
+            let afterText = if dt.scroll = scrollMax then
+                    [""; "Press <space> to continue..."]
+                else
+                    [""; "<More text below. Scroll with j/k.>"]
+            in
+            let text = dt.text |> C.listDrop dt.scroll |> C.listTake Config.heightScreenMain in
+            beforeText @ text @ afterText
             |> L.map (I.string A.empty)
             |> I.vcat
 

@@ -90,11 +90,23 @@ let modeVictory event state = match event with
     | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> None
     | _ -> Some state
 
-let modeDisplayText event (state : S.t) = match event with
+let modeDisplayText (dt : S.displayText) event (state : S.t) =
+    let scrollMax = List.length dt.text - Config.heightScreenMain |> max 0 in
+
+    match event with
     | `Key (`ASCII 'q', _)
-    | `Key (`Escape, _)
-    | `Key (`ASCII ' ', _) ->
+    | `Key (`Escape, _) ->
         Some { state with mode = Playing }
+
+    | `Key (`ASCII ' ', _) when dt.scroll = scrollMax ->
+        Some { state with mode = Playing }
+
+    | `Key (`ASCII c, _) when c = 'j' || c = 'k' ->
+        let inc = match c with | 'j' -> 1 | 'k' -> -1 | _ -> assert false in
+        let scroll = dt.scroll + inc |> min scrollMax |> max 0 in
+
+        let mode = S.DisplayText { dt with scroll } in
+        Some { state with mode }
 
     | _ -> Some state
 
@@ -127,7 +139,7 @@ let modePlaying event state =
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
 
-    | `Key (`ASCII '?', _) -> Some { state with mode = DisplayText help }
+    | `Key (`ASCII '?', _) -> Some { state with mode = State.displayText help }
 
     | _ -> Some state
 
@@ -138,7 +150,7 @@ let modeSelecting event state s = match event with
 
 let exec event (state : State.t) = match (state.mode : State.mode) with
     | Dead -> modeDead event state
-    | DisplayText _ -> modeDisplayText event state
+    | DisplayText dt -> modeDisplayText dt event state
     | Playing -> modePlaying event state
     | Selecting s -> modeSelecting event state s
     | Victory -> modeVictory event state

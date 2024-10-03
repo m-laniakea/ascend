@@ -6,7 +6,7 @@ module M = Matrix
 module P = Position
 module R = Random_
 
-let size = P.{ rows = 21; cols = 79 }
+let size = P.{ rows = Config.heightScreenMain; cols = 79 }
 let center = P.{ row = size.rows / 2; col = size.cols / 2 }
 
 type shop_t =
