@@ -10,7 +10,6 @@ module S = State
 module SL = StateLevels
 module SP = StatePlayer
 
-let itemsDisplayedMax = 5
 let goldMax = Item.getPriceTrade Item.scepterOfYorel
 
 type fDir = P.t -> P.t
@@ -216,7 +215,7 @@ let rec move mf (state : S.t) =
         in
         let _ = if Map.isStairs tNew then S.msgAdd state "There are stairs here." in
         ( if not (List.is_empty tNew.items) then
-            if List.length tNew.items > itemsDisplayedMax then
+            if List.length tNew.items > Config.itemsDisplayedMax then
                 S.msgAdd state "Here are many items."
             else
                 let _ = List.iter
@@ -526,6 +525,22 @@ let weightItems items =
     L.map Item.weight items
     |> L.fold_left (+) 0
 
+let logItemsPickedUp items state =
+    let getName i =
+        let price = if SP.isInShop state then C.sf " (%i gold)" (Item.getPriceShop i) else "" in
+        C.sf "%s%s" (Item.nameDisplay i) price
+    in
+    match items with
+    | [] -> ()
+    | _ when List.length items > Config.itemsDisplayedMax ->
+        S.msgAdd state "You pick up many items."
+    | item::[] ->
+        C.sf "You pick up %s." (getName item) |> S.msgAdd state
+
+    | _ ->
+        let _ = List.iter (fun i -> getName i |> S.msgAdd state) items in
+        S.msgAdd state "You pick up these items:"
+
 let pickup sl (state : S.t) =
     let sp = state.player in
     let m = SL.map state in
@@ -559,6 +574,7 @@ let pickup sl (state : S.t) =
                 let _ = S.msgAdd state "You can't afford that!" in
                 state
             else
+                let _ = logItemsPickedUp iTaken state in
                 let gold = sp.gold - itemsValue in
                 let player = { sp with inventory = Items.concat iTaken sp.inventory; gold } in
                 let m' = Matrix.set { t with items = iRemain } sp.pos m in
@@ -566,6 +582,8 @@ let pickup sl (state : S.t) =
 
     else
 
+    let _ = if totalGoldTaken > 0 then S.msgAdd state (C.sf "You pick up %i gold." totalGoldTaken) in
+    let _ = logItemsPickedUp iTaken state in
     let gold = sp.gold + totalGoldTaken in
     let player = { sp with inventory = Items.concat iTaken sp.inventory ; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
