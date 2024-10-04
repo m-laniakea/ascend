@@ -99,7 +99,15 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
     let open Notty.Infix in
     let sp = state.player in
     let header (state : S.t) =
-        Format.sprintf "HP: %i/%i | Depth: %i | AC: %i | XP: %i | Level: %i" sp.hp sp.hpMax state.levels.indexLevel (StatePlayer.ac state) sp.xp sp.level
+        let dRegen =
+            let regen = sp.regen in
+            let points = regen.points in
+            if points > 0 then
+                C.sf " | Regen %i/%i" points Config.triggerRegen
+            else
+                ""
+        in
+        C.sf "HP: %i/%i | Depth: %i | AC: %i | XP: %i | Level: %i%s" sp.hp sp.hpMax state.levels.indexLevel (StatePlayer.ac state) sp.xp sp.level dRegen
         |> I.string A.empty
     in
     let footer (state : S.t) =

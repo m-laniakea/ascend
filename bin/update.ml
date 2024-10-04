@@ -145,6 +145,8 @@ let modePlaying event state =
     | `Key (`ASCII 'w', _) -> Select.wield state
     | `Key (`ASCII 'z', _) -> Select.zap state
 
+    | `Key (`ASCII '.', _) -> Player.action Regen state
+
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
 

@@ -6,3 +6,5 @@ let logPlaySizeMax = heightScreenMain
 let styleBg = Notty.A.(bg (gray 3))
 
 let itemsDisplayedMax = 5
+
+let triggerRegen = 13

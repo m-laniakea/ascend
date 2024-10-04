@@ -8,7 +8,16 @@ module S = State
 module SL = StateLevels
 module SP = StatePlayer
 
+let regenBreak (state : S.t) =
+    let sp = state.player in
+    let regen = sp.regen in
+    (if regen.active then S.msgAdd state "Your regeration is rudely interrupted.");
+    let regen = S.{ active = false; points = 0 } in
+    let player = { sp with regen } in
+    { state with player }
+
 let addHp n (state : S.t) =
+    let state = if n < 0 then regenBreak state else state in
     let sp = state.player in
     let hp = sp.hp in
     let hp' = min (hp + n) sp.hpMax |> max 0 in

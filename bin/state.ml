@@ -18,6 +18,11 @@ type levels =
     ; hasGarden : bool
     }
 
+type regen =
+    { points : int
+    ; active : bool
+    }
+
 type player =
     { attributes : Creature.attributes list
     ; pos : Position.t
@@ -30,6 +35,7 @@ type player =
     ; weaponWielded : Item.t option
     ; inventory : Item.t list
     ; inventoryWeightMax : int
+    ; regen : regen
     ; status : C.status list
     ; timesKilled : int
     ; knowledgeLevels : level list

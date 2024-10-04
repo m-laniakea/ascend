@@ -23,6 +23,7 @@ type actions =
     | Pickup of C.selectionItem list
     | Quaff of C.selectionItem
     | Read of C.selectionItem
+    | Regen
     | Search
     | Throw of C.selectionItem * P.dir
     | Wield of C.selectionItem
@@ -392,6 +393,22 @@ let read (si : C.selectionItem) (state : S.t) =
                     let mf = P.diff pp pNew |> P.add in
                     move mf state
 
+let regen (state : S.t) =
+    let sp = state.player in
+    let active = true in
+    let points = sp.regen.points + 1 in
+
+    let regen =
+        S.
+        { points
+        ; active
+        }
+    in
+
+    let player = { sp with regen } in
+
+    { state with player }
+
 let wield (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
     let item, inventory = Items.splitIndex sp.inventory si.iIndex (C.Count 1) in
@@ -620,10 +637,34 @@ let moveToStairs ~dir (state : S.t) =
     { (SL.setMap m' state) with player;  }
 
 let maybeAddHp (state : S.t) =
-    let interval = 15 / state.player.level |> max 3 in
+    let interval = 15 in
     match state with
     | state when state.mode <> Playing -> state
     | state -> UpdatePlayer.addHp (if R.oneIn interval then 1 else 0) state
+
+let handleRegen (state : S.t) =
+    let active = false in
+    let sp = state.player in
+
+    let points, state = match sp.regen.points with
+        | points when points >= Config.triggerRegen ->
+            let toAdd = sp.hpMax * 6 / 10 in
+            let state = UpdatePlayer.addHp toAdd state in
+
+            S.msgAdd state "You feel regenerated.";
+
+            let points = 0 in
+            points, state
+
+        | _ ->
+            let points = if sp.regen.active then sp.regen.points else 0 in
+            points, state
+
+    in
+    let regen = S.{ active; points } in
+    let player = S.{ state.player with regen } in
+
+    { state with player }
 
 let rec handleParalysis (state : S.t) = match state with
     | _ when state.mode <> Playing -> Some state
@@ -661,6 +702,7 @@ and afterAction state =
     |> S.incTurns
     |> UpdatePlayer.knowledgeCreaturesDelete
     |> UpdatePlayer.knowledgeMap
+    |> handleRegen
     |> checkHp
     |> maybeAddHp
     |> handleParalysis
@@ -683,6 +725,7 @@ let action a (state : S.t) =
     | Pickup sl -> pickup sl state
     | Quaff si -> quaff si state
     | Read si -> read si state
+    | Regen -> regen state
     | Search -> search state
     | Throw (si, dir) -> throw si dir state
     | Wield si -> wield si state
