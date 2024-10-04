@@ -77,7 +77,10 @@ let applyAnimatedTiles animationLayer m =
 
 let descriptionOfTile (state : S.t) tile =
     match tile with
-    | Map.{ occupant = Some o; _ } ->
+    | Map.{ t = StairsDown; _ } -> "Stairs down."
+    | Map.{ t = StairsUp; _ } -> "Stairs up."
+
+    | { occupant = Some o; _ } ->
         ( match o with
         | Boulder -> "A boulder."
         | Creature c ->
@@ -85,8 +88,6 @@ let descriptionOfTile (state : S.t) tile =
             C.sf "A creature giving you %s." (Creature.getFeeling levelObserver c)
         | Player -> "You."
         )
-    | { t = StairsDown; _ } -> "Stairs down."
-    | { t = StairsUp; _ } -> "Stairs up."
 
     | { items = item::[]; _ } when Item.isGold item -> "Some gold."
     | { items = _::[]; _ } -> "Some item."
