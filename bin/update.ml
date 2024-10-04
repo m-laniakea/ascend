@@ -175,8 +175,8 @@ let modeSelecting event state s = match event with
 let modeFarview (fw : Position.t) event state = match event with
     | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> Some S.{ state with mode = Playing }
     | `Key (`ASCII k, _) ->
-        let incRow = match k with | 'k' -> -1 | 'j' -> 1 | 'K' -> -10 | 'J' -> 10 | _ -> 0 in
-        let incCol = match k with | 'h' -> -1 | 'l' -> 1 | 'H' -> -10 | 'L' -> 10 | _ -> 0 in
+        let incRow = match k with | 'k' -> -1 | 'j' -> 1 | 'K' -> -5 | 'J' -> 5 | _ -> 0 in
+        let incCol = match k with | 'h' -> -1 | 'l' -> 1 | 'H' -> -5 | 'L' -> 5 | _ -> 0 in
 
         let maxRow = Map.roomAll.posSE.row in
         let maxCol = Map.roomAll.posSE.col in
