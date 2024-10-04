@@ -3,7 +3,7 @@ module A = N.A
 
 module R = Random_
 
-type effect =
+type effect_t =
     | Cold
     | Dig
     | Electric
@@ -14,7 +14,7 @@ type effect =
 
 type passive =
     { maxRoll : int
-    ; effect : effect
+    ; effect_t : effect_t
     }
 
 type melee_t =
@@ -29,7 +29,7 @@ type ranged_t =
 
 type stats =
     { roll : R.roll
-    ; effect : effect
+    ; effect_t : effect_t
     }
 
 type ranged =
@@ -55,14 +55,14 @@ type msgs =
     }
 
 let mkPassive e maxRoll = Passive
-    { effect = e
+    { effect_t = e
     ; maxRoll
     }
 
 let mkMelee t e rolls sides = Melee
     { melee_t = t
     ; stats =
-        { effect = e
+        { effect_t = e
         ; roll = { rolls; sides }
         }
     }
@@ -70,7 +70,7 @@ let mkMelee t e rolls sides = Melee
 let mkRanged t e rolls sides = Ranged
     { ranged_t = t
     ; stats =
-        { effect = e
+        { effect_t = e
         ; roll = { rolls; sides }
         }
     }
@@ -78,9 +78,9 @@ let mkRanged t e rolls sides = Ranged
 let mkWeapon rolls sides = Weapon { rolls; sides }
 
 let getEffect = function
-    | Passive p -> p.effect
-    | Ranged r -> r.stats.effect
-    | Melee m -> m.stats.effect
+    | Passive p -> p.effect_t
+    | Ranged r -> r.stats.effect_t
+    | Melee m -> m.stats.effect_t
     | Weapon _ -> Physical
 
 let getMsgsEffect e =
