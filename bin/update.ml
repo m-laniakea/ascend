@@ -27,6 +27,7 @@ let help =
     ; "(t)hrow - weapons, or tasty treats for certain domestic creatures"
     ; "(w)ield weapon - any weapon is likely better than your bare fists"
     ; "(z)ap wand"
+    ; "(.) regenerate/wait"
     ; "(,) pickup - see select"
     ; "(<) go up (while on stairs)"
     ; "(>) go down (while on stairs)"
