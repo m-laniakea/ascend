@@ -84,6 +84,7 @@ type stateEndgame =
     { timesGnilsogSlain : int
     ; gnilsogAlive : bool
     ; nextHarassment : int
+    ; respawnedBeforeSurface : bool
     }
 
 type endgame =
