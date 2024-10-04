@@ -5,6 +5,7 @@
 - Made dark color improvements
 - Made currency consistent
 - Made rocks throwable
+- 5.3 support
 - Made finale slightly more exciting
 
 ## v0.1.1 (2024-09-23)
