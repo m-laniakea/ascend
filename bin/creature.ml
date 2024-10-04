@@ -32,10 +32,10 @@ type attributes =
     | MoveGrid
     | NoHands
     | Mindless
-    | Resist of Hit.effect
+    | Resist of Hit.effect_t
     | SpawnGroup of sizeGroupSpawn
     | Telepathic
-    | Vulnerable of Hit.effect
+    | Vulnerable of Hit.effect_t
 
 type info =
     { acBase : int

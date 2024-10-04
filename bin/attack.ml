@@ -161,22 +161,22 @@ let getReflectedDir p (dir : P.dir) state =
     | false, true -> dirReflectRow (* horizontal reflection *)
     | true, true -> R.item [ dirReflectCol; dirReflectRow ] (* exposed corner *)
 
-let getDamageGrave c effect =
-    if not (Cr.isVulnerable c effect) then 0 else
+let getDamageGrave c effect_t =
+    if not (Cr.isVulnerable c effect_t) then 0 else
 
     let hpMax = c.hpMax in
     match c.hp with
     | hp when hp <= hpMax / 4 -> hp
     | hp -> hp / 2 + 1
 
-let castRay (effect : Hit.effect) from dir range roll (state : S.t) =
+let castRay (effect_t : Hit.effect_t) from dir range roll (state : S.t) =
     let reductionRangeOnHit = 3 in
     let damage =
         R.roll roll
     in
     let sourceIsPlayer = from = state.player.pos in
 
-    let msgs = Hit.getMsgsEffect effect in
+    let msgs = Hit.getMsgsEffect effect_t in
     let rec doRay from pc dir state range =
         if range <= 0 then state else
         let pn = P.step pc dir in
@@ -189,7 +189,7 @@ let castRay (effect : Hit.effect) from dir range roll (state : S.t) =
             let canSee = Sight.playerCanSee state pn in
             let m = SL.map state in match Matrix.get m pn with
             | { occupant = Some Boulder; _ } as t ->
-                ( match effect with
+                ( match effect_t with
                 | Sonic ->
                     let rocks = Item.rock (6 + R.rn 1 6) in
                     let t = { t with occupant = None; items = rocks::t.items } in
@@ -205,12 +205,12 @@ let castRay (effect : Hit.effect) from dir range roll (state : S.t) =
                     state, false, range
                 )
             | { occupant = Some Creature c; _ } ->
-                ( match Cr.isResistant c effect with
+                ( match Cr.isResistant c effect_t with
                 | true ->
                     S.msgAddSeen state ~canSee (C.sf "The %s has no effect on the %s." msgs.msgCause c.info.name);
                     state, false, range - reductionRangeOnHit
                 | false ->
-                    let damage = match getDamageGrave c effect with
+                    let damage = match getDamageGrave c effect_t with
                         | dg when 0 = dg ->
                             S.msgAddSeen state ~canSee (C.sf "The %s %s the %s." msgs.msgCause msgs.msgEffect c.info.name);
                             damage
@@ -226,7 +226,7 @@ let castRay (effect : Hit.effect) from dir range roll (state : S.t) =
                 UpdatePlayer.addHp (-damage) state, false, range - reductionRangeOnHit
                 (* ^TODO resistances *)
 
-            | { occupant = None; t = Door (Closed, ori); _ } when effect = Fire ->
+            | { occupant = None; t = Door (Closed, ori); _ } when effect_t = Fire ->
                 (* TODO Other effects can harm doors as well *)
                 ( match R.oneIn 3 with
                 | true ->
@@ -247,7 +247,7 @@ let castRay (effect : Hit.effect) from dir range roll (state : S.t) =
         in
 
         if shouldReflect || range <= 1 then
-            let _ = match Hit.getImageForAnimation effect dir with
+            let _ = match Hit.getImageForAnimation effect_t dir with
             | None -> ()
             | Some image ->
                 let animation =

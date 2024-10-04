@@ -609,7 +609,7 @@ let doCreaturePassive c state =
             S.msgAdd state (C.sf "It %s. The %s %s you." msgs.msgHit msgs.msgCause msgs.msgEffect);
             let effectSize = R.roll { rolls = c.level + 1; sides = pa.maxRoll } in
 
-            match pa.effect with
+            match pa.effect_t with
             (* ^TODO centralize *)
             | Paralyze -> UpdatePlayer.paralyze effectSize state
             | _ ->
