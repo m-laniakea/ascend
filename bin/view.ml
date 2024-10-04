@@ -15,7 +15,7 @@ module SL = StateLevels
 
 let term = Term.create () (* TODO shouldn't be created a second time here *)
 
-let onBlack style s = I.string A.(bg black ++ style) s
+let onBlack style s = I.string A.(Config.styleBg ++ style) s
 
 let imageOfItem ?(styles=A.(st bold)) (i : Item.t) =
     let color, symbol = match i.t with
@@ -63,7 +63,7 @@ let imageOfTile (state : S.t) _ p = function
         let color = if playerNotBlind && (SL.isLit p state || Sight.playerCanSee state p) then
                 A.white
             else
-                A.lightblack
+                if "#" = c then A.lightblack else A.black
         in
         onBlack A.(fg color) c
 
@@ -75,11 +75,40 @@ let applyAnimatedTiles animationLayer m =
         )
         m
 
+let descriptionOfTile (state : S.t) tile =
+    match tile with
+    | Map.{ t = StairsDown; _ } -> "Stairs down."
+    | Map.{ t = StairsUp; _ } -> "Stairs up."
+
+    | { occupant = Some o; _ } ->
+        ( match o with
+        | Boulder -> "A boulder."
+        | Creature c ->
+            let levelObserver = state.player.level in
+            C.sf "A creature giving you %s." (Creature.getFeeling levelObserver c)
+        | Player -> "You."
+        )
+
+    | { items = item::[]; _ } when Item.isGold item -> "Some gold."
+    | { items = _::[]; _ } -> "Some item."
+    | { items = _::_; _ } -> "A pile of items."
+
+    | { t = Door _; _ } -> "A door."
+    | _ -> ""
+
 let imageCreate ?(animationLayer=[]) (state : S.t) =
     let open Notty.Infix in
     let sp = state.player in
     let header (state : S.t) =
-        Format.sprintf "HP: %i/%i | Depth: %i | AC: %i | XP: %i | Level: %i" sp.hp sp.hpMax state.levels.indexLevel (StatePlayer.ac state) sp.xp sp.level
+        let dRegen =
+            let regen = sp.regen in
+            let points = regen.points in
+            if points > 0 then
+                C.sf " | Regen %i/%i" points Config.triggerRegen
+            else
+                ""
+        in
+        C.sf "HP: %i/%i | Depth: %i | AC: %i | XP: %i | Level: %i%s" sp.hp sp.hpMax state.levels.indexLevel (StatePlayer.ac state) sp.xp sp.level dRegen
         |> I.string A.empty
     in
     let footer (state : S.t) =
@@ -102,7 +131,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         [ ""
         ; "You are dead."
         ; C.sf "You died on level %i." state.levels.indexLevel
-        ; C.sf "You were carrying %i gold and %i zorkmids worth of items." gold valItems
+        ; C.sf "You were carrying %i gold and %i gold worth of items." gold valItems
         ; "Farewell."
         ]
         |> L.map (I.string A.(st bold))
@@ -160,7 +189,7 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         ; "Goodbye, hero!"
         ; ""
         ; C.sf "You entered the Dungeons %i turn%s ago." state.turns (C.plural state.turns)
-        ; C.sf "You are carrying %i gold and %i zorkmids worth of items." gold valItems
+        ; C.sf "You are carrying %i gold and %i gold worth of items." gold valItems
         ; C.sf "You are level %i with %i XP" sp.level sp.xp
         ; C.sf "You ascended %s." statsKilled
         ; ""
@@ -174,7 +203,13 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
         |> I.vcat
     in
     let messages (state : S.t) =
-        Queue.fold (fun i m -> i <-> (I.string A.empty m)) I.empty state.messages
+        let msgs = Queue.to_seq state.messages in
+        let msgs =
+            List.of_seq msgs
+            |> List.rev
+            |> C.listTake Config.logPlaySizeMax
+        in
+        List.fold_left (fun i m -> i <-> (I.string A.empty m)) (I.string A.empty "") msgs
     in
     let imageOfSelectionItem (si : C.selectionItem) =
         let c = match si.howMany with
@@ -190,10 +225,34 @@ let imageCreate ?(animationLayer=[]) (state : S.t) =
             header state
             <-> messages state
             <-> messageDeath state
-        | DisplayText s ->
-            s @ [""; ""; "Press <space> to continue..."]
+        | DisplayText dt ->
+            let scrollMax = List.length dt.text - Config.heightScreenMain |> max 0 in
+            let beforeText = if dt.scroll > 0 then ["<^ More text above. Scroll with j/k.>"] else [] in
+            let afterText = if dt.scroll = scrollMax then
+                    [""; "Press <space> to continue..."]
+                else
+                    [""; "<More text below. Scroll with j/k.>"]
+            in
+            let text = dt.text |> C.listDrop dt.scroll |> C.listTake Config.heightScreenMain in
+            beforeText @ text @ afterText
             |> L.map (I.string A.empty)
             |> I.vcat
+
+        | Farview fw ->
+            let m = S.getKnowledgeCurrentMap state in
+            let tile = Matrix.get m fw in
+            header state
+            <->
+            (
+                let mView =
+                    m
+                    |> Matrix.mapI (imageOfTile state)
+                    |> Matrix.set (I.string A.(bg (gray 12)) " ") fw
+                in
+                I.tabulate Map.size.cols Map.size.rows (fun c r -> Matrix.get mView { row = r; col = c })
+            )
+            <-> footer state
+            <|> I.string A.empty (descriptionOfTile state tile)
 
         | Playing ->
             header state

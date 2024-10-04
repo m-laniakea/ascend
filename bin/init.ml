@@ -49,6 +49,7 @@ let state =
         ; weaponWielded = None
         ; inventory = []
         ; inventoryWeightMax = 500
+        ; regen = { points = 0; active = false }
         ; knowledgeLevels = []
         ; timesKilled = 0
         ; turnHealthWarned = 0
@@ -61,7 +62,7 @@ let state =
         ; player
         ; endgame = BeforeEndgame
         ; messages = Queue.create ()
-        ; mode = DisplayText intro
+        ; mode = S.displayText intro
         ; turns = 0
         }
     in

@@ -152,4 +152,4 @@ let getImageForAnimation t (dir : Position.dir) =
     | _ -> assert false
     in
 
-    Option.map (fun color -> N.I.string A.(bg black ++ st bold ++ color) c) mColor
+    Option.map (fun color -> N.I.string A.(Config.styleBg ++ st bold ++ color) c) mColor

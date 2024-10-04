@@ -1,5 +1,6 @@
 open Matrix
 
+module C = Common
 module P = Position
 module R = Random_
 module S = State
@@ -29,6 +30,8 @@ let help =
     ; "(,) pickup - see select"
     ; "(<) go up (while on stairs)"
     ; "(>) go down (while on stairs)"
+    ; "(;) farview - see Farview"
+    ; "(L) Open log"
     ; "(?) open this menu"
 
     ; " "
@@ -39,6 +42,12 @@ let help =
     ; "<escape> abort/exit"
     ; "<space> confirm"
     ; "(,) select all/none"
+
+    ; " "
+
+    ; "Farview:"
+    ; "Not sure what something is? Explore the map with j/k/h/l"
+    ; "Capital letters move the cursor further"
     ]
 
 let playerGoUp (state : S.t) =
@@ -90,11 +99,23 @@ let modeVictory event state = match event with
     | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> None
     | _ -> Some state
 
-let modeDisplayText event (state : S.t) = match event with
+let modeDisplayText (dt : S.displayText) event (state : S.t) =
+    let scrollMax = List.length dt.text - Config.heightScreenMain |> max 0 in
+
+    match event with
     | `Key (`ASCII 'q', _)
-    | `Key (`Escape, _)
-    | `Key (`ASCII ' ', _) ->
+    | `Key (`Escape, _) ->
         Some { state with mode = Playing }
+
+    | `Key (`ASCII ' ', _) when dt.scroll = scrollMax ->
+        Some { state with mode = Playing }
+
+    | `Key (`ASCII c, _) when c = 'j' || c = 'k' ->
+        let inc = match c with | 'j' -> 1 | 'k' -> -1 | _ -> assert false in
+        let scroll = dt.scroll + inc |> min scrollMax |> max 0 in
+
+        let mode = S.DisplayText { dt with scroll } in
+        Some { state with mode }
 
     | _ -> Some state
 
@@ -124,21 +145,60 @@ let modePlaying event state =
     | `Key (`ASCII 'w', _) -> Select.wield state
     | `Key (`ASCII 'z', _) -> Select.zap state
 
+    | `Key (`ASCII '.', _) -> Player.action Regen state
+
     | `Key (`ASCII '<', _) -> Some (playerGoUp state)
     | `Key (`ASCII '>', _) -> Some (playerGoDown state)
 
-    | `Key (`ASCII '?', _) -> Some { state with mode = DisplayText help }
+    | `Key (`ASCII '?', _) -> Some { state with mode = State.displayText help }
+    | `Key (`ASCII ';', _) ->
+        let pos = state.player.pos in
+        let mode = S.Farview pos in
+        Some { state with mode }
+
+    | `Key (`ASCII 'L', _) ->
+        let log =
+            Queue.fold
+            (fun acc l -> l::acc)
+            []
+            state.messages
+        in
+        Some { state with mode = State.displayText log }
 
     | _ -> Some state
 
 let modeSelecting event state s = match event with
     | `Key (`Escape, _) -> Some S.{ state with mode = Playing }
-    | `Key (`ASCII k, _)  -> Select.handle k s state
+    | `Key (`ASCII k, _) -> Select.handle k s state
+    | _ -> Some state
+
+let modeFarview (fw : Position.t) event state = match event with
+    | `Key (`Escape, _) | `Key (`ASCII 'q', _) -> Some S.{ state with mode = Playing }
+    | `Key (`ASCII k, _) ->
+        let incRow = match k with | 'k' -> -1 | 'j' -> 1 | 'K' -> -5 | 'J' -> 5 | _ -> 0 in
+        let incCol = match k with | 'h' -> -1 | 'l' -> 1 | 'H' -> -5 | 'L' -> 5 | _ -> 0 in
+
+        let maxRow = Map.roomAll.posSE.row in
+        let maxCol = Map.roomAll.posSE.col in
+
+        let row = fw.row + incRow |> C.clamp ~vMin:0 ~vMax:maxRow in
+        let col = fw.col + incCol |> C.clamp ~vMin:0 ~vMax:maxCol in
+
+        let mode =
+            S.Farview
+            { row
+            ; col
+            }
+        in
+
+        Some { state with mode }
+
     | _ -> Some state
 
 let exec event (state : State.t) = match (state.mode : State.mode) with
     | Dead -> modeDead event state
-    | DisplayText _ -> modeDisplayText event state
+    | DisplayText dt -> modeDisplayText dt event state
+    | Farview fw -> modeFarview fw event state
     | Playing -> modePlaying event state
     | Selecting s -> modeSelecting event state s
     | Victory -> modeVictory event state

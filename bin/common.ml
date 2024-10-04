@@ -8,6 +8,8 @@ let sf = Format.sprintf
 
 let id a = a
 
+let clamp ~vMin ~vMax v = v |> max vMin |> min vMax
+
 let listMake n v = List.init n (fun _ -> v)
 
 let partitionI f l =
@@ -15,6 +17,7 @@ let partitionI f l =
     |> L.partition_map (fun (i, v) -> if f i v then Left v else Right v)
 
 let listTake n = L.filteri (fun i _ -> i < n)
+let listDrop n = L.filteri (fun i _ -> i >= n)
 
 let listSet i v =
     List.mapi (fun ci ov -> if ci <> i then ov else v)

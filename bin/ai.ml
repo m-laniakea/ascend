@@ -643,6 +643,18 @@ let moveFollowers (stateOld : S.t) (state : S.t) =
     SL.setIndexLevel state.levels.indexLevel state'
     |> placeCreatures followers ~preferNear:(Near state.player.pos) ~room:None
 
+let respawnGnilsog (es : S.stateEndgame) nearPlayer state =
+    (if es.timesGnilsogSlain <= 1 then
+        let _ = S.msgAdd state "A voice booms out..." in
+        S.msgAdd state "So thou thought thou couldst kill me, fool."
+    else
+        S.msgAdd state "Gnilsog cackles amusedly."
+    );
+    let state = placeCreatures [ Cr.mkGnilsog es.timesGnilsogSlain ] ~preferNear:nearPlayer ~room:None state in
+
+    let endgame = S.Endgame { es with gnilsogAlive = true } in
+    { state with endgame }
+
 let maybeHarassPlayer (state : S.t) =
     match state.endgame with
     | BeforeEndgame -> state
@@ -650,6 +662,18 @@ let maybeHarassPlayer (state : S.t) =
         ( match es.gnilsogAlive with
         | true -> state
         | false ->
+            let nearPlayer = Near state.player.pos in
+
+            if not es.respawnedBeforeSurface && 0 = state.levels.indexLevel then
+                let es =
+                    { es with nextHarassment = UpdateCreature.getNextHarassment state
+                    ; respawnedBeforeSurface = true
+                    }
+                in
+                let endgame = S.Endgame es in
+                let state = { state with endgame } in
+                respawnGnilsog es nearPlayer state
+            else
             if state.turns < es.nextHarassment then state else
 
             let endgame = S.Endgame { es with nextHarassment = UpdateCreature.getNextHarassment state } in
@@ -671,16 +695,7 @@ let maybeHarassPlayer (state : S.t) =
             | 3 | 4 ->
                 C.repeat (R.rn 1 3) (spawnCreatures ~preferNear:nearPlayer ~room:None) state
             | 5 ->
-                (if es.timesGnilsogSlain <= 1 then
-                    let _ = S.msgAdd state "A voice booms out..." in
-                    S.msgAdd state "So thou thought thou couldst kill me, fool."
-                else
-                    S.msgAdd state "Gnilsog cackles amusedly."
-                );
-                let state = placeCreatures [ Cr.mkGnilsog es.timesGnilsogSlain ] ~preferNear:nearPlayer ~room:None state in
-
-                let endgame = S.Endgame { es with gnilsogAlive = true } in
-                { state with endgame }
+                respawnGnilsog es nearPlayer state
 
             | _ -> assert false
 

@@ -18,6 +18,11 @@ type levels =
     ; hasGarden : bool
     }
 
+type regen =
+    { points : int
+    ; active : bool
+    }
+
 type player =
     { attributes : Creature.attributes list
     ; pos : Position.t
@@ -30,6 +35,7 @@ type player =
     ; weaponWielded : Item.t option
     ; inventory : Item.t list
     ; inventoryWeightMax : int
+    ; regen : regen
     ; status : C.status list
     ; timesKilled : int
     ; knowledgeLevels : level list
@@ -61,9 +67,15 @@ type selection =
     | SelectDir of selectDir
     | SelectItems of selectItems
 
+type displayText =
+    { scroll : int
+    ; text : string list
+    }
+
 type mode =
     | Dead
-    | DisplayText of string list
+    | DisplayText of displayText
+    | Farview of Position.t
     | Playing
     | Selecting of selection
     | Victory
@@ -72,6 +84,7 @@ type stateEndgame =
     { timesGnilsogSlain : int
     ; gnilsogAlive : bool
     ; nextHarassment : int
+    ; respawnedBeforeSurface : bool
     }
 
 type endgame =
@@ -85,6 +98,12 @@ type t =
     ; messages : string Queue.t
     ; mode : mode
     ; turns : int
+    }
+
+let displayText text =
+    DisplayText
+    { scroll = 0
+    ; text
     }
 
 let msgAdd state s = Queue.push s state.messages

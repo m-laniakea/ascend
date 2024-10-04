@@ -715,3 +715,18 @@ let canOpenDoor c = not (hasAttribute c NoHands)
 let xpOnKill c = (c.level * c.level) + 1
 
 let getAc c = c.info.acBase (* TODO current AC *)
+
+let getFeeling levelObserver c =
+    let scariness = (c.info.difficulty - levelObserver) / 2 in
+
+    match scariness with
+    | _ when isPet c -> "confidence"
+    | _ when not (isHostile c) -> "tranquility"
+
+    | -1 -> "little concern"
+    | _ when scariness < 0 -> "no concern"
+    | 0 -> "concern"
+    | 1 -> "anxiety"
+    | 2 -> "disquiet"
+    | 3 -> "alarm"
+    | _ -> "dread"

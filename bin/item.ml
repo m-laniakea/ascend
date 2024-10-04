@@ -241,7 +241,7 @@ let infoRunedBroadsword =
     { name = "runed broadsword"
     ; color = A.white
     ; damage = { rolls = 2; sides = 6 }
-    ; price = 10
+    ; price = 226
     ; freqRel = 1
     ; stackable = false
     ; weight = 70
@@ -368,13 +368,13 @@ let isComestible item = match item.t with
 
 let isThrowable item = match item.t with
     | Comestible _
+    | Rock
     | Weapon _
     -> true
     | Container _
     | Corpse _
     | Gold
     | Potion _
-    | Rock
     | Scroll _
     | Wand _
     -> false

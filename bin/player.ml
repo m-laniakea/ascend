@@ -10,7 +10,6 @@ module S = State
 module SL = StateLevels
 module SP = StatePlayer
 
-let itemsDisplayedMax = 5
 let goldMax = Item.getPriceTrade Item.scepterOfYorel
 
 type fDir = P.t -> P.t
@@ -24,6 +23,7 @@ type actions =
     | Pickup of C.selectionItem list
     | Quaff of C.selectionItem
     | Read of C.selectionItem
+    | Regen
     | Search
     | Throw of C.selectionItem * P.dir
     | Wield of C.selectionItem
@@ -216,16 +216,17 @@ let rec move mf (state : S.t) =
         in
         let _ = if Map.isStairs tNew then S.msgAdd state "There are stairs here." in
         ( if not (List.is_empty tNew.items) then
-            if List.length tNew.items > itemsDisplayedMax then
+            if List.length tNew.items > Config.itemsDisplayedMax then
                 S.msgAdd state "Here are many items."
             else
-                let _ = S.msgAdd state "Items here:" in
-                List.iter
+                let _ = List.iter
                     ( fun i ->
-                        let price = if SP.isInShop state' then C.sf "(%i zorkmids)" (Item.getPriceShop i) else "" in
+                        let price = if SP.isInShop state' then C.sf "(%i gold)" (Item.getPriceShop i) else "" in
                         S.msgAdd state (C.sf "%s %s" (Item.nameDisplay i) price)
                     )
                     tNew.items
+                in
+                S.msgAdd state "Items here:"
         else
             ()
         );
@@ -345,6 +346,10 @@ let checkHp (state : S.t) =
 
 let read (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
+    if Cr.isBlind sp.attributes then
+        let _ = S.msgAdd state "You can't read while blind!" in
+        state
+    else
     let item = List.nth sp.inventory si.iIndex in
     match item.t with
         | Comestible _ -> S.msgAdd state "What a silly thing to read!"; state
@@ -387,6 +392,22 @@ let read (si : C.selectionItem) (state : S.t) =
                     let pNew = R.item spawnPositions in
                     let mf = P.diff pp pNew |> P.add in
                     move mf state
+
+let regen (state : S.t) =
+    let sp = state.player in
+    let active = true in
+    let points = sp.regen.points + 1 in
+
+    let regen =
+        S.
+        { points
+        ; active
+        }
+    in
+
+    let player = { sp with regen } in
+
+    { state with player }
 
 let wield (si : C.selectionItem) (state : S.t) =
     let sp = state.player in
@@ -509,7 +530,7 @@ let drop sl (state : S.t) =
                 S.msgAdd state "Oh Croesus, thank you for your donation!";
                 iRemain, iDropped, sp.gold
             | value ->
-                S.msgAdd state (C.sf "Thank you! Here's %i zorkmids for you." value);
+                S.msgAdd state (C.sf "Thank you! Here's %i gold for you." value);
                 iRemain, iDropped, sp.gold + value
             )
         | false ->
@@ -524,6 +545,22 @@ let drop sl (state : S.t) =
 let weightItems items =
     L.map Item.weight items
     |> L.fold_left (+) 0
+
+let logItemsPickedUp items state =
+    let getName i =
+        let price = if SP.isInShop state then C.sf " (%i gold)" (Item.getPriceShop i) else "" in
+        C.sf "%s%s" (Item.nameDisplay i) price
+    in
+    match items with
+    | [] -> ()
+    | _ when List.length items > Config.itemsDisplayedMax ->
+        S.msgAdd state "You pick up many items."
+    | item::[] ->
+        C.sf "You pick up %s." (getName item) |> S.msgAdd state
+
+    | _ ->
+        let _ = List.iter (fun i -> getName i |> S.msgAdd state) items in
+        S.msgAdd state "You pick up these items:"
 
 let pickup sl (state : S.t) =
     let sp = state.player in
@@ -558,6 +595,7 @@ let pickup sl (state : S.t) =
                 let _ = S.msgAdd state "You can't afford that!" in
                 state
             else
+                let _ = logItemsPickedUp iTaken state in
                 let gold = sp.gold - itemsValue in
                 let player = { sp with inventory = Items.concat iTaken sp.inventory; gold } in
                 let m' = Matrix.set { t with items = iRemain } sp.pos m in
@@ -565,6 +603,8 @@ let pickup sl (state : S.t) =
 
     else
 
+    let _ = if totalGoldTaken > 0 then S.msgAdd state (C.sf "You pick up %i gold." totalGoldTaken) in
+    let _ = logItemsPickedUp iTaken state in
     let gold = sp.gold + totalGoldTaken in
     let player = { sp with inventory = Items.concat iTaken sp.inventory ; gold } in
     let m' = Matrix.set { t with items = iRemain } sp.pos m in
@@ -597,10 +637,34 @@ let moveToStairs ~dir (state : S.t) =
     { (SL.setMap m' state) with player;  }
 
 let maybeAddHp (state : S.t) =
-    let interval = 15 / state.player.level |> max 3 in
+    let interval = 15 in
     match state with
     | state when state.mode <> Playing -> state
     | state -> UpdatePlayer.addHp (if R.oneIn interval then 1 else 0) state
+
+let handleRegen (state : S.t) =
+    let active = false in
+    let sp = state.player in
+
+    let points, state = match sp.regen.points with
+        | points when points >= Config.triggerRegen ->
+            let toAdd = sp.hpMax * 6 / 10 in
+            let state = UpdatePlayer.addHp toAdd state in
+
+            S.msgAdd state "You feel regenerated.";
+
+            let points = 0 in
+            points, state
+
+        | _ ->
+            let points = if sp.regen.active then sp.regen.points else 0 in
+            points, state
+
+    in
+    let regen = S.{ active; points } in
+    let player = S.{ state.player with regen } in
+
+    { state with player }
 
 let rec handleParalysis (state : S.t) = match state with
     | _ when state.mode <> Playing -> Some state
@@ -638,12 +702,20 @@ and afterAction state =
     |> S.incTurns
     |> UpdatePlayer.knowledgeCreaturesDelete
     |> UpdatePlayer.knowledgeMap
+    |> handleRegen
     |> checkHp
     |> maybeAddHp
     |> handleParalysis
 
+let rec logTidy (state : S.t) =
+    let log = state.messages in
+    if Queue.length log <= Config.logSizeMax then () else
+
+    let _ = Queue.take log in
+    logTidy state
+
 let action a (state : S.t) =
-    Queue.clear state.messages;
+    logTidy state;
     ( match a with
     | Absorb -> absorb state
     | BlindUnblind -> blindUnblind state
@@ -653,6 +725,7 @@ let action a (state : S.t) =
     | Pickup sl -> pickup sl state
     | Quaff si -> quaff si state
     | Read si -> read si state
+    | Regen -> regen state
     | Search -> search state
     | Throw (si, dir) -> throw si dir state
     | Wield si -> wield si state
