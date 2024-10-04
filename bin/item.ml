@@ -241,7 +241,7 @@ let infoRunedBroadsword =
     { name = "runed broadsword"
     ; color = A.white
     ; damage = { rolls = 2; sides = 6 }
-    ; price = 10
+    ; price = 226
     ; freqRel = 1
     ; stackable = false
     ; weight = 70
