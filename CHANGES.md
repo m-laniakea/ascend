@@ -1,4 +1,4 @@
-## v0.1.2-edit-0 (2024-10-08)
+## v0.1.2-1 (2024-10-08)
 - Added 'regen' to help menu
 - improved scariness formula
 
