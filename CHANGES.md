@@ -1,3 +1,7 @@
+## v0.1.2-edit-0 (2024-10-08)
+- Added 'regen' to help menu
+- improved scariness formula
+
 ## v0.1.2 (2024-10-03)
 - Added advanced regeneration
 - Added Farview mode
