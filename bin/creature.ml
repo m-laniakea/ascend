@@ -717,14 +717,18 @@ let xpOnKill c = (c.level * c.level) + 1
 let getAc c = c.info.acBase (* TODO current AC *)
 
 let getFeeling levelObserver c =
-    let scariness = (c.info.difficulty - levelObserver) / 2 in
+    let scariness = (c.info.difficulty - (levelObserver / 2)) / 2 in
+    let approachability = (levelObserver - c.info.difficulty) / 2 in
 
     match scariness with
     | _ when isPet c -> "confidence"
     | _ when not (isHostile c) -> "tranquility"
 
-    | -1 -> "little concern"
-    | _ when scariness < 0 -> "no concern"
+    | _ when approachability > 0 ->
+        ( match approachability with
+        | 1 -> "little concern"
+        | _ -> "no concern"
+        )
     | 0 -> "concern"
     | 1 -> "anxiety"
     | 2 -> "disquiet"
