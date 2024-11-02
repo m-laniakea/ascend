@@ -42,6 +42,7 @@ type terrain =
     | Hallway of hallway
     | StairsDown
     | StairsUp
+    (* ^TODO Better Stairs of Up/Down/[Location] *)
     | Stone
     | Unseen
     | Wall of orientation
