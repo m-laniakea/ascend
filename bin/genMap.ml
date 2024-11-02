@@ -274,7 +274,7 @@ let rec terrainAddStairs ~dir rooms m =
         | rooms ->
             let r = R.item rooms in
             let p = Map.randomRoomPos r in
-            if Matrix.get m p |> Map.isStairs then
+            if Matrix.get m p |> Fun.compose Option.is_some Map.toStairs then
                 terrainAddStairs ~dir rooms m
             else
                 Matrix.set stairs p m

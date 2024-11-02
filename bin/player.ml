@@ -214,7 +214,14 @@ let rec move mf (state : S.t) =
             Matrix.set { tile with occupant = tNew.occupant } p m
             |> Matrix.set { tNew with occupant = Some Player } pn
         in
-        let _ = if Map.isStairs tNew then S.msgAdd state "There are stairs here." in
+        let _ =
+            match Map.toStairs tNew with
+            | Some dir ->
+                C.sf "There are stairs here leading %s."
+                (match dir with `Up -> "up" | `Down -> "down")
+                |> S.msgAdd state
+          | None -> ()
+        in
         ( if not (List.is_empty tNew.items) then
             if List.length tNew.items > Config.itemsDisplayedMax then
                 S.msgAdd state "Here are many items."

@@ -42,6 +42,7 @@ type terrain =
     | Hallway of hallway
     | StairsDown
     | StairsUp
+    (* ^TODO Better Stairs of Up/Down/[Location] *)
     | Stone
     | Unseen
     | Wall of orientation
@@ -110,8 +111,11 @@ let isTerrainHidden t = match t.t with
 let isHallway t =
     t.t = Hallway HallHidden || t.t = Hallway HallRegular
 
-let isStairs t =
-    t.t = StairsUp || t.t = StairsDown
+let toStairs t =
+  match t.t with
+  | StairsUp -> Some `Up
+  | StairsDown -> Some `Down
+  | _ -> None
 
 let isInRoom room (pos : P.t) =
     pos.row <= room.posSE.row
@@ -159,7 +163,8 @@ let getRoomTiles room m =
     getRoomPositions room
     |> L.map (fun p -> M.get m p)
 
-let roomHasStairs room state = L.exists isStairs (getRoomTiles room state)
+let roomHasStairs room state =
+  L.exists (fun t -> Option.is_some (toStairs t)) (getRoomTiles room state)
 
 let roomAll =
     { posNW = {row = 0; col = 0}
