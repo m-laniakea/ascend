@@ -215,11 +215,13 @@ let rec move mf (state : S.t) =
             |> Matrix.set { tNew with occupant = Some Player } pn
         in
         let _ =
-          match Map.toStairs tNew with
-          | Some dir ->
-            Printf.ksprintf (S.msgAdd state) "There are stairs here leading %s."
-              (match dir with `Up -> "up" | `Down -> "down")
-          | None -> () in
+            match Map.toStairs tNew with
+            | Some dir ->
+                C.sf "There are stairs here leading %s."
+                (match dir with `Up -> "up" | `Down -> "down")
+                |> S.msgAdd state
+          | None -> ()
+        in
         ( if not (List.is_empty tNew.items) then
             if List.length tNew.items > Config.itemsDisplayedMax then
                 S.msgAdd state "Here are many items."
