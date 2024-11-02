@@ -110,7 +110,7 @@ let isTerrainHidden t = match t.t with
 let isHallway t =
     t.t = Hallway HallHidden || t.t = Hallway HallRegular
 
-let isStairs t =
+let toStairs t =
   match t.t with
   | StairsUp -> Some `Up
   | StairsDown -> Some `Down
@@ -163,7 +163,7 @@ let getRoomTiles room m =
     |> L.map (fun p -> M.get m p)
 
 let roomHasStairs room state =
-  L.exists (fun t -> Option.is_some (isStairs t)) (getRoomTiles room state)
+  L.exists (fun t -> Option.is_some (toStairs t)) (getRoomTiles room state)
 
 let roomAll =
     { posNW = {row = 0; col = 0}

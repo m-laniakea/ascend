@@ -215,7 +215,7 @@ let rec move mf (state : S.t) =
             |> Matrix.set { tNew with occupant = Some Player } pn
         in
         let _ =
-          match Map.isStairs tNew with
+          match Map.toStairs tNew with
           | Some dir ->
             Printf.ksprintf (S.msgAdd state) "There are stairs here leading %s."
               (match dir with `Up -> "up" | `Down -> "down")
